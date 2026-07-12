@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -45,9 +46,61 @@ void operator delete[](void* memory) noexcept { std::free(memory); }
 void operator delete(void* memory, std::size_t) noexcept { std::free(memory); }
 void operator delete[](void* memory, std::size_t) noexcept { std::free(memory); }
 
+void* operator new(std::size_t size, const std::nothrow_t&) noexcept
+{
+    noteAllocation();
+    return std::malloc(size);
+}
+
+void* operator new[](std::size_t size, const std::nothrow_t&) noexcept
+{
+    return ::operator new(size, std::nothrow);
+}
+
+void* operator new(std::size_t size, std::align_val_t alignment)
+{
+    noteAllocation();
+    void* memory = nullptr;
+    if (posix_memalign(&memory, static_cast<std::size_t>(alignment), size) == 0)
+        return memory;
+    throw std::bad_alloc();
+}
+
+void* operator new[](std::size_t size, std::align_val_t alignment)
+{
+    return ::operator new(size, alignment);
+}
+
+void* operator new(std::size_t size,
+                   std::align_val_t alignment,
+                   const std::nothrow_t&) noexcept
+{
+    noteAllocation();
+    void* memory = nullptr;
+    return posix_memalign(&memory, static_cast<std::size_t>(alignment), size) == 0
+        ? memory
+        : nullptr;
+}
+
+void* operator new[](std::size_t size,
+                     std::align_val_t alignment,
+                     const std::nothrow_t&) noexcept
+{
+    return ::operator new(size, alignment, std::nothrow);
+}
+
+void operator delete(void* memory, std::align_val_t) noexcept { std::free(memory); }
+void operator delete[](void* memory, std::align_val_t) noexcept { std::free(memory); }
+void operator delete(void* memory, std::size_t, std::align_val_t) noexcept { std::free(memory); }
+void operator delete[](void* memory, std::size_t, std::align_val_t) noexcept
+{
+    std::free(memory);
+}
+
 namespace
 {
 using amanita::dsp::FDNReverb;
+using amanita::dsp::ReverbMode;
 using amanita::dsp::ReverbParameters;
 
 [[nodiscard]] bool isPrime(int value)
@@ -64,6 +117,37 @@ void require(bool condition, const std::string& message)
 {
     if (!condition)
         throw std::runtime_error(message);
+}
+
+struct StereoRender
+{
+    std::vector<float> left;
+    std::vector<float> right;
+};
+
+[[nodiscard]] StereoRender renderImpulse(const ReverbParameters& parameters,
+                                         double sampleRate,
+                                         int sampleCount,
+                                         int warmupSamples = 0)
+{
+    FDNReverb reverb;
+    reverb.setParameters(parameters);
+    reverb.prepare(sampleRate, 512);
+
+    for (auto sample = 0; sample < warmupSamples; ++sample)
+    {
+        auto left = 0.0f;
+        auto right = 0.0f;
+        reverb.processSample(left, right);
+    }
+
+    StereoRender render {
+        std::vector<float>(static_cast<std::size_t>(sampleCount), 0.0f),
+        std::vector<float>(static_cast<std::size_t>(sampleCount), 0.0f)
+    };
+    render.left[0] = 1.0f;
+    reverb.process(render.left.data(), render.right.data(), sampleCount);
+    return render;
 }
 
 void testFeedbackMatrix()
@@ -343,15 +427,391 @@ void testParameterJumpsAndBlockSegmentation()
     }
 }
 
+void testBloomSampleRatesAndStability()
+{
+    constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
+    FDNReverb reverb;
+
+    for (const auto sampleRate : sampleRates)
+    {
+        ReverbParameters parameters;
+        parameters.mode = ReverbMode::bloom;
+        parameters.mix = 1.0f;
+        parameters.decaySeconds = 30.0f;
+        parameters.size = 2.0f;
+        parameters.preDelayMs = 0.0f;
+        parameters.lowCutHz = 20.0f;
+        parameters.highDampingHz = 20000.0f;
+        parameters.modulation = 1.0f;
+        parameters.width = 2.0f;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 512);
+
+        std::uint32_t noiseState = 0x81f42a7du;
+        auto peak = 0.0f;
+        const auto excitationSamples = static_cast<int>(sampleRate * 0.5);
+        for (auto sample = 0; sample < excitationSamples; ++sample)
+        {
+            noiseState = noiseState * 1664525u + 1013904223u;
+            const auto noise = static_cast<float>(static_cast<std::int32_t>(noiseState))
+                             / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+            auto left = (sample == 0 ? 1.0f : 0.0f) + 0.01f * noise;
+            auto right = (sample == 0 ? -0.35f : 0.0f) - 0.007f * noise;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Bloom excitation produced NaN/Inf");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+        }
+
+        parameters.freeze = true;
+        reverb.setParameters(parameters);
+        double firstWindowEnergy = 0.0;
+        double lastWindowEnergy = 0.0;
+        const auto frozenSamples = static_cast<int>(sampleRate * 6.0);
+        for (auto sample = 0; sample < frozenSamples; ++sample)
+        {
+            auto left = 0.0f;
+            auto right = 0.0f;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Bloom Freeze produced NaN/Inf");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+            const auto energy = static_cast<double>(left) * left
+                              + static_cast<double>(right) * right;
+            if (sample >= static_cast<int>(sampleRate)
+                && sample < static_cast<int>(sampleRate * 2.0))
+                firstWindowEnergy += energy;
+            if (sample >= static_cast<int>(sampleRate * 5.0))
+                lastWindowEnergy += energy;
+        }
+
+        require(firstWindowEnergy > 1.0e-10, "Bloom Freeze tail became silent");
+        require(lastWindowEnergy <= firstWindowEnergy * 1.25 + 1.0e-12,
+                "Bloom Freeze feedback energy grows over time");
+        require(peak < 4.0f, "Bloom stress test exceeded safety range");
+    }
+
+    ReverbParameters invalid;
+    invalid.mode = static_cast<ReverbMode>(99);
+    reverb.setParameters(invalid);
+    require(reverb.getParameters().mode == ReverbMode::defaultMode,
+            "Unknown mode did not fall back to Default");
+}
+
+void testBloomBlockInvarianceAndModeSwitching()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto comparisonSamples = 48000;
+    ReverbParameters parameters;
+    parameters.mode = ReverbMode::bloom;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 6.0f;
+    parameters.preDelayMs = 11.0f;
+    parameters.modulation = 0.8f;
+
+    std::vector<float> singleLeft(comparisonSamples, 0.0f);
+    std::vector<float> singleRight(comparisonSamples, 0.0f);
+    std::vector<float> blockLeft(comparisonSamples, 0.0f);
+    std::vector<float> blockRight(comparisonSamples, 0.0f);
+    singleLeft[0] = blockLeft[0] = 1.0f;
+
+    FDNReverb singleSample;
+    FDNReverb blockBased;
+    singleSample.setParameters(parameters);
+    blockBased.setParameters(parameters);
+    singleSample.prepare(sampleRate, 1);
+    blockBased.prepare(sampleRate, 127);
+
+    for (auto sample = 0; sample < comparisonSamples; ++sample)
+        singleSample.process(singleLeft.data() + sample, singleRight.data() + sample, 1);
+
+    for (auto offset = 0; offset < comparisonSamples; offset += 127)
+    {
+        const auto blockSize = std::min(127, comparisonSamples - offset);
+        blockBased.process(blockLeft.data() + offset, blockRight.data() + offset, blockSize);
+    }
+
+    for (std::size_t sample = 0; sample < static_cast<std::size_t>(comparisonSamples); ++sample)
+    {
+        require(std::abs(singleLeft[sample] - blockLeft[sample]) <= 1.0e-7f
+                    && std::abs(singleRight[sample] - blockRight[sample]) <= 1.0e-7f,
+                "Bloom result depends on process block segmentation");
+    }
+
+    parameters.mode = ReverbMode::defaultMode;
+    parameters.mix = 0.7f;
+    parameters.preDelayMs = 0.0f;
+    FDNReverb control;
+    FDNReverb switched;
+    control.setParameters(parameters);
+    switched.setParameters(parameters);
+    control.prepare(sampleRate, 64);
+    switched.prepare(sampleRate, 64);
+
+    constexpr auto switchSample = 36000;
+    auto preSwitchPeak = 1.0e-3f;
+    auto previousResidualLeft = 0.0f;
+    auto previousResidualRight = 0.0f;
+    auto firstResidual = 0.0f;
+    auto maximumResidualDerivative = 0.0f;
+    for (auto sample = 0; sample < 72000; ++sample)
+    {
+        const auto input = 0.04f * std::sin(0.013f * static_cast<float>(sample))
+                         + (sample == 0 ? 0.8f : 0.0f);
+        auto controlLeft = input;
+        auto controlRight = -0.37f * input;
+        auto switchedLeft = controlLeft;
+        auto switchedRight = controlRight;
+
+        if (sample == switchSample)
+        {
+            parameters.mode = ReverbMode::bloom;
+            switched.setParameters(parameters);
+        }
+
+        control.processSample(controlLeft, controlRight);
+        switched.processSample(switchedLeft, switchedRight);
+
+        if (sample < switchSample)
+        {
+            require(std::bit_cast<std::uint32_t>(controlLeft)
+                        == std::bit_cast<std::uint32_t>(switchedLeft)
+                        && std::bit_cast<std::uint32_t>(controlRight)
+                        == std::bit_cast<std::uint32_t>(switchedRight),
+                    "Bloom differs before the mode switch");
+            if (sample >= switchSample - 1024)
+                preSwitchPeak = std::max(preSwitchPeak,
+                                         std::max(std::abs(controlLeft), std::abs(controlRight)));
+        }
+        else
+        {
+            const auto residualLeft = switchedLeft - controlLeft;
+            const auto residualRight = switchedRight - controlRight;
+            if (sample == switchSample)
+                firstResidual = std::max(std::abs(residualLeft), std::abs(residualRight));
+            if (sample < switchSample + static_cast<int>(sampleRate * 0.20))
+            {
+                maximumResidualDerivative = std::max({
+                    maximumResidualDerivative,
+                    std::abs(residualLeft - previousResidualLeft),
+                    std::abs(residualRight - previousResidualRight)
+                });
+            }
+            previousResidualLeft = residualLeft;
+            previousResidualRight = residualRight;
+        }
+    }
+
+    require(firstResidual <= std::max(1.0e-5f, 0.02f * preSwitchPeak),
+            "Default to Bloom switch has an immediate discontinuity");
+    require(maximumResidualDerivative <= std::max(2.0e-4f, 0.10f * preSwitchPeak),
+            "Default to Bloom morph changes too abruptly");
+
+    parameters.mode = ReverbMode::bloom;
+    FDNReverb bloomControl;
+    FDNReverb bloomToDefault;
+    bloomControl.setParameters(parameters);
+    bloomToDefault.setParameters(parameters);
+    bloomControl.prepare(sampleRate, 64);
+    bloomToDefault.prepare(sampleRate, 64);
+    preSwitchPeak = 1.0e-3f;
+    previousResidualLeft = 0.0f;
+    previousResidualRight = 0.0f;
+    firstResidual = 0.0f;
+    maximumResidualDerivative = 0.0f;
+    for (auto sample = 0; sample < 72000; ++sample)
+    {
+        const auto input = 0.035f * std::sin(0.011f * static_cast<float>(sample))
+                         + (sample == 0 ? 0.7f : 0.0f);
+        auto controlLeft = input;
+        auto controlRight = -0.41f * input;
+        auto switchedLeft = controlLeft;
+        auto switchedRight = controlRight;
+
+        if (sample == switchSample)
+        {
+            parameters.mode = ReverbMode::defaultMode;
+            bloomToDefault.setParameters(parameters);
+        }
+
+        bloomControl.processSample(controlLeft, controlRight);
+        bloomToDefault.processSample(switchedLeft, switchedRight);
+
+        if (sample < switchSample)
+        {
+            require(std::bit_cast<std::uint32_t>(controlLeft)
+                        == std::bit_cast<std::uint32_t>(switchedLeft)
+                        && std::bit_cast<std::uint32_t>(controlRight)
+                        == std::bit_cast<std::uint32_t>(switchedRight),
+                    "Bloom differs before switching back to Default");
+            if (sample >= switchSample - 1024)
+                preSwitchPeak = std::max(preSwitchPeak,
+                                         std::max(std::abs(controlLeft), std::abs(controlRight)));
+        }
+        else
+        {
+            const auto residualLeft = switchedLeft - controlLeft;
+            const auto residualRight = switchedRight - controlRight;
+            if (sample == switchSample)
+                firstResidual = std::max(std::abs(residualLeft), std::abs(residualRight));
+            if (sample < switchSample + static_cast<int>(sampleRate * 0.20))
+            {
+                maximumResidualDerivative = std::max({
+                    maximumResidualDerivative,
+                    std::abs(residualLeft - previousResidualLeft),
+                    std::abs(residualRight - previousResidualRight)
+                });
+            }
+            previousResidualLeft = residualLeft;
+            previousResidualRight = residualRight;
+        }
+    }
+
+    require(firstResidual <= std::max(1.0e-5f, 0.02f * preSwitchPeak),
+            "Bloom to Default switch has an immediate discontinuity");
+    require(maximumResidualDerivative <= std::max(2.0e-4f, 0.10f * preSwitchPeak),
+            "Bloom to Default morph changes too abruptly");
+
+    parameters.mode = ReverbMode::defaultMode;
+    switched.setParameters(parameters);
+    for (auto sample = 0; sample < 60000; ++sample)
+    {
+        if (sample % 113 == 0)
+        {
+            parameters.mode = parameters.mode == ReverbMode::defaultMode
+                ? ReverbMode::bloom
+                : ReverbMode::defaultMode;
+            switched.setParameters(parameters);
+        }
+        auto left = 0.02f * std::sin(0.017f * static_cast<float>(sample));
+        auto right = -left;
+        switched.processSample(left, right);
+        require(std::isfinite(left) && std::isfinite(right),
+                "Repeated mode switches produced NaN/Inf");
+        require(std::max(std::abs(left), std::abs(right)) < 4.0f,
+                "Repeated mode switches exceeded safety range");
+    }
+}
+
+void testBloomStereoEvolutionAndDryPath()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto sampleCount = 144000;
+    ReverbParameters bloomParameters;
+    bloomParameters.mode = ReverbMode::bloom;
+    bloomParameters.mix = 1.0f;
+    bloomParameters.decaySeconds = 5.0f;
+    bloomParameters.preDelayMs = 0.0f;
+    bloomParameters.modulation = 0.75f;
+    bloomParameters.width = 1.0f;
+
+    const auto bloom = renderImpulse(bloomParameters, sampleRate, sampleCount);
+    auto defaultParameters = bloomParameters;
+    defaultParameters.mode = ReverbMode::defaultMode;
+    const auto defaultRender = renderImpulse(defaultParameters, sampleRate, sampleCount);
+
+    double leftEnergy = 0.0;
+    double rightEnergy = 0.0;
+    double crossEnergy = 0.0;
+    double sideEnergy = 0.0;
+    double differenceEnergy = 0.0;
+    double bloomEnergy = 0.0;
+    const auto start = static_cast<int>(sampleRate * 0.25);
+    const auto end = static_cast<int>(sampleRate * 2.5);
+    for (auto sample = start; sample < end; ++sample)
+    {
+        const auto left = static_cast<double>(bloom.left[static_cast<std::size_t>(sample)]);
+        const auto right = static_cast<double>(bloom.right[static_cast<std::size_t>(sample)]);
+        const auto defaultLeft = static_cast<double>(
+            defaultRender.left[static_cast<std::size_t>(sample)]);
+        const auto defaultRight = static_cast<double>(
+            defaultRender.right[static_cast<std::size_t>(sample)]);
+        leftEnergy += left * left;
+        rightEnergy += right * right;
+        crossEnergy += left * right;
+        const auto side = 0.5 * (left - right);
+        sideEnergy += side * side;
+        differenceEnergy += (left - defaultLeft) * (left - defaultLeft)
+                          + (right - defaultRight) * (right - defaultRight);
+        bloomEnergy += left * left + right * right;
+    }
+
+    require(leftEnergy > 1.0e-10 && rightEnergy > 1.0e-10,
+            "Bloom stereo impulse response is silent");
+    require(std::max(leftEnergy, rightEnergy) / std::min(leftEnergy, rightEnergy) < 4.0,
+            "Bloom stereo energy balance exceeds 6 dB");
+    const auto correlation = crossEnergy / std::sqrt(leftEnergy * rightEnergy);
+    require(std::abs(correlation) < 0.85, "Bloom left/right tail is insufficiently decorrelated");
+    require(sideEnergy / bloomEnergy > 0.05, "Bloom tail has insufficient side energy");
+    require(std::sqrt(differenceEnergy / bloomEnergy) > 0.10,
+            "Bloom impulse response is too similar to Default");
+
+    const auto evolved = renderImpulse(bloomParameters, sampleRate, sampleCount,
+                                       static_cast<int>(sampleRate * 2.731));
+    const auto evolvedRepeat = renderImpulse(bloomParameters, sampleRate, sampleCount,
+                                             static_cast<int>(sampleRate * 2.731));
+    double initialEnergy = 0.0;
+    double evolvedEnergy = 0.0;
+    double evolutionCross = 0.0;
+    double evolutionDifference = 0.0;
+    const auto evolutionStart = static_cast<int>(sampleRate * 0.2);
+    const auto evolutionEnd = static_cast<int>(sampleRate * 2.0);
+    for (auto sample = evolutionStart; sample < evolutionEnd; ++sample)
+    {
+        const auto index = static_cast<std::size_t>(sample);
+        const auto initial = static_cast<double>(bloom.left[index] + bloom.right[index]);
+        const auto moved = static_cast<double>(evolved.left[index] + evolved.right[index]);
+        initialEnergy += initial * initial;
+        evolvedEnergy += moved * moved;
+        evolutionCross += initial * moved;
+        evolutionDifference += (initial - moved) * (initial - moved);
+        require(std::abs(evolved.left[index] - evolvedRepeat.left[index]) <= 1.0e-7f
+                    && std::abs(evolved.right[index] - evolvedRepeat.right[index]) <= 1.0e-7f,
+                "Bloom evolution is not deterministic");
+    }
+
+    const auto evolutionCorrelation = evolutionCross / std::sqrt(initialEnergy * evolvedEnergy);
+    require(evolutionCorrelation < 0.995,
+            "Bloom tail does not evolve enough over time: correlation="
+                + std::to_string(evolutionCorrelation));
+    require(std::sqrt(evolutionDifference / initialEnergy) > 0.05,
+            "Bloom evolution difference is too small");
+
+    bloomParameters.mix = 0.0f;
+    FDNReverb dryPath;
+    dryPath.setParameters(bloomParameters);
+    dryPath.prepare(sampleRate, 64);
+    for (auto sample = 0; sample < 10000; ++sample)
+    {
+        const auto expectedLeft = 0.1f * std::sin(0.01f * static_cast<float>(sample));
+        const auto expectedRight = -0.7f * expectedLeft;
+        auto left = expectedLeft;
+        auto right = expectedRight;
+        dryPath.processSample(left, right);
+        require(std::abs(left - expectedLeft) <= 1.0e-8f
+                    && std::abs(right - expectedRight) <= 1.0e-8f,
+                "Bloom changes the dry path at Mix=0");
+    }
+}
+
 void testNoAllocationsInProcess()
 {
     FDNReverb reverb;
     reverb.prepare(48000.0, 512);
+    ReverbParameters parameters;
 
     allocationCount.store(0, std::memory_order_relaxed);
     countAllocations.store(true, std::memory_order_relaxed);
     for (auto sample = 0; sample < 100000; ++sample)
     {
+        if (sample % 257 == 0)
+        {
+            parameters.mode = parameters.mode == ReverbMode::defaultMode
+                ? ReverbMode::bloom
+                : ReverbMode::defaultMode;
+            parameters.freeze = !parameters.freeze;
+            reverb.setParameters(parameters);
+        }
         auto left = sample == 0 ? 1.0f : 0.0f;
         auto right = 0.0f;
         reverb.processSample(left, right);
@@ -360,6 +820,67 @@ void testNoAllocationsInProcess()
 
     require(allocationCount.load(std::memory_order_relaxed) == 0,
             "DSP allocated memory while processing audio");
+}
+
+void runLongBloomStress()
+{
+    constexpr auto sampleRate = 44100.0;
+    constexpr auto stressSeconds = 90;
+    constexpr auto windowSeconds = 10;
+    constexpr auto numWindows = stressSeconds / windowSeconds;
+
+    ReverbParameters parameters;
+    parameters.mode = ReverbMode::bloom;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 30.0f;
+    parameters.size = 2.0f;
+    parameters.preDelayMs = 250.0f;
+    parameters.lowCutHz = 20.0f;
+    parameters.highDampingHz = 20000.0f;
+    parameters.modulation = 1.0f;
+    parameters.width = 2.0f;
+
+    FDNReverb reverb;
+    reverb.setParameters(parameters);
+    reverb.prepare(sampleRate, 512);
+
+    std::uint32_t noiseState = 0x5eeda11u;
+    for (auto sample = 0; sample < static_cast<int>(sampleRate * 0.5); ++sample)
+    {
+        noiseState = noiseState * 1664525u + 1013904223u;
+        const auto noise = static_cast<float>(static_cast<std::int32_t>(noiseState))
+                         / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+        auto left = (sample == 0 ? 1.0f : 0.0f) + 0.015f * noise;
+        auto right = (sample == 0 ? -0.5f : 0.0f) - 0.011f * noise;
+        reverb.processSample(left, right);
+    }
+
+    parameters.freeze = true;
+    reverb.setParameters(parameters);
+    std::array<double, numWindows> windowEnergy {};
+    auto peak = 0.0f;
+    const auto totalSamples = static_cast<int>(sampleRate * stressSeconds);
+    const auto samplesPerWindow = static_cast<int>(sampleRate * windowSeconds);
+    for (auto sample = 0; sample < totalSamples; ++sample)
+    {
+        auto left = 0.0f;
+        auto right = 0.0f;
+        reverb.processSample(left, right);
+        require(std::isfinite(left) && std::isfinite(right),
+                "Long Bloom stress produced NaN/Inf");
+        peak = std::max({ peak, std::abs(left), std::abs(right) });
+        const auto window = static_cast<std::size_t>(sample / samplesPerWindow);
+        windowEnergy[window] += static_cast<double>(left) * left
+                              + static_cast<double>(right) * right;
+    }
+
+    require(windowEnergy.front() > 1.0e-10, "Long Bloom stress tail became silent");
+    for (const auto energy : windowEnergy)
+        require(energy <= windowEnergy.front() * 1.5 + 1.0e-12,
+                "Long Bloom stress found an energy-pumping LFO phase");
+    require(windowEnergy.back() <= windowEnergy.front() * 1.25 + 1.0e-12,
+            "Long Bloom stress tail grows over 90 seconds");
+    require(peak < 4.0f, "Long Bloom stress exceeded safety range");
 }
 
 void writeLittleEndian16(std::ofstream& stream, std::uint16_t value)
@@ -382,7 +903,7 @@ void writeLittleEndian32(std::ofstream& stream, std::uint32_t value)
     stream.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
 }
 
-void renderImpulseResponse(const std::string& path)
+void renderImpulseResponse(const std::string& path, ReverbMode mode)
 {
     constexpr auto sampleRate = 48000;
     constexpr auto channels = 2;
@@ -390,6 +911,7 @@ void renderImpulseResponse(const std::string& path)
     constexpr auto sampleCount = sampleRate * seconds;
 
     ReverbParameters parameters;
+    parameters.mode = mode;
     parameters.mix = 1.0f;
     parameters.decaySeconds = 5.0f;
     parameters.size = 1.15f;
@@ -451,6 +973,10 @@ int main(int argc, char** argv)
         NamedTest { "impulse decay and finite output", testImpulseDecayAndFiniteOutput },
         NamedTest { "feedback freeze and bad inputs", testFeedbackFreezeAndBadInputs },
         NamedTest { "parameter jumps and block segmentation", testParameterJumpsAndBlockSegmentation },
+        NamedTest { "Bloom sample rates and stability", testBloomSampleRatesAndStability },
+        NamedTest { "Bloom block invariance and mode switching",
+                    testBloomBlockInvarianceAndModeSwitching },
+        NamedTest { "Bloom stereo evolution and dry path", testBloomStereoEvolutionAndDryPath },
         NamedTest { "no allocations in process", testNoAllocationsInProcess }
     };
 
@@ -469,17 +995,34 @@ int main(int argc, char** argv)
         }
     }
 
-    if (failures == 0 && argc == 3 && std::strcmp(argv[1], "--render") == 0)
+    const auto wantsDefaultRender = argc == 3 && std::strcmp(argv[1], "--render") == 0;
+    const auto wantsBloomRender = argc == 3 && std::strcmp(argv[1], "--render-bloom") == 0;
+    if (failures == 0 && (wantsDefaultRender || wantsBloomRender))
     {
         try
         {
-            renderImpulseResponse(argv[2]);
+            renderImpulseResponse(argv[2], wantsBloomRender ? ReverbMode::bloom
+                                                             : ReverbMode::defaultMode);
             std::cout << "[PASS] wrote impulse response to " << argv[2] << '\n';
         }
         catch (const std::exception& error)
         {
             ++failures;
             std::cerr << "[FAIL] offline render: " << error.what() << '\n';
+        }
+    }
+
+    if (failures == 0 && argc == 2 && std::strcmp(argv[1], "--stress-bloom") == 0)
+    {
+        try
+        {
+            runLongBloomStress();
+            std::cout << "[PASS] 90-second Bloom modulation/Freeze stress\n";
+        }
+        catch (const std::exception& error)
+        {
+            ++failures;
+            std::cerr << "[FAIL] long Bloom stress: " << error.what() << '\n';
         }
     }
 

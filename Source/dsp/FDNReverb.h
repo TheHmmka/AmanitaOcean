@@ -1,13 +1,22 @@
 #pragma once
 
+#include "BloomCharacter.h"
+
 #include <array>
 #include <cstddef>
 #include <vector>
 
 namespace amanita::dsp
 {
+enum class ReverbMode
+{
+    defaultMode = 0,
+    bloom
+};
+
 struct ReverbParameters
 {
+    ReverbMode mode = ReverbMode::defaultMode;
     float mix = 0.35f;
     float decaySeconds = 5.0f;
     float size = 1.0f;
@@ -112,7 +121,9 @@ private:
     std::array<VariableDelay, 2> preDelayLines_;
     std::array<AllPass, 4> diffusersLeft_;
     std::array<AllPass, 4> diffusersRight_;
+    BloomCharacter bloom_;
 
+    LinearSmoother bloomAmount_;
     LinearSmoother mix_;
     LinearSmoother size_;
     LinearSmoother preDelaySamples_;
@@ -123,4 +134,3 @@ private:
     LinearSmoother freeze_;
 };
 } // namespace amanita::dsp
-

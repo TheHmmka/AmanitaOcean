@@ -2,8 +2,11 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
+#include <algorithm>
+
 namespace
 {
+constexpr auto modeId = "mode";
 constexpr auto mixId = "mix";
 constexpr auto decayId = "decay";
 constexpr auto sizeId = "size";
@@ -31,6 +34,7 @@ AmanitaOceanAudioProcessor::AmanitaOceanAudioProcessor()
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       state_(*this, nullptr, "AmanitaOceanState", createParameterLayout())
 {
+    modeParameter_ = state_.getRawParameterValue(modeId);
     mixParameter_ = state_.getRawParameterValue(mixId);
     decayParameter_ = state_.getRawParameterValue(decayId);
     sizeParameter_ = state_.getRawParameterValue(sizeId);
@@ -41,7 +45,8 @@ AmanitaOceanAudioProcessor::AmanitaOceanAudioProcessor()
     widthParameter_ = state_.getRawParameterValue(widthId);
     freezeParameter_ = state_.getRawParameterValue(freezeId);
 
-    jassert(mixParameter_ != nullptr && decayParameter_ != nullptr && sizeParameter_ != nullptr
+    jassert(modeParameter_ != nullptr && mixParameter_ != nullptr
+            && decayParameter_ != nullptr && sizeParameter_ != nullptr
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
             && highDampingParameter_ != nullptr && modulationParameter_ != nullptr
             && widthParameter_ != nullptr && freezeParameter_ != nullptr);
@@ -107,7 +112,7 @@ double AmanitaOceanAudioProcessor::getTailLengthSeconds() const
     const auto decay = decayParameter_ != nullptr
         ? decayParameter_->load(std::memory_order_relaxed)
         : 5.0f;
-    return static_cast<double>(decay) + 0.25;
+    return static_cast<double>(decay) + 0.5;
 }
 
 int AmanitaOceanAudioProcessor::getNumPrograms() { return 1; }
@@ -128,9 +133,23 @@ void AmanitaOceanAudioProcessor::setStateInformation(const void* data, int sizeI
     if (xml == nullptr)
         return;
 
-    const auto restored = juce::ValueTree::fromXml(*xml);
-    if (restored.isValid() && restored.hasType(state_.state.getType()))
-        state_.replaceState(restored);
+    auto restored = juce::ValueTree::fromXml(*xml);
+    if (!restored.isValid() || !restored.hasType(state_.state.getType()))
+        return;
+
+    const auto hasMode = std::any_of(restored.begin(), restored.end(), [] (const auto& child)
+    {
+        return child.getProperty("id").toString() == modeId;
+    });
+    if (!hasMode)
+    {
+        juce::ValueTree modeState("PARAM");
+        modeState.setProperty("id", modeId, nullptr);
+        modeState.setProperty("value", 0.0f, nullptr);
+        restored.appendChild(modeState, nullptr);
+    }
+
+    state_.replaceState(restored);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout
@@ -173,18 +192,25 @@ AmanitaOceanAudioProcessor::createParameterLayout()
         FloatAttributes().withLabel("%")));
     layout.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID { freezeId, 1 }, "Freeze", false));
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID { modeId, 1 }, "Character",
+        juce::StringArray { "Default", "Bloom" }, 0));
 
     return layout;
 }
 
 amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() const noexcept
 {
-    jassert(mixParameter_ != nullptr && decayParameter_ != nullptr && sizeParameter_ != nullptr
+    jassert(modeParameter_ != nullptr && mixParameter_ != nullptr
+            && decayParameter_ != nullptr && sizeParameter_ != nullptr
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
             && highDampingParameter_ != nullptr && modulationParameter_ != nullptr
             && widthParameter_ != nullptr && freezeParameter_ != nullptr);
 
     amanita::dsp::ReverbParameters parameters;
+    parameters.mode = modeParameter_->load(std::memory_order_relaxed) >= 0.5f
+        ? amanita::dsp::ReverbMode::bloom
+        : amanita::dsp::ReverbMode::defaultMode;
     parameters.mix = mixParameter_->load(std::memory_order_relaxed) * 0.01f;
     parameters.decaySeconds = decayParameter_->load(std::memory_order_relaxed);
     parameters.size = sizeParameter_->load(std::memory_order_relaxed) * 0.01f;

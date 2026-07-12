@@ -13,6 +13,7 @@ constexpr float twoPi = 2.0f * pi;
 constexpr float inverseSqrtEight = 0.35355339059327376220f;
 constexpr float logMinus60dB = -6.90775527898213705205f;
 constexpr float freezeFeedback = 0.9995f;
+constexpr float bloomFreezeFeedback = 0.9985f;
 constexpr float maximumSize = 2.0f;
 constexpr float maximumPreDelaySeconds = 0.25f;
 constexpr float maximumModulationSeconds = 0.0004f;
@@ -258,7 +259,9 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
         nominalDelaySamples_[index] = static_cast<float>(nearestOddPrime(scaled));
 
         const auto maximumDelay = nominalDelaySamples_[index] * maximumSize
-                                + static_cast<float>(sampleRate_ * maximumModulationSeconds)
+                                + static_cast<float>(sampleRate_
+                                                     * (maximumModulationSeconds
+                                                        + BloomCharacter::maximumDriftSeconds))
                                 + 8.0f;
         delayLines_[index].prepare(static_cast<std::size_t>(std::ceil(maximumDelay)) + 2);
         lfoIncrements_[index] = lfoFrequenciesHz[index] / static_cast<float>(sampleRate_);
@@ -282,6 +285,9 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
         diffusersRight_[index].prepare(static_cast<std::size_t>(rightSamples), 0.55f);
     }
 
+    bloom_.prepare(sampleRate_);
+    bloomAmount_.prepare(sampleRate_, 0.20,
+                         parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
     mix_.prepare(sampleRate_, 0.02, parameters_.mix);
     size_.prepare(sampleRate_, 0.25, parameters_.size);
     preDelaySamples_.prepare(sampleRate_, 0.10,
@@ -308,6 +314,8 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
 
 void FDNReverb::reset() noexcept
 {
+    bloomAmount_.prepare(sampleRate_, 0.20,
+                         parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
     for (auto& delay : delayLines_)
         delay.reset();
     for (auto& delay : preDelayLines_)
@@ -316,6 +324,7 @@ void FDNReverb::reset() noexcept
         stage.reset();
     for (auto& stage : diffusersRight_)
         stage.reset();
+    bloom_.reset();
 
     lowCutStates_.fill(0.0f);
     dampingStates_.fill(0.0f);
@@ -324,6 +333,9 @@ void FDNReverb::reset() noexcept
 
 void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
 {
+    parameters_.mode = newParameters.mode == ReverbMode::bloom
+        ? ReverbMode::bloom
+        : ReverbMode::defaultMode;
     parameters_.mix = clampFinite(newParameters.mix, 0.0f, 1.0f, parameters_.mix);
     parameters_.decaySeconds = clampFinite(newParameters.decaySeconds, 0.2f, 30.0f,
                                             parameters_.decaySeconds);
@@ -350,6 +362,7 @@ const ReverbParameters& FDNReverb::getParameters() const noexcept
 
 void FDNReverb::updateTargets() noexcept
 {
+    bloomAmount_.setTarget(parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
     mix_.setTarget(parameters_.mix);
     size_.setTarget(parameters_.size);
     preDelaySamples_.setTarget(parameters_.preDelayMs * 0.001f * static_cast<float>(sampleRate_));
@@ -397,10 +410,22 @@ void FDNReverb::processSample(float& left, float& right) noexcept
                                            diffusersLeft_);
     const auto diffusedRight = diffuseInput(preDelayLines_[1].process(dryRight, preDelay),
                                             diffusersRight_);
+    const auto bloomExcitation = bloom_.processExcitation(diffusedLeft, diffusedRight);
+    const auto bloomAmount = bloomAmount_.next();
+    auto excitationLeft = diffusedLeft;
+    auto excitationRight = diffusedRight;
+    if (bloomAmount > 0.0f)
+    {
+        excitationLeft += bloomAmount * (bloomExcitation.left - diffusedLeft);
+        excitationRight += bloomAmount * (bloomExcitation.right - diffusedRight);
+    }
 
     const auto size = size_.next();
     const auto modulationDepth = modulation_.next()
                                * static_cast<float>(sampleRate_ * maximumModulationSeconds);
+    const auto bloomModulationAmount = modulationDepth
+                                     / static_cast<float>(sampleRate_
+                                                          * maximumModulationSeconds);
     const auto lowCutCoefficient = lowCutCoefficient_.next();
     const auto dampingCoefficient = dampingCoefficient_.next();
     const auto freeze = freeze_.next();
@@ -411,7 +436,11 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     for (std::size_t index = 0; index < numDelayLines; ++index)
     {
         const auto modulation = modulationDepth * std::sin(twoPi * lfoPhases_[index]);
-        const auto delaySamples = nominalDelaySamples_[index] * size + modulation;
+        auto delaySamples = nominalDelaySamples_[index] * size + modulation;
+        const auto bloomDrift = bloom_.nextDriftSamples(index, bloomModulationAmount,
+                                                        bloomAmount > 0.0f);
+        if (bloomAmount > 0.0f)
+            delaySamples += bloomAmount * bloomDrift;
         delayed[index] = sanitise(delayLines_[index].read(delaySamples));
 
         lfoPhases_[index] += lfoIncrements_[index];
@@ -430,7 +459,9 @@ void FDNReverb::processSample(float& left, float& right) noexcept
         const auto filtered = sanitise(dampingStates_[index]);
         const auto freezeMorphed = filtered + freeze * (delayed[index] - filtered);
         const auto normalGain = feedbackGains_[index].next();
-        const auto loopGain = normalGain + freeze * (freezeFeedback - normalGain);
+        const auto freezeGain = freezeFeedback
+                              + bloomAmount * (bloomFreezeFeedback - freezeFeedback);
+        const auto loopGain = normalGain + freeze * (freezeGain - normalGain);
         feedback[index] = sanitise(freezeMorphed * loopGain, 4.0f);
     }
 
@@ -440,8 +471,8 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     for (std::size_t index = 0; index < numDelayLines; ++index)
     {
         const auto injection = inverseSqrtEight
-                             * (inputLeftSigns[index] * diffusedLeft
-                                + inputRightSigns[index] * diffusedRight);
+                             * (inputLeftSigns[index] * excitationLeft
+                                + inputRightSigns[index] * excitationRight);
         delayLines_[index].write(sanitise(feedback[index] + inputGain * injection, 4.0f));
     }
 
