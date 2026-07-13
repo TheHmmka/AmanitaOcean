@@ -1,6 +1,8 @@
 #pragma once
 
 #include "BloomCharacter.h"
+#include "DriftCharacter.h"
+#include "Drift2Character.h"
 
 #include <array>
 #include <cstddef>
@@ -11,12 +13,20 @@ namespace amanita::dsp
 enum class ReverbMode
 {
     defaultMode = 0,
-    bloom
+    bloom,
+    drift
+};
+
+enum class DriftModel
+{
+    original = 0,
+    drift2
 };
 
 struct ReverbParameters
 {
     ReverbMode mode = ReverbMode::defaultMode;
+    DriftModel driftModel = DriftModel::original;
     float mix = 0.35f;
     float decaySeconds = 5.0f;
     float size = 1.0f;
@@ -122,8 +132,12 @@ private:
     std::array<AllPass, 4> diffusersLeft_;
     std::array<AllPass, 4> diffusersRight_;
     BloomCharacter bloom_;
+    DriftCharacter drift_;
+    Drift2Character drift2_;
 
     LinearSmoother bloomAmount_;
+    LinearSmoother driftAmount_;
+    LinearSmoother drift2Amount_;
     LinearSmoother mix_;
     LinearSmoother size_;
     LinearSmoother preDelaySamples_;

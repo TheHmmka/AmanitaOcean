@@ -14,6 +14,7 @@ constexpr float inverseSqrtEight = 0.35355339059327376220f;
 constexpr float logMinus60dB = -6.90775527898213705205f;
 constexpr float freezeFeedback = 0.9995f;
 constexpr float bloomFreezeFeedback = 0.9985f;
+constexpr float driftFreezeFeedback = 0.9985f;
 constexpr float maximumSize = 2.0f;
 constexpr float maximumPreDelaySeconds = 0.25f;
 constexpr float maximumModulationSeconds = 0.0004f;
@@ -286,8 +287,14 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
     }
 
     bloom_.prepare(sampleRate_);
+    drift_.prepare(sampleRate_);
+    drift2_.prepare(sampleRate_);
     bloomAmount_.prepare(sampleRate_, 0.20,
                          parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
+    driftAmount_.prepare(sampleRate_, 0.20,
+                         parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
+    drift2Amount_.prepare(sampleRate_, 0.20,
+                          parameters_.driftModel == DriftModel::drift2 ? 1.0f : 0.0f);
     mix_.prepare(sampleRate_, 0.02, parameters_.mix);
     size_.prepare(sampleRate_, 0.25, parameters_.size);
     preDelaySamples_.prepare(sampleRate_, 0.10,
@@ -316,6 +323,10 @@ void FDNReverb::reset() noexcept
 {
     bloomAmount_.prepare(sampleRate_, 0.20,
                          parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
+    driftAmount_.prepare(sampleRate_, 0.20,
+                         parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
+    drift2Amount_.prepare(sampleRate_, 0.20,
+                          parameters_.driftModel == DriftModel::drift2 ? 1.0f : 0.0f);
     for (auto& delay : delayLines_)
         delay.reset();
     for (auto& delay : preDelayLines_)
@@ -325,6 +336,8 @@ void FDNReverb::reset() noexcept
     for (auto& stage : diffusersRight_)
         stage.reset();
     bloom_.reset();
+    drift_.reset();
+    drift2_.reset();
 
     lowCutStates_.fill(0.0f);
     dampingStates_.fill(0.0f);
@@ -333,9 +346,20 @@ void FDNReverb::reset() noexcept
 
 void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
 {
-    parameters_.mode = newParameters.mode == ReverbMode::bloom
-        ? ReverbMode::bloom
-        : ReverbMode::defaultMode;
+    switch (newParameters.mode)
+    {
+        case ReverbMode::bloom:
+        case ReverbMode::drift:
+            parameters_.mode = newParameters.mode;
+            break;
+        case ReverbMode::defaultMode:
+        default:
+            parameters_.mode = ReverbMode::defaultMode;
+            break;
+    }
+    parameters_.driftModel = newParameters.driftModel == DriftModel::drift2
+        ? DriftModel::drift2
+        : DriftModel::original;
     parameters_.mix = clampFinite(newParameters.mix, 0.0f, 1.0f, parameters_.mix);
     parameters_.decaySeconds = clampFinite(newParameters.decaySeconds, 0.2f, 30.0f,
                                             parameters_.decaySeconds);
@@ -363,6 +387,8 @@ const ReverbParameters& FDNReverb::getParameters() const noexcept
 void FDNReverb::updateTargets() noexcept
 {
     bloomAmount_.setTarget(parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
+    driftAmount_.setTarget(parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
+    drift2Amount_.setTarget(parameters_.driftModel == DriftModel::drift2 ? 1.0f : 0.0f);
     mix_.setTarget(parameters_.mix);
     size_.setTarget(parameters_.size);
     preDelaySamples_.setTarget(parameters_.preDelayMs * 0.001f * static_cast<float>(sampleRate_));
@@ -412,6 +438,8 @@ void FDNReverb::processSample(float& left, float& right) noexcept
                                             diffusersRight_);
     const auto bloomExcitation = bloom_.processExcitation(diffusedLeft, diffusedRight);
     const auto bloomAmount = bloomAmount_.next();
+    const auto driftAmount = driftAmount_.next();
+    const auto drift2Amount = drift2Amount_.next();
     auto excitationLeft = diffusedLeft;
     auto excitationRight = diffusedRight;
     if (bloomAmount > 0.0f)
@@ -459,12 +487,36 @@ void FDNReverb::processSample(float& left, float& right) noexcept
         const auto filtered = sanitise(dampingStates_[index]);
         const auto freezeMorphed = filtered + freeze * (delayed[index] - filtered);
         const auto normalGain = feedbackGains_[index].next();
-        const auto freezeGain = freezeFeedback
-                              + bloomAmount * (bloomFreezeFeedback - freezeFeedback);
+        auto freezeGain = freezeFeedback
+                        + bloomAmount * (bloomFreezeFeedback - freezeFeedback);
+        if (driftAmount > 0.0f)
+            freezeGain += driftAmount * (driftFreezeFeedback - freezeFeedback);
         const auto loopGain = normalGain + freeze * (freezeGain - normalGain);
         feedback[index] = sanitise(freezeMorphed * loopGain, 4.0f);
     }
 
+    auto originalDriftFeedback = feedback;
+    auto drift2Feedback = feedback;
+    drift_.processFeedback(originalDriftFeedback, driftAmount, bloomModulationAmount);
+    drift2_.processFeedback(drift2Feedback, driftAmount, bloomModulationAmount);
+    if (driftAmount > 0.0f)
+    {
+        if (drift2Amount <= 0.0f)
+        {
+            feedback = originalDriftFeedback;
+        }
+        else if (drift2Amount >= 1.0f)
+        {
+            feedback = drift2Feedback;
+        }
+        else
+        {
+            for (std::size_t index = 0; index < numDelayLines; ++index)
+                feedback[index] = originalDriftFeedback[index]
+                                + drift2Amount
+                                      * (drift2Feedback[index] - originalDriftFeedback[index]);
+        }
+    }
     applyFeedbackMatrix(feedback);
 
     const auto inputGain = 1.0f - freeze;

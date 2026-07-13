@@ -42,6 +42,7 @@ private:
     juce::AudioProcessorValueTreeState state_;
 
     std::atomic<float>* modeParameter_ = nullptr;
+    std::atomic<float>* driftModelParameter_ = nullptr;
     std::atomic<float>* mixParameter_ = nullptr;
     std::atomic<float>* decayParameter_ = nullptr;
     std::atomic<float>* sizeParameter_ = nullptr;

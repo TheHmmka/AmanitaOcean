@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(AmanitaOcean VERSION 0.2.0 LANGUAGES C CXX)
+project(AmanitaOcean VERSION 0.4.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,6 +21,10 @@ FetchContent_MakeAvailable(JUCE)
 add_library(AmanitaOceanDSP STATIC
     Source/dsp/BloomCharacter.cpp
     Source/dsp/BloomCharacter.h
+    Source/dsp/DriftCharacter.cpp
+    Source/dsp/DriftCharacter.h
+    Source/dsp/Drift2Character.cpp
+    Source/dsp/Drift2Character.h
     Source/dsp/FDNReverb.cpp
     Source/dsp/FDNReverb.h
 )
@@ -109,5 +113,25 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME amanita_ocean_dsp COMMAND AmanitaOceanDSPTests)
-    set_tests_properties(amanita_ocean_dsp PROPERTIES TIMEOUT 60)
+    set_tests_properties(amanita_ocean_dsp PROPERTIES TIMEOUT 420)
+
+    add_executable(AmanitaOceanStateTests
+        Tests/StateTests.cpp
+    )
+
+    target_include_directories(AmanitaOceanStateTests
+        PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/Source"
+    )
+
+    target_link_libraries(AmanitaOceanStateTests
+        PRIVATE
+            AmanitaOcean
+            juce::juce_audio_utils
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags
+    )
+
+    add_test(NAME amanita_ocean_state COMMAND AmanitaOceanStateTests)
+    set_tests_properties(amanita_ocean_state PROPERTIES TIMEOUT 30)
 endif()
