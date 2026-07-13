@@ -2,14 +2,11 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
-#include <algorithm>
 #include <cmath>
 
 namespace
 {
-constexpr auto modeId = "mode";
-constexpr auto driftModelId = "driftModel";
-constexpr auto veilId = "veil";
+constexpr auto characterId = "character";
 constexpr auto mixId = "mix";
 constexpr auto decayId = "decay";
 constexpr auto sizeId = "size";
@@ -19,8 +16,6 @@ constexpr auto highDampingId = "highDamping";
 constexpr auto modulationId = "modulation";
 constexpr auto widthId = "width";
 constexpr auto freezeId = "freeze";
-constexpr auto stateSchemaId = "schemaVersion";
-constexpr auto currentStateSchema = 5;
 
 [[nodiscard]] juce::NormalisableRange<float> skewedRange(float minimum,
                                                           float maximum,
@@ -39,9 +34,7 @@ AmanitaOceanAudioProcessor::AmanitaOceanAudioProcessor()
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       state_(*this, nullptr, "AmanitaOceanState", createParameterLayout())
 {
-    modeParameter_ = state_.getRawParameterValue(modeId);
-    driftModelParameter_ = state_.getRawParameterValue(driftModelId);
-    veilParameter_ = state_.getRawParameterValue(veilId);
+    characterParameter_ = state_.getRawParameterValue(characterId);
     mixParameter_ = state_.getRawParameterValue(mixId);
     decayParameter_ = state_.getRawParameterValue(decayId);
     sizeParameter_ = state_.getRawParameterValue(sizeId);
@@ -52,9 +45,7 @@ AmanitaOceanAudioProcessor::AmanitaOceanAudioProcessor()
     widthParameter_ = state_.getRawParameterValue(widthId);
     freezeParameter_ = state_.getRawParameterValue(freezeId);
 
-    jassert(modeParameter_ != nullptr && driftModelParameter_ != nullptr
-            && veilParameter_ != nullptr
-            && mixParameter_ != nullptr
+    jassert(characterParameter_ != nullptr && mixParameter_ != nullptr
             && decayParameter_ != nullptr && sizeParameter_ != nullptr
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
             && highDampingParameter_ != nullptr && modulationParameter_ != nullptr
@@ -101,7 +92,7 @@ void AmanitaOceanAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 juce::AudioProcessorEditor* AmanitaOceanAudioProcessor::createEditor()
 {
     auto* editor = new juce::GenericAudioProcessorEditor(*this);
-    editor->setSize(editor->getWidth(), 500);
+    editor->setSize(editor->getWidth(), 420);
     return editor;
 }
 
@@ -134,9 +125,7 @@ void AmanitaOceanAudioProcessor::changeProgramName(int, const juce::String&) {}
 
 void AmanitaOceanAudioProcessor::getStateInformation(juce::MemoryBlock& destinationData)
 {
-    auto state = state_.copyState();
-    state.setProperty(stateSchemaId, currentStateSchema, nullptr);
-    if (const auto xml = state.createXml())
+    if (const auto xml = state_.copyState().createXml())
         copyXmlToBinary(*xml, destinationData);
 }
 
@@ -146,55 +135,9 @@ void AmanitaOceanAudioProcessor::setStateInformation(const void* data, int sizeI
     if (xml == nullptr)
         return;
 
-    auto restored = juce::ValueTree::fromXml(*xml);
+    const auto restored = juce::ValueTree::fromXml(*xml);
     if (!restored.isValid() || !restored.hasType(state_.state.getType()))
         return;
-
-    const auto sourceSchema = static_cast<int>(restored.getProperty(stateSchemaId, 0));
-    const auto modeState = std::find_if(restored.begin(), restored.end(), [] (const auto& child)
-    {
-        return child.getProperty("id").toString() == modeId;
-    });
-    if (modeState == restored.end())
-    {
-        juce::ValueTree defaultModeState("PARAM");
-        defaultModeState.setProperty("id", modeId, nullptr);
-        defaultModeState.setProperty("value", 0.0f, nullptr);
-        restored.appendChild(defaultModeState, nullptr);
-    }
-    else if (sourceSchema < 3)
-    {
-        auto modeChild = *modeState;
-        if (std::abs(static_cast<float>(modeChild.getProperty("value")) - 1.0f) < 0.001f)
-            modeChild.setProperty("value", 2.0f, nullptr);
-    }
-
-    const auto driftModelState = std::find_if(
-        restored.begin(), restored.end(), [] (const auto& child)
-        {
-            return child.getProperty("id").toString() == driftModelId;
-        });
-    if (driftModelState == restored.end())
-    {
-        juce::ValueTree defaultDriftModelState("PARAM");
-        defaultDriftModelState.setProperty("id", driftModelId, nullptr);
-        defaultDriftModelState.setProperty("value", 0.0f, nullptr);
-        restored.appendChild(defaultDriftModelState, nullptr);
-    }
-
-    const auto veilState = std::find_if(restored.begin(), restored.end(), [] (const auto& child)
-    {
-        return child.getProperty("id").toString() == veilId;
-    });
-    if (veilState == restored.end())
-    {
-        juce::ValueTree defaultVeilState("PARAM");
-        defaultVeilState.setProperty("id", veilId, nullptr);
-        defaultVeilState.setProperty("value", 0.0f, nullptr);
-        restored.appendChild(defaultVeilState, nullptr);
-    }
-
-    restored.setProperty(stateSchemaId, currentStateSchema, nullptr);
 
     state_.replaceState(restored);
 }
@@ -205,6 +148,9 @@ AmanitaOceanAudioProcessor::createParameterLayout()
     using FloatAttributes = juce::AudioParameterFloatAttributes;
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID { characterId, 1 }, "Character",
+        juce::StringArray { "Default", "Bloom", "Drift", "Drift 2", "Veil" }, 0));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { mixId, 1 }, "Mix",
         juce::NormalisableRange<float> { 0.0f, 100.0f, 0.1f }, 35.0f,
@@ -239,46 +185,40 @@ AmanitaOceanAudioProcessor::createParameterLayout()
         FloatAttributes().withLabel("%")));
     layout.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID { freezeId, 1 }, "Freeze", false));
-    layout.add(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID { modeId, 1 }, "Character",
-        juce::StringArray { "Default", "Drift", "Bloom" }, 0));
-    layout.add(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID { driftModelId, 2 }, "Drift Model",
-        juce::StringArray { "Original", "Drift 2" }, 0));
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        juce::ParameterID { veilId, 3 }, "Veil", false));
 
     return layout;
 }
 
 amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() const noexcept
 {
-    jassert(modeParameter_ != nullptr && driftModelParameter_ != nullptr
-            && veilParameter_ != nullptr
-            && mixParameter_ != nullptr
+    jassert(characterParameter_ != nullptr && mixParameter_ != nullptr
             && decayParameter_ != nullptr && sizeParameter_ != nullptr
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
             && highDampingParameter_ != nullptr && modulationParameter_ != nullptr
             && widthParameter_ != nullptr && freezeParameter_ != nullptr);
 
     amanita::dsp::ReverbParameters parameters;
-    switch (static_cast<int>(std::lround(modeParameter_->load(std::memory_order_relaxed))))
+    parameters.driftModel = amanita::dsp::DriftModel::original;
+    switch (static_cast<int>(std::lround(
+        characterParameter_->load(std::memory_order_relaxed))))
     {
         case 1:
-            parameters.mode = amanita::dsp::ReverbMode::drift;
+            parameters.mode = amanita::dsp::ReverbMode::bloom;
             break;
         case 2:
-            parameters.mode = amanita::dsp::ReverbMode::bloom;
+            parameters.mode = amanita::dsp::ReverbMode::drift;
+            break;
+        case 3:
+            parameters.mode = amanita::dsp::ReverbMode::drift;
+            parameters.driftModel = amanita::dsp::DriftModel::drift2;
+            break;
+        case 4:
+            parameters.mode = amanita::dsp::ReverbMode::veil;
             break;
         default:
             parameters.mode = amanita::dsp::ReverbMode::defaultMode;
             break;
     }
-    parameters.driftModel = driftModelParameter_->load(std::memory_order_relaxed) >= 0.5f
-        ? amanita::dsp::DriftModel::drift2
-        : amanita::dsp::DriftModel::original;
-    if (veilParameter_->load(std::memory_order_relaxed) >= 0.5f)
-        parameters.mode = amanita::dsp::ReverbMode::veil;
     parameters.mix = mixParameter_->load(std::memory_order_relaxed) * 0.01f;
     parameters.decaySeconds = decayParameter_->load(std::memory_order_relaxed);
     parameters.size = sizeParameter_->load(std::memory_order_relaxed) * 0.01f;

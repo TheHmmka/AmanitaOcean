@@ -1,7 +1,7 @@
 # Amanita Ocean
 
 Экспериментальный stereo algorithmic reverb для электронной музыки, Psytrance,
-Ambient и Downtempo. Текущая версия `0.5.0` — проверяемый DSP-прототип на C++20,
+Ambient и Downtempo. Текущая версия `0.6.0` — проверяемый DSP-прототип на C++20,
 JUCE 8.0.14 и CMake.
 
 Проект не воспроизводит интерфейс, пресеты, режимы или алгоритмы коммерческих
@@ -13,8 +13,8 @@ JUCE 8.0.14 и CMake.
 - ортонормальная feedback-матрица Адамара `H8 / sqrt(8)`;
 - prime nominal delay lengths, пересчитываемые при смене sample rate;
 - два независимых четырёхступенчатых stereo all-pass diffuser;
-- Character `Default/Drift/Bloom` и совместимый Veil override с плавным
-  200-ms morph без сброса хвоста;
+- единый Character `Default/Bloom/Drift/Drift 2/Veil` с плавным 200-ms morph
+  без сброса хвоста;
 - Bloom rising-tap swell, второй stereo diffusion layer и intrinsic micro-drift;
 - Drift Original и более выраженный Drift 2 с плавным A/B morph;
 - Veil lossless AP6 disperser, превращающий атаки в плотное ~90-ms облако;
@@ -25,8 +25,8 @@ JUCE 8.0.14 и CMake.
 - плавный Freeze с отключением входа и feedback gain `0.9995`;
 - сглаживание всех непрерывных параметров;
 - защита от NaN/Inf, denormal и аварийной амплитуды;
-- сохранение/восстановление состояния через `AudioProcessorValueTreeState` с
-  миграцией старого Character `Bloom`;
+- сохранение/восстановление текущего состояния через
+  `AudioProcessorValueTreeState`;
 - VST3 и Audio Unit targets для macOS.
 
 Пока не реализованы Ducking, Evolution macro, отдельные low/high RT60 controls,
@@ -195,9 +195,7 @@ DSP находится в `Source/dsp` и не зависит от JUCE/UI. Вс
 
 | Параметр | Диапазон | Назначение |
 |---|---:|---|
-| Character | Default/Drift/Bloom | Выбор характера хвоста |
-| Drift Model | Original/Drift 2 | A/B модели при Character=Drift |
-| Veil | Off/On | Включает Veil; Off возвращает сохранённый Character |
+| Character | Default/Bloom/Drift/Drift 2/Veil | Единственный переключатель алгоритма хвоста |
 | Mix | 0–100 % | Линейный dry/wet mix |
 | Decay | 0.2–30 s | Broadband RT60 feedback-сети |
 | Size | 50–200 % | Масштаб всех FDN delay lengths |
@@ -208,18 +206,13 @@ DSP находится в `Source/dsp` и не зависит от JUCE/UI. Вс
 | Width | 0–200 % | Ширина только wet-сигнала |
 | Freeze | Off/On | Плавная фиксация текущего хвоста |
 
-Порядок `Default/Drift/Bloom` выбран намеренно: старые host-normalized endpoints
-`0.0/1.0` по-прежнему означают Default/Bloom. При загрузке state без schema
-старый raw index Bloom `1` мигрирует в index `2`. Drift из версии `0.3.0`
-остаётся моделью Original; состояния без нового параметра всегда получают
-Original. Veil намеренно добавлен отдельным последним параметром, а не четвёртым
-choice старого Character: так прежние normalized VST3 values и indexed AU values
-не меняют смысл. При `Veil=On` он временно имеет приоритет над Character; после
-Off восстанавливается выбранный Default/Drift/Bloom. Состояния без Veil получают
-Off, новые состояния сохраняются с `schemaVersion=5`. `Drift Model` и `Veil`
-имеют последовательные JUCE version hints `2/3`, чтобы не переиндексировать
-старые AU-параметры. Generic Editor увеличен до `500 px`, поэтому все строки
-видны без скрытой вертикальной прокрутки.
+`Character` находится первой строкой Generic Editor. Все пять вариантов
+взаимоисключающие: выбор нового режима полностью заменяет предыдущий, без
+дополнительных флагов и скрытых приоритетов. В версии `0.6.0` параметр получил
+новый host-ID `character`; состояния и automation версий `0.5.0` и ниже
+намеренно не мигрируются. После обновления следует удалить старый экземпляр
+устройства, выполнить полный rescan и добавить плагин заново. Высота Generic
+Editor равна `420 px`, все десять строк видны без вертикальной прокрутки.
 
 ## Требования
 
@@ -317,7 +310,8 @@ Offline utility создаёт 10-секундный stereo Float32 WAV при 4
 - плавные Default/Bloom/Drift↔Veil morph и точный host→DSP routing;
 - повторяющийся kick+bass pattern при 190 BPM с четырёхполосным анализом;
 - автоматические bit-level fingerprints Default, Bloom и Drift Original;
-- совместимость host automation и миграцию состояний Character;
+- единый host-параметр Character, round-trip текущего state и точный routing
+  всех пяти вариантов;
 - независимость результата от размера audio block;
 - отсутствие C++ allocations во время обработки.
 

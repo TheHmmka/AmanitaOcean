@@ -41,9 +41,7 @@ private:
     amanita::dsp::FDNReverb reverb_;
     juce::AudioProcessorValueTreeState state_;
 
-    std::atomic<float>* modeParameter_ = nullptr;
-    std::atomic<float>* driftModelParameter_ = nullptr;
-    std::atomic<float>* veilParameter_ = nullptr;
+    std::atomic<float>* characterParameter_ = nullptr;
     std::atomic<float>* mixParameter_ = nullptr;
     std::atomic<float>* decayParameter_ = nullptr;
     std::atomic<float>* sizeParameter_ = nullptr;
