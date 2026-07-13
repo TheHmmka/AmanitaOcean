@@ -71,7 +71,7 @@ void DriftCharacter::reset() noexcept
 
 void DriftCharacter::processFeedback(std::array<float, numFeedbackLines>& feedback,
                                      float characterAmount,
-                                     float modulationAmount) noexcept
+                                     float evolutionAmount) noexcept
 {
     std::array<float, spectralAxes.size()> components {};
     for (std::size_t index = 0; index < numFeedbackLines; ++index)
@@ -93,11 +93,11 @@ void DriftCharacter::processFeedback(std::array<float, numFeedbackLines>& feedba
         : 0.0f;
     if (amount > 0.0f)
     {
-        const auto modulation = std::isfinite(modulationAmount)
-            ? std::clamp(modulationAmount, 0.0f, 1.0f)
+        const auto evolution = std::isfinite(evolutionAmount)
+            ? std::clamp(evolutionAmount, 0.0f, 1.0f)
             : 0.0f;
-        const auto span = 0.25f + 0.75f * modulation;
-        const auto depth = amount * (0.15f + 0.70f * modulation);
+        const auto span = 0.25f + 0.75f * evolution;
+        const auto depth = amount * (0.15f + 0.70f * evolution);
         const auto leftMotion = 0.72f * std::sin(twoPi * phases_[0])
                               + 0.28f * std::sin(twoPi * phases_[1]);
         const auto rightMotion = 0.69f * std::sin(twoPi * phases_[2])

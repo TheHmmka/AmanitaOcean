@@ -187,7 +187,7 @@ BloomCharacter::StereoFrame BloomCharacter::processExcitation(float left, float 
 }
 
 float BloomCharacter::nextDriftSamples(std::size_t lineIndex,
-                                       float modulationAmount,
+                                       float evolutionAmount,
                                        bool renderOffset) noexcept
 {
     if (lineIndex >= numFeedbackLines)
@@ -196,8 +196,8 @@ float BloomCharacter::nextDriftSamples(std::size_t lineIndex,
     auto offset = 0.0f;
     if (renderOffset)
     {
-        const auto amount = std::isfinite(modulationAmount)
-            ? std::clamp(modulationAmount, 0.0f, 1.0f)
+        const auto amount = std::isfinite(evolutionAmount)
+            ? std::clamp(evolutionAmount, 0.0f, 1.0f)
             : 0.0f;
         const auto depthSeconds = (0.00010f + 0.00018f * amount)
                                 * driftDepthScales[lineIndex];

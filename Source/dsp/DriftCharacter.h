@@ -15,7 +15,7 @@ public:
 
     void processFeedback(std::array<float, numFeedbackLines>& feedback,
                          float characterAmount,
-                         float modulationAmount) noexcept;
+                         float evolutionAmount) noexcept;
 
 private:
     class EndpointFilters

@@ -23,7 +23,7 @@ public:
 
     [[nodiscard]] StereoFrame processExcitation(float left, float right) noexcept;
     [[nodiscard]] float nextDriftSamples(std::size_t lineIndex,
-                                         float modulationAmount,
+                                         float evolutionAmount,
                                          bool renderOffset) noexcept;
 
 private:

@@ -19,23 +19,16 @@ enum class ReverbMode
     veil
 };
 
-enum class DriftModel
-{
-    original = 0,
-    drift2
-};
-
 struct ReverbParameters
 {
     ReverbMode mode = ReverbMode::defaultMode;
-    DriftModel driftModel = DriftModel::original;
     float mix = 0.35f;
     float decaySeconds = 5.0f;
     float size = 1.0f;
     float preDelayMs = 20.0f;
     float lowCutHz = 80.0f;
     float highDampingHz = 9000.0f;
-    float modulation = 0.2f;
+    float evolution = 0.35f;
     float width = 1.0f;
     bool freeze = false;
 };
@@ -140,14 +133,13 @@ private:
 
     LinearSmoother bloomAmount_;
     LinearSmoother driftAmount_;
-    LinearSmoother drift2Amount_;
     LinearSmoother veilAmount_;
     LinearSmoother mix_;
     LinearSmoother size_;
     LinearSmoother preDelaySamples_;
     LinearSmoother lowCutCoefficient_;
     LinearSmoother dampingCoefficient_;
-    LinearSmoother modulation_;
+    LinearSmoother evolution_;
     LinearSmoother width_;
     LinearSmoother freeze_;
 };

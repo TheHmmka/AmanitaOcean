@@ -48,7 +48,7 @@ private:
     std::atomic<float>* preDelayParameter_ = nullptr;
     std::atomic<float>* lowCutParameter_ = nullptr;
     std::atomic<float>* highDampingParameter_ = nullptr;
-    std::atomic<float>* modulationParameter_ = nullptr;
+    std::atomic<float>* evolutionParameter_ = nullptr;
     std::atomic<float>* widthParameter_ = nullptr;
     std::atomic<float>* freezeParameter_ = nullptr;
 

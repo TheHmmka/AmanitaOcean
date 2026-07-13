@@ -6,14 +6,14 @@
 
 namespace
 {
-constexpr auto characterId = "character";
+constexpr auto algorithmId = "algorithm";
 constexpr auto mixId = "mix";
 constexpr auto decayId = "decay";
 constexpr auto sizeId = "size";
 constexpr auto preDelayId = "preDelay";
 constexpr auto lowCutId = "lowCut";
 constexpr auto highDampingId = "highDamping";
-constexpr auto modulationId = "modulation";
+constexpr auto evolutionId = "evolution";
 constexpr auto widthId = "width";
 constexpr auto freezeId = "freeze";
 
@@ -34,21 +34,21 @@ AmanitaOceanAudioProcessor::AmanitaOceanAudioProcessor()
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       state_(*this, nullptr, "AmanitaOceanState", createParameterLayout())
 {
-    characterParameter_ = state_.getRawParameterValue(characterId);
+    characterParameter_ = state_.getRawParameterValue(algorithmId);
     mixParameter_ = state_.getRawParameterValue(mixId);
     decayParameter_ = state_.getRawParameterValue(decayId);
     sizeParameter_ = state_.getRawParameterValue(sizeId);
     preDelayParameter_ = state_.getRawParameterValue(preDelayId);
     lowCutParameter_ = state_.getRawParameterValue(lowCutId);
     highDampingParameter_ = state_.getRawParameterValue(highDampingId);
-    modulationParameter_ = state_.getRawParameterValue(modulationId);
+    evolutionParameter_ = state_.getRawParameterValue(evolutionId);
     widthParameter_ = state_.getRawParameterValue(widthId);
     freezeParameter_ = state_.getRawParameterValue(freezeId);
 
     jassert(characterParameter_ != nullptr && mixParameter_ != nullptr
             && decayParameter_ != nullptr && sizeParameter_ != nullptr
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
-            && highDampingParameter_ != nullptr && modulationParameter_ != nullptr
+            && highDampingParameter_ != nullptr && evolutionParameter_ != nullptr
             && widthParameter_ != nullptr && freezeParameter_ != nullptr);
 }
 
@@ -149,8 +149,8 @@ AmanitaOceanAudioProcessor::createParameterLayout()
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID { characterId, 1 }, "Character",
-        juce::StringArray { "Default", "Bloom", "Drift", "Drift 2", "Veil" }, 0));
+        juce::ParameterID { algorithmId, 1 }, "Character",
+        juce::StringArray { "Default", "Bloom", "Drift", "Veil" }, 0));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { mixId, 1 }, "Mix",
         juce::NormalisableRange<float> { 0.0f, 100.0f, 0.1f }, 35.0f,
@@ -176,8 +176,8 @@ AmanitaOceanAudioProcessor::createParameterLayout()
         skewedRange(1000.0f, 20000.0f, 1.0f, 7000.0f), 9000.0f,
         FloatAttributes().withLabel("Hz")));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID { modulationId, 1 }, "Modulation",
-        juce::NormalisableRange<float> { 0.0f, 100.0f, 0.1f }, 20.0f,
+        juce::ParameterID { evolutionId, 1 }, "Evolution",
+        juce::NormalisableRange<float> { 0.0f, 100.0f, 0.1f }, 35.0f,
         FloatAttributes().withLabel("%")));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { widthId, 1 }, "Width",
@@ -194,11 +194,10 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
     jassert(characterParameter_ != nullptr && mixParameter_ != nullptr
             && decayParameter_ != nullptr && sizeParameter_ != nullptr
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
-            && highDampingParameter_ != nullptr && modulationParameter_ != nullptr
+            && highDampingParameter_ != nullptr && evolutionParameter_ != nullptr
             && widthParameter_ != nullptr && freezeParameter_ != nullptr);
 
     amanita::dsp::ReverbParameters parameters;
-    parameters.driftModel = amanita::dsp::DriftModel::original;
     switch (static_cast<int>(std::lround(
         characterParameter_->load(std::memory_order_relaxed))))
     {
@@ -209,10 +208,6 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
             parameters.mode = amanita::dsp::ReverbMode::drift;
             break;
         case 3:
-            parameters.mode = amanita::dsp::ReverbMode::drift;
-            parameters.driftModel = amanita::dsp::DriftModel::drift2;
-            break;
-        case 4:
             parameters.mode = amanita::dsp::ReverbMode::veil;
             break;
         default:
@@ -225,7 +220,7 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
     parameters.preDelayMs = preDelayParameter_->load(std::memory_order_relaxed);
     parameters.lowCutHz = lowCutParameter_->load(std::memory_order_relaxed);
     parameters.highDampingHz = highDampingParameter_->load(std::memory_order_relaxed);
-    parameters.modulation = modulationParameter_->load(std::memory_order_relaxed) * 0.01f;
+    parameters.evolution = evolutionParameter_->load(std::memory_order_relaxed) * 0.01f;
     parameters.width = widthParameter_->load(std::memory_order_relaxed) * 0.01f;
     parameters.freeze = freezeParameter_->load(std::memory_order_relaxed) >= 0.5f;
     return parameters;

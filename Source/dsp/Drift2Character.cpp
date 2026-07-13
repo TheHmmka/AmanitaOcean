@@ -112,7 +112,7 @@ void Drift2Character::reset() noexcept
 
 void Drift2Character::processFeedback(std::array<float, numFeedbackLines>& feedback,
                                       float characterAmount,
-                                      float modulationAmount) noexcept
+                                      float evolutionAmount) noexcept
 {
     std::array<float, spectralAxes.size()> components {};
     for (std::size_t index = 0; index < numFeedbackLines; ++index)
@@ -133,8 +133,8 @@ void Drift2Character::processFeedback(std::array<float, numFeedbackLines>& feedb
         : 0.0f;
     if (amount > 0.0f)
     {
-        const auto modulation = std::isfinite(modulationAmount)
-            ? std::clamp(modulationAmount, 0.0f, 1.0f)
+        const auto evolution = std::isfinite(evolutionAmount)
+            ? std::clamp(evolutionAmount, 0.0f, 1.0f)
             : 0.0f;
         const auto fastMotion = 0.62f * std::sin(twoPi * phases_[0])
                               + 0.38f * std::sin(twoPi * phases_[1]);
@@ -142,18 +142,18 @@ void Drift2Character::processFeedback(std::array<float, numFeedbackLines>& feedb
                               + 0.14f * std::sin(twoPi * phases_[2]);
         const auto rightMotion = -0.86f * fastMotion
                                + 0.14f * std::sin(twoPi * phases_[3]);
-        const auto span = 0.35f + 0.65f * modulation;
+        const auto span = 0.35f + 0.65f * evolution;
         const auto leftLinear = std::clamp(0.5f + 0.5f * span * leftMotion, 0.0f, 1.0f);
         const auto rightLinear = std::clamp(0.5f + 0.5f * span * rightMotion, 0.0f, 1.0f);
-        const auto leftPosition = shapePosition(leftLinear, modulation);
-        const auto rightPosition = shapePosition(rightLinear, modulation);
-        const auto presenceContrast = 1.0f + 0.20f * modulation;
+        const auto leftPosition = shapePosition(leftLinear, evolution);
+        const auto rightPosition = shapePosition(rightLinear, evolution);
+        const auto presenceContrast = 1.0f + 0.20f * evolution;
         const auto leftPresencePosition = std::clamp(
             0.5f + presenceContrast * (leftPosition - 0.5f), 0.0f, 1.0f);
         const auto rightPresencePosition = std::clamp(
             0.5f + presenceContrast * (rightPosition - 0.5f), 0.0f, 1.0f);
-        const auto bodyDepth = 0.15f + 0.37f * modulation;
-        const auto presenceDepth = 0.22f + 0.73f * modulation;
+        const auto bodyDepth = 0.15f + 0.37f * evolution;
+        const auto presenceDepth = 0.22f + 0.73f * evolution;
 
         std::array<float, spectralAxes.size()> filteredComponents {};
         for (std::size_t axis = 0; axis < spectralAxes.size(); ++axis)

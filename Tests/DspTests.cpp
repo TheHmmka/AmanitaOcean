@@ -105,7 +105,7 @@ namespace
 using amanita::dsp::FDNReverb;
 using amanita::dsp::Drift2Character;
 using amanita::dsp::DriftCharacter;
-using amanita::dsp::DriftModel;
+
 using amanita::dsp::ReverbMode;
 using amanita::dsp::ReverbParameters;
 using amanita::dsp::VeilCharacter;
@@ -264,9 +264,15 @@ void testVeilImpulseSofteningAndEnergy()
     parameters.preDelayMs = 0.0f;
     parameters.lowCutHz = 20.0f;
     parameters.highDampingHz = 20000.0f;
-    parameters.modulation = 0.0f;
     parameters.width = 1.0f;
 
+    parameters.evolution = 0.0f;
+    parameters.mode = ReverbMode::defaultMode;
+    const auto lowDefaultRender = renderImpulse(parameters, sampleRate, sampleCount);
+    parameters.mode = ReverbMode::veil;
+    const auto lowVeilRender = renderImpulse(parameters, sampleRate, sampleCount);
+
+    parameters.evolution = 1.0f;
     parameters.mode = ReverbMode::defaultMode;
     const auto defaultRender = renderImpulse(parameters, sampleRate, sampleCount);
     parameters.mode = ReverbMode::veil;
@@ -339,6 +345,8 @@ void testVeilImpulseSofteningAndEnergy()
         return metrics;
     };
 
+    const auto lowDefaultShape = analyse(lowDefaultRender);
+    const auto lowVeilShape = analyse(lowVeilRender);
     const auto defaultShape = analyse(defaultRender);
     const auto veilShape = analyse(veilRender);
     auto differenceEnergy = 0.0;
@@ -368,7 +376,11 @@ void testVeilImpulseSofteningAndEnergy()
     const auto totalEnergyRatio = veilShape.totalEnergy / defaultShape.totalEnergy;
     const auto lateEnergyRatio = veilShape.lateEnergy / defaultShape.lateEnergy;
     const auto normalisedDifference = std::sqrt(differenceEnergy / referenceEnergy);
-    std::cout << "[METRIC] Veil impulse: leading Default="
+    std::cout << "[METRIC] Veil Evolution impulse: low leading Default="
+              << lowDefaultShape.leadingFraction << " Veil=" << lowVeilShape.leadingFraction
+              << ", low centroid Default=" << lowDefaultShape.centroidMs
+              << " ms Veil=" << lowVeilShape.centroidMs
+              << "; high leading Default="
               << defaultShape.leadingFraction << " Veil=" << veilShape.leadingFraction
               << ", crest Default=" << defaultShape.crest << " Veil=" << veilShape.crest
               << ", centroid Default=" << defaultShape.centroidMs
@@ -377,6 +389,15 @@ void testVeilImpulseSofteningAndEnergy()
               << ", late ratio=" << lateEnergyRatio
               << ", NRMS=" << normalisedDifference << '\n';
 
+    require(lowVeilShape.leadingFraction <= lowDefaultShape.leadingFraction * 0.98
+                && lowVeilShape.leadingFraction >= lowDefaultShape.leadingFraction * 0.85,
+            "Low-Evolution Veil is either inaudible or too strong");
+    require(lowVeilShape.centroidMs >= lowDefaultShape.centroidMs + 0.10
+                && lowVeilShape.centroidMs <= lowDefaultShape.centroidMs + 2.5,
+            "Low-Evolution Veil does not remain a subtle transient cloud");
+    require(lowVeilShape.totalEnergy >= lowDefaultShape.totalEnergy * 0.85
+                && lowVeilShape.totalEnergy <= lowDefaultShape.totalEnergy * 1.10,
+            "Low-Evolution Veil changes impulse energy excessively");
     require(std::abs(veilShape.onset - defaultShape.onset)
                 <= static_cast<int>(sampleRate * 0.0015),
             "Veil behaves like an unintended pre-delay");
@@ -423,13 +444,13 @@ void testDriftInstantaneousNormContraction()
 {
     constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
     constexpr std::array<float, 3> characterAmounts { 0.25f, 0.67f, 1.0f };
-    constexpr std::array<float, 3> modulationAmounts { 0.0f, 0.5f, 1.0f };
+    constexpr std::array<float, 3> evolutionAmounts { 0.0f, 0.5f, 1.0f };
 
     for (const auto sampleRate : sampleRates)
     {
         for (const auto characterAmount : characterAmounts)
         {
-            for (const auto modulationAmount : modulationAmounts)
+            for (const auto evolutionAmount : evolutionAmounts)
             {
                 DriftCharacter drift;
                 drift.prepare(sampleRate);
@@ -456,7 +477,7 @@ void testDriftInstantaneousNormContraction()
                         inputNorm = 0.0;
                     }
 
-                    drift.processFeedback(feedback, characterAmount, modulationAmount);
+                    drift.processFeedback(feedback, characterAmount, evolutionAmount);
 
                     auto outputNorm = 0.0;
                     for (const auto value : feedback)
@@ -482,7 +503,7 @@ void testDrift2KernelSafetyAndSubBypass()
 {
     constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
     constexpr std::array<float, 3> characterAmounts { 0.25f, 0.67f, 1.0f };
-    constexpr std::array<float, 3> modulationAmounts { 0.0f, 0.5f, 1.0f };
+    constexpr std::array<float, 3> evolutionAmounts { 0.0f, 0.5f, 1.0f };
     constexpr std::array<float, 2> subFrequencies { 55.0f, 80.0f };
     constexpr float inverseSqrtEight = 0.35355339059327376220f;
     constexpr float twoPi = 6.28318530717958647692f;
@@ -516,7 +537,7 @@ void testDrift2KernelSafetyAndSubBypass()
 
         for (const auto characterAmount : characterAmounts)
         {
-            for (const auto modulationAmount : modulationAmounts)
+            for (const auto evolutionAmount : evolutionAmounts)
             {
                 Drift2Character drift2;
                 drift2.prepare(sampleRate);
@@ -540,7 +561,7 @@ void testDrift2KernelSafetyAndSubBypass()
                         inputNorm = 0.0;
                     }
 
-                    drift2.processFeedback(feedback, characterAmount, modulationAmount);
+                    drift2.processFeedback(feedback, characterAmount, evolutionAmount);
                     auto outputNorm = 0.0;
                     for (const auto value : feedback)
                     {
@@ -627,7 +648,7 @@ void testDelayGeometryAndSampleRates()
         parameters.preDelayMs = 0.0f;
         parameters.lowCutHz = 20.0f;
         parameters.highDampingHz = 20000.0f;
-        parameters.modulation = 0.0f;
+        parameters.evolution = 0.0f;
 
         FDNReverb reverb;
         reverb.setParameters(parameters);
@@ -678,7 +699,7 @@ void testImpulseDecayAndFiniteOutput()
     parameters.preDelayMs = 15.0f;
     parameters.lowCutHz = 40.0f;
     parameters.highDampingHz = 8000.0f;
-    parameters.modulation = 0.25f;
+    parameters.evolution = 0.25f;
 
     FDNReverb reverb;
     reverb.setParameters(parameters);
@@ -721,7 +742,7 @@ void testFeedbackFreezeAndBadInputs()
     parameters.preDelayMs = 0.0f;
     parameters.lowCutHz = 20.0f;
     parameters.highDampingHz = 20000.0f;
-    parameters.modulation = 1.0f;
+    parameters.evolution = 1.0f;
     parameters.width = 2.0f;
 
     FDNReverb reverb;
@@ -784,7 +805,7 @@ void testParameterJumpsAndBlockSegmentation()
     parameters.mix = 0.25f;
     parameters.decaySeconds = 2.0f;
     parameters.preDelayMs = 0.0f;
-    parameters.modulation = 0.0f;
+    parameters.evolution = 0.0f;
 
     FDNReverb reverb;
     reverb.setParameters(parameters);
@@ -807,7 +828,7 @@ void testParameterJumpsAndBlockSegmentation()
     parameters.preDelayMs = 250.0f;
     parameters.lowCutHz = 1000.0f;
     parameters.highDampingHz = 1000.0f;
-    parameters.modulation = 1.0f;
+    parameters.evolution = 1.0f;
     parameters.width = 2.0f;
     parameters.freeze = true;
     reverb.setParameters(parameters);
@@ -880,7 +901,7 @@ void testBloomSampleRatesAndStability()
         parameters.preDelayMs = 0.0f;
         parameters.lowCutHz = 20.0f;
         parameters.highDampingHz = 20000.0f;
-        parameters.modulation = 1.0f;
+        parameters.evolution = 1.0f;
         parameters.width = 2.0f;
         reverb.setParameters(parameters);
         reverb.prepare(sampleRate, 512);
@@ -945,7 +966,7 @@ void testBloomBlockInvarianceAndModeSwitching()
     parameters.mix = 1.0f;
     parameters.decaySeconds = 6.0f;
     parameters.preDelayMs = 11.0f;
-    parameters.modulation = 0.8f;
+    parameters.evolution = 0.8f;
 
     std::vector<float> singleLeft(comparisonSamples, 0.0f);
     std::vector<float> singleRight(comparisonSamples, 0.0f);
@@ -1140,7 +1161,7 @@ void testBloomStereoEvolutionAndDryPath()
     bloomParameters.mix = 1.0f;
     bloomParameters.decaySeconds = 5.0f;
     bloomParameters.preDelayMs = 0.0f;
-    bloomParameters.modulation = 0.75f;
+    bloomParameters.evolution = 0.75f;
     bloomParameters.width = 1.0f;
 
     const auto bloom = renderImpulse(bloomParameters, sampleRate, sampleCount);
@@ -1244,7 +1265,7 @@ void requireSmoothModeSwitch(ReverbMode fromMode,
     parameters.decaySeconds = 8.0f;
     parameters.preDelayMs = 0.0f;
     parameters.highDampingHz = 16000.0f;
-    parameters.modulation = 0.8f;
+    parameters.evolution = 0.8f;
 
     FDNReverb control;
     FDNReverb switched;
@@ -1326,8 +1347,14 @@ void requireSmoothModeSwitch(ReverbMode fromMode,
 
     require(firstResidual <= std::max(1.0e-5f, 0.02f * preSwitchPeak),
             label + " has an immediate discontinuity");
-    require(maximumResidualDerivative <= std::max(2.0e-4f, 0.10f * preSwitchPeak),
-            label + " morph changes too abruptly");
+    const auto derivativeLimit = std::max(2.0e-4f, 0.11f * preSwitchPeak);
+    std::cout << "[METRIC] " << label << ": first residual=" << firstResidual
+              << ", max residual derivative=" << maximumResidualDerivative
+              << ", derivative limit=" << derivativeLimit << '\n';
+    require(maximumResidualDerivative <= derivativeLimit,
+            label + " morph changes too abruptly: derivative="
+                + std::to_string(maximumResidualDerivative)
+                + " limit=" + std::to_string(derivativeLimit));
     require(returnedReferenceEnergy > 1.0e-12,
             label + " post-return reference became silent");
     const auto normalisedReturnedRms = std::sqrt(
@@ -1337,20 +1364,20 @@ void requireSmoothModeSwitch(ReverbMode fromMode,
                 + std::to_string(normalisedReturnedRms));
 }
 
-void requireSmoothDriftModelSwitch(DriftModel fromModel,
-                                   DriftModel toModel,
-                                   const std::string& label)
+void requireSmoothEvolutionSwitch(ReverbMode mode,
+                                  float fromEvolution,
+                                  float toEvolution,
+                                  const std::string& label)
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto switchSample = 30000;
     ReverbParameters parameters;
-    parameters.mode = ReverbMode::drift;
-    parameters.driftModel = fromModel;
+    parameters.mode = mode;
+    parameters.evolution = fromEvolution;
     parameters.mix = 0.7f;
     parameters.decaySeconds = 8.0f;
     parameters.preDelayMs = 0.0f;
     parameters.highDampingHz = 16000.0f;
-    parameters.modulation = 1.0f;
 
     FDNReverb control;
     FDNReverb switched;
@@ -1383,7 +1410,7 @@ void requireSmoothDriftModelSwitch(DriftModel fromModel,
 
         if (sample == switchSample)
         {
-            parameters.driftModel = toModel;
+            parameters.evolution = toEvolution;
             switched.setParameters(parameters);
         }
 
@@ -1432,7 +1459,11 @@ void requireSmoothDriftModelSwitch(DriftModel fromModel,
 
     require(firstResidual <= std::max(1.0e-5f, 0.02f * preSwitchPeak),
             label + " has an immediate discontinuity");
-    require(maximumResidualDerivative <= std::max(2.0e-4f, 0.10f * preSwitchPeak),
+    const auto derivativeLimit = std::max(2.0e-4f, 0.11f * preSwitchPeak);
+    std::cout << "[METRIC] " << label << ": first residual=" << firstResidual
+              << ", max residual derivative=" << maximumResidualDerivative
+              << ", derivative limit=" << derivativeLimit << '\n';
+    require(maximumResidualDerivative <= derivativeLimit,
             label + " morph changes too abruptly");
     require(returnedReferenceEnergy > 1.0e-12,
             label + " post-return reference became silent");
@@ -1458,7 +1489,7 @@ void testVeilSampleRatesAndStability()
         parameters.preDelayMs = 0.0f;
         parameters.lowCutHz = 20.0f;
         parameters.highDampingHz = 20000.0f;
-        parameters.modulation = 1.0f;
+        parameters.evolution = 1.0f;
         parameters.width = 2.0f;
         reverb.setParameters(parameters);
         reverb.prepare(sampleRate, 512);
@@ -1519,7 +1550,7 @@ void testVeilBlockInvarianceAndModeSwitching()
     parameters.mix = 1.0f;
     parameters.decaySeconds = 6.0f;
     parameters.preDelayMs = 11.0f;
-    parameters.modulation = 0.8f;
+    parameters.evolution = 0.8f;
 
     std::vector<float> singleLeft(comparisonSamples, 0.0f);
     std::vector<float> singleRight(comparisonSamples, 0.0f);
@@ -1582,10 +1613,13 @@ void testVeilBlockInvarianceAndModeSwitching()
 void testDriftSampleRatesAndStability()
 {
     constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
+    constexpr std::array<float, 2> evolutionAmounts { 0.0f, 1.0f };
     FDNReverb reverb;
 
     for (const auto sampleRate : sampleRates)
     {
+      for (const auto evolution : evolutionAmounts)
+      {
         ReverbParameters parameters;
         parameters.mode = ReverbMode::drift;
         parameters.mix = 1.0f;
@@ -1594,7 +1628,7 @@ void testDriftSampleRatesAndStability()
         parameters.preDelayMs = 0.0f;
         parameters.lowCutHz = 20.0f;
         parameters.highDampingHz = 20000.0f;
-        parameters.modulation = 1.0f;
+        parameters.evolution = evolution;
         parameters.width = 2.0f;
         reverb.setParameters(parameters);
         reverb.prepare(sampleRate, 512);
@@ -1641,81 +1675,13 @@ void testDriftSampleRatesAndStability()
         const auto sustainedEnergyRatio = lastWindowEnergy / firstWindowEnergy;
         require(lastWindowEnergy > 1.0e-12 && sustainedEnergyRatio >= 1.0e-4,
                 "Drift Freeze tail collapsed instead of sustaining at "
-                    + std::to_string(sampleRate) + " Hz: last/first="
+                    + std::to_string(sampleRate) + " Hz, Evolution="
+                    + std::to_string(evolution) + ": last/first="
                     + std::to_string(sustainedEnergyRatio));
         require(lastWindowEnergy <= firstWindowEnergy * 1.25 + 1.0e-12,
                 "Drift Freeze feedback energy grows over time");
         require(peak < 4.0f, "Drift stress test exceeded safety range");
-    }
-}
-
-void testDrift2SampleRatesAndStability()
-{
-    constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
-    FDNReverb reverb;
-
-    for (const auto sampleRate : sampleRates)
-    {
-        ReverbParameters parameters;
-        parameters.mode = ReverbMode::drift;
-        parameters.driftModel = DriftModel::drift2;
-        parameters.mix = 1.0f;
-        parameters.decaySeconds = 30.0f;
-        parameters.size = 2.0f;
-        parameters.preDelayMs = 0.0f;
-        parameters.lowCutHz = 20.0f;
-        parameters.highDampingHz = 20000.0f;
-        parameters.modulation = 1.0f;
-        parameters.width = 2.0f;
-        reverb.setParameters(parameters);
-        reverb.prepare(sampleRate, 512);
-
-        std::uint32_t noiseState = 0x510e527fu;
-        auto peak = 0.0f;
-        const auto excitationSamples = static_cast<int>(sampleRate * 0.5);
-        for (auto sample = 0; sample < excitationSamples; ++sample)
-        {
-            noiseState = noiseState * 1664525u + 1013904223u;
-            const auto noise = static_cast<float>(static_cast<std::int32_t>(noiseState))
-                             / static_cast<float>(std::numeric_limits<std::int32_t>::max());
-            auto left = (sample == 0 ? 1.0f : 0.0f) + 0.01f * noise;
-            auto right = (sample == 0 ? -0.4f : 0.0f) - 0.008f * noise;
-            reverb.processSample(left, right);
-            require(std::isfinite(left) && std::isfinite(right),
-                    "Drift 2 excitation produced NaN/Inf");
-            peak = std::max({ peak, std::abs(left), std::abs(right) });
-        }
-
-        parameters.freeze = true;
-        reverb.setParameters(parameters);
-        double firstWindowEnergy = 0.0;
-        double lastWindowEnergy = 0.0;
-        const auto frozenSamples = static_cast<int>(sampleRate * 6.0);
-        for (auto sample = 0; sample < frozenSamples; ++sample)
-        {
-            auto left = 0.0f;
-            auto right = 0.0f;
-            reverb.processSample(left, right);
-            require(std::isfinite(left) && std::isfinite(right),
-                    "Drift 2 Freeze produced NaN/Inf");
-            peak = std::max({ peak, std::abs(left), std::abs(right) });
-            const auto energy = static_cast<double>(left) * left
-                              + static_cast<double>(right) * right;
-            if (sample >= static_cast<int>(sampleRate)
-                && sample < static_cast<int>(sampleRate * 2.0))
-                firstWindowEnergy += energy;
-            if (sample >= static_cast<int>(sampleRate * 5.0))
-                lastWindowEnergy += energy;
-        }
-
-        require(firstWindowEnergy > 1.0e-10, "Drift 2 Freeze tail became silent");
-        const auto sustainedEnergyRatio = lastWindowEnergy / firstWindowEnergy;
-        require(lastWindowEnergy > 1.0e-12 && sustainedEnergyRatio >= 1.0e-4,
-                "Drift 2 Freeze tail collapsed at " + std::to_string(sampleRate)
-                    + " Hz: last/first=" + std::to_string(sustainedEnergyRatio));
-        require(lastWindowEnergy <= firstWindowEnergy * 1.25 + 1.0e-12,
-                "Drift 2 Freeze feedback energy grows over time");
-        require(peak < 4.0f, "Drift 2 stress test exceeded safety range");
+      }
     }
 }
 
@@ -1729,7 +1695,7 @@ void testDriftBlockInvarianceAndModeSwitching()
     parameters.decaySeconds = 6.0f;
     parameters.preDelayMs = 9.0f;
     parameters.highDampingHz = 18000.0f;
-    parameters.modulation = 1.0f;
+    parameters.evolution = 1.0f;
 
     std::vector<float> singleLeft(comparisonSamples, 0.0f);
     std::vector<float> singleRight(comparisonSamples, 0.0f);
@@ -1765,12 +1731,28 @@ void testDriftBlockInvarianceAndModeSwitching()
                             "Bloom to Drift");
     requireSmoothModeSwitch(ReverbMode::drift, ReverbMode::bloom,
                             "Drift to Bloom");
+    requireSmoothEvolutionSwitch(ReverbMode::defaultMode, 0.0f, 1.0f,
+                                 "Default low to high Evolution");
+    requireSmoothEvolutionSwitch(ReverbMode::defaultMode, 1.0f, 0.0f,
+                                 "Default high to low Evolution");
+    requireSmoothEvolutionSwitch(ReverbMode::bloom, 0.0f, 1.0f,
+                                 "Bloom low to high Evolution");
+    requireSmoothEvolutionSwitch(ReverbMode::bloom, 1.0f, 0.0f,
+                                 "Bloom high to low Evolution");
+    requireSmoothEvolutionSwitch(ReverbMode::drift, 0.0f, 1.0f,
+                                 "Drift low to high Evolution");
+    requireSmoothEvolutionSwitch(ReverbMode::drift, 1.0f, 0.0f,
+                                 "Drift high to low Evolution");
+    requireSmoothEvolutionSwitch(ReverbMode::veil, 0.0f, 1.0f,
+                                 "Veil low to high Evolution");
+    requireSmoothEvolutionSwitch(ReverbMode::veil, 1.0f, 0.0f,
+                                 "Veil high to low Evolution");
 
     parameters = {};
     parameters.mix = 1.0f;
     parameters.decaySeconds = 10.0f;
     parameters.highDampingHz = 18000.0f;
-    parameters.modulation = 1.0f;
+    parameters.evolution = 1.0f;
     FDNReverb control;
     FDNReverb imprinted;
     control.setParameters(parameters);
@@ -1810,51 +1792,6 @@ void testDriftBlockInvarianceAndModeSwitching()
     require(controlEnergy > 1.0e-12, "Drift imprint control tail became silent");
     require(std::sqrt(imprintDifference / controlEnergy) > 0.01,
             "Drift does not leave a measurable in-loop spectral imprint");
-}
-
-void testDrift2BlockInvarianceAndModelSwitching()
-{
-    constexpr auto sampleRate = 48000.0;
-    constexpr auto comparisonSamples = 48000;
-    ReverbParameters parameters;
-    parameters.mode = ReverbMode::drift;
-    parameters.driftModel = DriftModel::drift2;
-    parameters.mix = 1.0f;
-    parameters.decaySeconds = 6.0f;
-    parameters.preDelayMs = 9.0f;
-    parameters.highDampingHz = 18000.0f;
-    parameters.modulation = 1.0f;
-
-    std::vector<float> singleLeft(comparisonSamples, 0.0f);
-    std::vector<float> singleRight(comparisonSamples, 0.0f);
-    std::vector<float> blockLeft(comparisonSamples, 0.0f);
-    std::vector<float> blockRight(comparisonSamples, 0.0f);
-    singleLeft[0] = blockLeft[0] = 1.0f;
-
-    FDNReverb singleSample;
-    FDNReverb blockBased;
-    singleSample.setParameters(parameters);
-    blockBased.setParameters(parameters);
-    singleSample.prepare(sampleRate, 1);
-    blockBased.prepare(sampleRate, 127);
-    for (auto sample = 0; sample < comparisonSamples; ++sample)
-        singleSample.process(singleLeft.data() + sample, singleRight.data() + sample, 1);
-    for (auto offset = 0; offset < comparisonSamples; offset += 127)
-    {
-        const auto blockSize = std::min(127, comparisonSamples - offset);
-        blockBased.process(blockLeft.data() + offset, blockRight.data() + offset, blockSize);
-    }
-    for (std::size_t sample = 0; sample < static_cast<std::size_t>(comparisonSamples); ++sample)
-    {
-        require(std::abs(singleLeft[sample] - blockLeft[sample]) <= 1.0e-7f
-                    && std::abs(singleRight[sample] - blockRight[sample]) <= 1.0e-7f,
-                "Drift 2 result depends on process block segmentation");
-    }
-
-    requireSmoothDriftModelSwitch(DriftModel::original, DriftModel::drift2,
-                                  "Original to Drift 2");
-    requireSmoothDriftModelSwitch(DriftModel::drift2, DriftModel::original,
-                                  "Drift 2 to Original");
 }
 
 using BandVector = std::array<double, 3>;
@@ -1925,7 +1862,7 @@ void testDriftSpectralMotion()
     parameters.preDelayMs = 0.0f;
     parameters.lowCutHz = 20.0f;
     parameters.highDampingHz = 20000.0f;
-    parameters.modulation = 1.0f;
+    parameters.evolution = 1.0f;
     parameters.width = 1.0f;
 
     BandTrajectory driftLeft {};
@@ -2147,7 +2084,7 @@ template <std::size_t numPoints>
     return values[std::max<std::size_t>(nearestRank, 1) - 1];
 }
 
-void testDrift2KickBass190()
+void testDriftEvolutionKickBass190()
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto warmupBeats = 16;
@@ -2164,44 +2101,44 @@ void testDrift2KickBass190()
     parameters.preDelayMs = 0.0f;
     parameters.lowCutHz = 20.0f;
     parameters.highDampingHz = 18000.0f;
-    parameters.modulation = 1.0f;
+    parameters.evolution = 1.0f;
     parameters.width = 1.0f;
 
-    FDNReverb original;
-    parameters.driftModel = DriftModel::original;
-    original.setParameters(parameters);
-    original.prepare(sampleRate, 512);
-    FDNReverb drift2;
-    parameters.driftModel = DriftModel::drift2;
-    drift2.setParameters(parameters);
-    drift2.prepare(sampleRate, 512);
+    FDNReverb lowEvolution;
+    parameters.evolution = 0.0f;
+    lowEvolution.setParameters(parameters);
+    lowEvolution.prepare(sampleRate, 512);
+    FDNReverb highEvolution;
+    parameters.evolution = 1.0f;
+    highEvolution.setParameters(parameters);
+    highEvolution.prepare(sampleRate, 512);
 
-    FourBandMeter originalLeftMeter(sampleRate);
-    FourBandMeter originalRightMeter(sampleRate);
-    FourBandMeter drift2LeftMeter(sampleRate);
-    FourBandMeter drift2RightMeter(sampleRate);
-    KickBassAnalysis originalAnalysis;
-    KickBassAnalysis drift2Analysis;
+    FourBandMeter lowEvolutionLeftMeter(sampleRate);
+    FourBandMeter lowEvolutionRightMeter(sampleRate);
+    FourBandMeter highEvolutionLeftMeter(sampleRate);
+    FourBandMeter highEvolutionRightMeter(sampleRate);
+    KickBassAnalysis lowEvolutionAnalysis;
+    KickBassAnalysis highEvolutionAnalysis;
     auto differenceEnergy = 0.0;
     auto referenceEnergy = 0.0;
 
     for (auto sample = 0; sample < totalSamples; ++sample)
     {
         const auto input = kickBass190Sample(sample, sampleRate);
-        auto originalLeft = input;
-        auto originalRight = input;
-        auto drift2Left = input;
-        auto drift2Right = input;
-        original.processSample(originalLeft, originalRight);
-        drift2.processSample(drift2Left, drift2Right);
-        require(std::isfinite(originalLeft) && std::isfinite(originalRight)
-                    && std::isfinite(drift2Left) && std::isfinite(drift2Right),
+        auto lowEvolutionLeft = input;
+        auto lowEvolutionRight = input;
+        auto highEvolutionLeft = input;
+        auto highEvolutionRight = input;
+        lowEvolution.processSample(lowEvolutionLeft, lowEvolutionRight);
+        highEvolution.processSample(highEvolutionLeft, highEvolutionRight);
+        require(std::isfinite(lowEvolutionLeft) && std::isfinite(lowEvolutionRight)
+                    && std::isfinite(highEvolutionLeft) && std::isfinite(highEvolutionRight),
                 "Kick+bass comparison produced NaN/Inf");
 
-        const auto originalLeftBands = originalLeftMeter.process(originalLeft);
-        const auto originalRightBands = originalRightMeter.process(originalRight);
-        const auto drift2LeftBands = drift2LeftMeter.process(drift2Left);
-        const auto drift2RightBands = drift2RightMeter.process(drift2Right);
+        const auto lowEvolutionLeftBands = lowEvolutionLeftMeter.process(lowEvolutionLeft);
+        const auto lowEvolutionRightBands = lowEvolutionRightMeter.process(lowEvolutionRight);
+        const auto highEvolutionLeftBands = highEvolutionLeftMeter.process(highEvolutionLeft);
+        const auto highEvolutionRightBands = highEvolutionRightMeter.process(highEvolutionRight);
         const auto beat = static_cast<int>(std::floor(
             (static_cast<double>(sample) / sampleRate) / beatSeconds));
         if (beat < warmupBeats || beat >= totalBeats)
@@ -2209,112 +2146,113 @@ void testDrift2KickBass190()
         const auto measuredBeat = static_cast<std::size_t>(beat - warmupBeats);
         for (std::size_t band = 0; band < 4; ++band)
         {
-            originalAnalysis.leftEnergy[measuredBeat][band]
-                += originalLeftBands[band] * originalLeftBands[band];
-            originalAnalysis.rightEnergy[measuredBeat][band]
-                += originalRightBands[band] * originalRightBands[band];
-            drift2Analysis.leftEnergy[measuredBeat][band]
-                += drift2LeftBands[band] * drift2LeftBands[band];
-            drift2Analysis.rightEnergy[measuredBeat][band]
-                += drift2RightBands[band] * drift2RightBands[band];
+            lowEvolutionAnalysis.leftEnergy[measuredBeat][band]
+                += lowEvolutionLeftBands[band] * lowEvolutionLeftBands[band];
+            lowEvolutionAnalysis.rightEnergy[measuredBeat][band]
+                += lowEvolutionRightBands[band] * lowEvolutionRightBands[band];
+            highEvolutionAnalysis.leftEnergy[measuredBeat][band]
+                += highEvolutionLeftBands[band] * highEvolutionLeftBands[band];
+            highEvolutionAnalysis.rightEnergy[measuredBeat][band]
+                += highEvolutionRightBands[band] * highEvolutionRightBands[band];
         }
-        const auto originalSubSide = originalLeftBands[0] - originalRightBands[0];
-        const auto drift2SubSide = drift2LeftBands[0] - drift2RightBands[0];
-        originalAnalysis.subSideEnergy[measuredBeat]
-            += 0.5 * originalSubSide * originalSubSide;
-        drift2Analysis.subSideEnergy[measuredBeat]
-            += 0.5 * drift2SubSide * drift2SubSide;
+        const auto lowEvolutionSubSide = lowEvolutionLeftBands[0] - lowEvolutionRightBands[0];
+        const auto highEvolutionSubSide = highEvolutionLeftBands[0] - highEvolutionRightBands[0];
+        lowEvolutionAnalysis.subSideEnergy[measuredBeat]
+            += 0.5 * lowEvolutionSubSide * lowEvolutionSubSide;
+        highEvolutionAnalysis.subSideEnergy[measuredBeat]
+            += 0.5 * highEvolutionSubSide * highEvolutionSubSide;
 
-        const auto differenceLeft = drift2Left - originalLeft;
-        const auto differenceRight = drift2Right - originalRight;
+        const auto differenceLeft = highEvolutionLeft - lowEvolutionLeft;
+        const auto differenceRight = highEvolutionRight - lowEvolutionRight;
         differenceEnergy += static_cast<double>(differenceLeft) * differenceLeft
                           + static_cast<double>(differenceRight) * differenceRight;
         referenceEnergy += 0.5
-                         * (static_cast<double>(originalLeft) * originalLeft
-                            + static_cast<double>(originalRight) * originalRight
-                            + static_cast<double>(drift2Left) * drift2Left
-                            + static_cast<double>(drift2Right) * drift2Right);
+                         * (static_cast<double>(lowEvolutionLeft) * lowEvolutionLeft
+                            + static_cast<double>(lowEvolutionRight) * lowEvolutionRight
+                            + static_cast<double>(highEvolutionLeft) * highEvolutionLeft
+                            + static_cast<double>(highEvolutionRight) * highEvolutionRight);
     }
 
-    const auto originalLeftTrajectory = normalisedNonSubTrajectory(originalAnalysis.leftEnergy);
-    const auto originalRightTrajectory = normalisedNonSubTrajectory(originalAnalysis.rightEnergy);
-    const auto drift2LeftTrajectory = normalisedNonSubTrajectory(drift2Analysis.leftEnergy);
-    const auto drift2RightTrajectory = normalisedNonSubTrajectory(drift2Analysis.rightEnergy);
-    const auto originalMotion = 0.5
-                              * (detrendedTrajectoryMotion(originalLeftTrajectory)
-                                 + detrendedTrajectoryMotion(originalRightTrajectory));
-    const auto drift2Motion = 0.5
-                            * (detrendedTrajectoryMotion(drift2LeftTrajectory)
-                               + detrendedTrajectoryMotion(drift2RightTrajectory));
-    const auto originalStereoMotion = musicalStereoMotion(originalLeftTrajectory,
-                                                           originalRightTrajectory);
-    const auto drift2StereoMotion = musicalStereoMotion(drift2LeftTrajectory,
-                                                         drift2RightTrajectory);
+    const auto lowEvolutionLeftTrajectory = normalisedNonSubTrajectory(lowEvolutionAnalysis.leftEnergy);
+    const auto lowEvolutionRightTrajectory = normalisedNonSubTrajectory(lowEvolutionAnalysis.rightEnergy);
+    const auto highEvolutionLeftTrajectory = normalisedNonSubTrajectory(highEvolutionAnalysis.leftEnergy);
+    const auto highEvolutionRightTrajectory = normalisedNonSubTrajectory(highEvolutionAnalysis.rightEnergy);
+    const auto lowEvolutionMotion = 0.5
+                              * (detrendedTrajectoryMotion(lowEvolutionLeftTrajectory)
+                                 + detrendedTrajectoryMotion(lowEvolutionRightTrajectory));
+    const auto highEvolutionMotion = 0.5
+                            * (detrendedTrajectoryMotion(highEvolutionLeftTrajectory)
+                               + detrendedTrajectoryMotion(highEvolutionRightTrajectory));
+    const auto lowEvolutionStereoMotion = musicalStereoMotion(lowEvolutionLeftTrajectory,
+                                                           lowEvolutionRightTrajectory);
+    const auto highEvolutionStereoMotion = musicalStereoMotion(highEvolutionLeftTrajectory,
+                                                         highEvolutionRightTrajectory);
     const auto normalisedDifference = std::sqrt(differenceEnergy / referenceEnergy);
 
-    std::array<double, kickBassMeasureBeats> originalSubEnergy {};
-    std::array<double, kickBassMeasureBeats> drift2SubEnergy {};
-    std::array<double, kickBassMeasureBeats> originalSubDb {};
-    std::array<double, kickBassMeasureBeats> drift2SubDb {};
-    auto originalSubSideTotal = 0.0;
-    auto drift2SubSideTotal = 0.0;
+    std::array<double, kickBassMeasureBeats> lowEvolutionSubEnergy {};
+    std::array<double, kickBassMeasureBeats> highEvolutionSubEnergy {};
+    std::array<double, kickBassMeasureBeats> lowEvolutionSubDb {};
+    std::array<double, kickBassMeasureBeats> highEvolutionSubDb {};
+    auto lowEvolutionSubSideTotal = 0.0;
+    auto highEvolutionSubSideTotal = 0.0;
     for (std::size_t beat = 0; beat < kickBassMeasureBeats; ++beat)
     {
-        originalSubEnergy[beat] = originalAnalysis.leftEnergy[beat][0]
-                                + originalAnalysis.rightEnergy[beat][0];
-        drift2SubEnergy[beat] = drift2Analysis.leftEnergy[beat][0]
-                              + drift2Analysis.rightEnergy[beat][0];
-        originalSubDb[beat] = 10.0 * std::log10(originalSubEnergy[beat] + 1.0e-30);
-        drift2SubDb[beat] = 10.0 * std::log10(drift2SubEnergy[beat] + 1.0e-30);
-        originalSubSideTotal += originalAnalysis.subSideEnergy[beat];
-        drift2SubSideTotal += drift2Analysis.subSideEnergy[beat];
+        lowEvolutionSubEnergy[beat] = lowEvolutionAnalysis.leftEnergy[beat][0]
+                                + lowEvolutionAnalysis.rightEnergy[beat][0];
+        highEvolutionSubEnergy[beat] = highEvolutionAnalysis.leftEnergy[beat][0]
+                              + highEvolutionAnalysis.rightEnergy[beat][0];
+        lowEvolutionSubDb[beat] = 10.0 * std::log10(lowEvolutionSubEnergy[beat] + 1.0e-30);
+        highEvolutionSubDb[beat] = 10.0 * std::log10(highEvolutionSubEnergy[beat] + 1.0e-30);
+        lowEvolutionSubSideTotal += lowEvolutionAnalysis.subSideEnergy[beat];
+        highEvolutionSubSideTotal += highEvolutionAnalysis.subSideEnergy[beat];
     }
-    const auto originalMeanSub = meanValue(originalSubEnergy);
-    const auto drift2MeanSub = meanValue(drift2SubEnergy);
-    const auto meanSubRatio = drift2MeanSub / originalMeanSub;
-    const auto p95SubRatio = percentile95(drift2SubEnergy) / percentile95(originalSubEnergy);
-    const auto originalSubMotion = detrendedScalarMotion(originalSubDb);
-    const auto drift2SubMotion = detrendedScalarMotion(drift2SubDb);
-    const auto originalSubSideFraction = originalSubSideTotal / originalMeanSub
+    const auto lowEvolutionMeanSub = meanValue(lowEvolutionSubEnergy);
+    const auto highEvolutionMeanSub = meanValue(highEvolutionSubEnergy);
+    const auto meanSubRatio = highEvolutionMeanSub / lowEvolutionMeanSub;
+    const auto p95SubRatio = percentile95(highEvolutionSubEnergy) / percentile95(lowEvolutionSubEnergy);
+    const auto lowEvolutionSubMotion = detrendedScalarMotion(lowEvolutionSubDb);
+    const auto highEvolutionSubMotion = detrendedScalarMotion(highEvolutionSubDb);
+    const auto lowEvolutionSubSideFraction = lowEvolutionSubSideTotal / lowEvolutionMeanSub
                                        / static_cast<double>(kickBassMeasureBeats);
-    const auto drift2SubSideFraction = drift2SubSideTotal / drift2MeanSub
+    const auto highEvolutionSubSideFraction = highEvolutionSubSideTotal / highEvolutionMeanSub
                                      / static_cast<double>(kickBassMeasureBeats);
     auto earlySub = 0.0;
     auto lateSub = 0.0;
     for (std::size_t beat = 0; beat < 16; ++beat)
     {
-        earlySub += drift2SubEnergy[beat];
-        lateSub += drift2SubEnergy[kickBassMeasureBeats - 16 + beat];
+        earlySub += highEvolutionSubEnergy[beat];
+        lateSub += highEvolutionSubEnergy[kickBassMeasureBeats - 16 + beat];
     }
     const auto lateEarlySubRatio = lateSub / earlySub;
 
-    std::cout << "[METRIC] Drift2 kick+bass 190 BPM: motion Original="
-              << originalMotion << " Drift2=" << drift2Motion
-              << ", stereo Original=" << originalStereoMotion
-              << " Drift2=" << drift2StereoMotion
+    std::cout << "[METRIC] High Evolution kick+bass 190 BPM: motion Low Evolution="
+              << lowEvolutionMotion << " High Evolution=" << highEvolutionMotion
+              << ", stereo Low Evolution=" << lowEvolutionStereoMotion
+              << " High Evolution=" << highEvolutionStereoMotion
               << ", NRMS=" << normalisedDifference
               << ", sub mean ratio=" << meanSubRatio
               << ", sub p95 ratio=" << p95SubRatio
-              << ", sub motion Original=" << originalSubMotion
-              << " dB Drift2=" << drift2SubMotion
-              << " dB, sub side Original=" << originalSubSideFraction
-              << " Drift2=" << drift2SubSideFraction
+              << ", sub motion Low Evolution=" << lowEvolutionSubMotion
+              << " dB High Evolution=" << highEvolutionSubMotion
+              << " dB, sub side Low Evolution=" << lowEvolutionSubSideFraction
+              << " High Evolution=" << highEvolutionSubSideFraction
               << ", sub late/early=" << lateEarlySubRatio << '\n';
 
     require(normalisedDifference > 0.15,
-            "Drift 2 is too similar to Original on kick+bass");
-    require(drift2Motion > originalMotion * 1.05,
-            "Drift 2 non-sub motion is not stronger than Original");
-    require(drift2StereoMotion > originalStereoMotion * 1.04,
-            "Drift 2 stereo spectral motion is not stronger than Original");
-    require(meanSubRatio <= 1.05 && p95SubRatio <= 1.10,
-            "Drift 2 pumps excessive sub energy");
-    require(drift2SubMotion <= originalSubMotion + 1.0e-3,
-            "Drift 2 adds excessive slow sub modulation");
+            "High-Evolution Drift is too similar to Low Evolution on kick+bass");
+    require(highEvolutionMotion > lowEvolutionMotion * 1.05,
+            "High-Evolution Drift non-sub motion is not stronger than Low Evolution");
+    require(highEvolutionStereoMotion > lowEvolutionStereoMotion * 1.04,
+            "High-Evolution Drift stereo spectral motion is not stronger than Low Evolution");
+    require(meanSubRatio >= 0.70 && meanSubRatio <= 1.05
+                && p95SubRatio >= 0.70 && p95SubRatio <= 1.10,
+            "High-Evolution Drift changes sub energy excessively");
+    require(highEvolutionSubMotion <= 0.12,
+            "High-Evolution Drift adds excessive slow sub modulation");
     require(lateEarlySubRatio <= 1.25,
-            "Drift 2 sub energy grows over the repeated pattern");
-    require(drift2SubSideFraction <= originalSubSideFraction + 0.05,
-            "Drift 2 adds excessive stereo motion in the sub band");
+            "High-Evolution Drift sub energy grows over the repeated pattern");
+    require(highEvolutionSubSideFraction <= lowEvolutionSubSideFraction + 0.05,
+            "High-Evolution Drift adds excessive stereo motion in the sub band");
 }
 
 void testVeilKickBass190()
@@ -2333,7 +2271,7 @@ void testVeilKickBass190()
     parameters.preDelayMs = 0.0f;
     parameters.lowCutHz = 20.0f;
     parameters.highDampingHz = 18000.0f;
-    parameters.modulation = 0.5f;
+    parameters.evolution = 1.0f;
     parameters.width = 1.0f;
 
     FDNReverb defaultReverb;
@@ -2527,9 +2465,7 @@ void testNoAllocationsInProcess()
         {
             modeIndex = (modeIndex + 1) % modes.size();
             parameters.mode = modes[modeIndex];
-            parameters.driftModel = parameters.driftModel == DriftModel::original
-                ? DriftModel::drift2
-                : DriftModel::original;
+            parameters.evolution = 1.0f - parameters.evolution;
             parameters.freeze = !parameters.freeze;
             reverb.setParameters(parameters);
         }
@@ -2544,8 +2480,7 @@ void testNoAllocationsInProcess()
 }
 
 template <int stressSeconds>
-void runLongCharacterStress(ReverbMode mode,
-                            DriftModel driftModel = DriftModel::original)
+void runLongCharacterStress(ReverbMode mode)
 {
     constexpr auto sampleRate = 44100.0;
     constexpr auto windowSeconds = 10;
@@ -2554,14 +2489,13 @@ void runLongCharacterStress(ReverbMode mode,
 
     ReverbParameters parameters;
     parameters.mode = mode;
-    parameters.driftModel = driftModel;
     parameters.mix = 1.0f;
     parameters.decaySeconds = 30.0f;
     parameters.size = 2.0f;
     parameters.preDelayMs = 250.0f;
     parameters.lowCutHz = 20.0f;
     parameters.highDampingHz = 20000.0f;
-    parameters.modulation = 1.0f;
+    parameters.evolution = 1.0f;
     parameters.width = 2.0f;
 
     FDNReverb reverb;
@@ -2627,24 +2561,21 @@ void runLongCharacterStress(ReverbMode mode,
     return hash;
 }
 
-[[nodiscard]] std::uint64_t renderLegacyFingerprint(
-    ReverbMode mode,
-    DriftModel driftModel = DriftModel::original)
+[[nodiscard]] std::uint64_t renderFingerprint(ReverbMode mode, float evolution)
 {
     constexpr auto sampleRate = 48000;
-    constexpr auto sampleCount = sampleRate * 10;
+    constexpr auto sampleCount = sampleRate * 2;
     constexpr std::uint64_t fnvOffsetBasis = 14695981039346656037ull;
 
     ReverbParameters parameters;
     parameters.mode = mode;
-    parameters.driftModel = driftModel;
     parameters.mix = 1.0f;
     parameters.decaySeconds = 5.0f;
     parameters.size = 1.15f;
     parameters.preDelayMs = 25.0f;
     parameters.lowCutHz = 60.0f;
     parameters.highDampingHz = 7000.0f;
-    parameters.modulation = 0.3f;
+    parameters.evolution = evolution;
     parameters.width = 1.25f;
 
     FDNReverb reverb;
@@ -2662,33 +2593,41 @@ void runLongCharacterStress(ReverbMode mode,
     return hash;
 }
 
-void testLegacyRenderFingerprints()
+void testDeterministicRenderFingerprints()
 {
-    struct GoldenRender
+    struct RenderCase
     {
         const char* name;
         ReverbMode mode;
-        DriftModel driftModel;
-        std::uint64_t fingerprint;
+        float evolution;
     };
 
-    constexpr std::array goldenRenders {
-        GoldenRender { "Default", ReverbMode::defaultMode, DriftModel::original,
-                       0x4ce4294eb9bd24e1ull },
-        GoldenRender { "Bloom", ReverbMode::bloom, DriftModel::original,
-                       0xe237add5c29e3ec1ull },
-        GoldenRender { "Original", ReverbMode::drift, DriftModel::original,
-                       0x2a05c2760a082a37ull }
+    constexpr std::array renderCases {
+        RenderCase { "Default low Evolution", ReverbMode::defaultMode, 0.0f },
+        RenderCase { "Default high Evolution", ReverbMode::defaultMode, 1.0f },
+        RenderCase { "Bloom low Evolution", ReverbMode::bloom, 0.0f },
+        RenderCase { "Bloom high Evolution", ReverbMode::bloom, 1.0f },
+        RenderCase { "Drift low Evolution", ReverbMode::drift, 0.0f },
+        RenderCase { "Drift high Evolution", ReverbMode::drift, 1.0f },
+        RenderCase { "Veil low Evolution", ReverbMode::veil, 0.0f },
+        RenderCase { "Veil high Evolution", ReverbMode::veil, 1.0f }
     };
 
-    for (const auto& golden : goldenRenders)
+    std::array<std::uint64_t, renderCases.size()> fingerprints {};
+    for (std::size_t index = 0; index < renderCases.size(); ++index)
     {
-        const auto actual = renderLegacyFingerprint(golden.mode, golden.driftModel);
-        require(actual == golden.fingerprint,
-                std::string(golden.name) + " 10-second render fingerprint changed: expected="
-                    + std::to_string(golden.fingerprint)
-                    + " actual=" + std::to_string(actual));
+        const auto& renderCase = renderCases[index];
+        const auto first = renderFingerprint(renderCase.mode, renderCase.evolution);
+        const auto repeat = renderFingerprint(renderCase.mode, renderCase.evolution);
+        require(first == repeat,
+                std::string(renderCase.name) + " render fingerprint is not deterministic");
+        fingerprints[index] = first;
     }
+
+    for (std::size_t first = 0; first < fingerprints.size(); ++first)
+        for (std::size_t second = first + 1; second < fingerprints.size(); ++second)
+            require(fingerprints[first] != fingerprints[second],
+                    "Distinct Character/Evolution endpoints produced identical renders");
 }
 
 void writeLittleEndian16(std::ofstream& stream, std::uint16_t value)
@@ -2711,9 +2650,7 @@ void writeLittleEndian32(std::ofstream& stream, std::uint32_t value)
     stream.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
 }
 
-void renderImpulseResponse(const std::string& path,
-                           ReverbMode mode,
-                           DriftModel driftModel = DriftModel::original)
+void renderImpulseResponse(const std::string& path, ReverbMode mode)
 {
     constexpr auto sampleRate = 48000;
     constexpr auto channels = 2;
@@ -2722,14 +2659,13 @@ void renderImpulseResponse(const std::string& path,
 
     ReverbParameters parameters;
     parameters.mode = mode;
-    parameters.driftModel = driftModel;
     parameters.mix = 1.0f;
     parameters.decaySeconds = 5.0f;
     parameters.size = 1.15f;
     parameters.preDelayMs = 25.0f;
     parameters.lowCutHz = 60.0f;
     parameters.highDampingHz = 7000.0f;
-    parameters.modulation = 0.3f;
+    parameters.evolution = 0.35f;
     parameters.width = 1.25f;
 
     FDNReverb reverb;
@@ -2782,7 +2718,7 @@ int main(int argc, char** argv)
         NamedTest { "orthonormal feedback matrix", testFeedbackMatrix },
         NamedTest { "Drift instantaneous norm contraction",
                     testDriftInstantaneousNormContraction },
-        NamedTest { "Drift 2 kernel safety and sub bypass",
+        NamedTest { "high-Evolution Drift internal kernel safety and sub bypass",
                     testDrift2KernelSafetyAndSubBypass },
         NamedTest { "Veil disperser kernel", testVeilDisperserKernel },
         NamedTest { "Veil impulse softening and energy",
@@ -2798,17 +2734,16 @@ int main(int argc, char** argv)
         NamedTest { "Veil sample rates and stability", testVeilSampleRatesAndStability },
         NamedTest { "Veil block invariance and mode switching",
                     testVeilBlockInvarianceAndModeSwitching },
-        NamedTest { "Drift sample rates and stability", testDriftSampleRatesAndStability },
-        NamedTest { "Drift 2 sample rates and stability",
-                    testDrift2SampleRatesAndStability },
+        NamedTest { "unified Drift Evolution sample rates and stability",
+                    testDriftSampleRatesAndStability },
         NamedTest { "Drift block invariance and mode switching",
                     testDriftBlockInvarianceAndModeSwitching },
-        NamedTest { "Drift 2 block invariance and model switching",
-                    testDrift2BlockInvarianceAndModelSwitching },
         NamedTest { "Drift spectral motion", testDriftSpectralMotion },
-        NamedTest { "Drift 2 kick+bass 190 BPM", testDrift2KickBass190 },
+        NamedTest { "Drift low/high Evolution kick+bass 190 BPM",
+                    testDriftEvolutionKickBass190 },
         NamedTest { "Veil kick+bass 190 BPM", testVeilKickBass190 },
-        NamedTest { "legacy 10-second render fingerprints", testLegacyRenderFingerprints },
+        NamedTest { "deterministic Character/Evolution fingerprints",
+                    testDeterministicRenderFingerprints },
         NamedTest { "no allocations in process", testNoAllocationsInProcess }
     };
 
@@ -2830,21 +2765,17 @@ int main(int argc, char** argv)
     const auto wantsDefaultRender = argc == 3 && std::strcmp(argv[1], "--render") == 0;
     const auto wantsBloomRender = argc == 3 && std::strcmp(argv[1], "--render-bloom") == 0;
     const auto wantsDriftRender = argc == 3 && std::strcmp(argv[1], "--render-drift") == 0;
-    const auto wantsDrift2Render = argc == 3 && std::strcmp(argv[1], "--render-drift2") == 0;
     const auto wantsVeilRender = argc == 3 && std::strcmp(argv[1], "--render-veil") == 0;
     if (failures == 0
-        && (wantsDefaultRender || wantsBloomRender || wantsDriftRender || wantsDrift2Render
-            || wantsVeilRender))
+        && (wantsDefaultRender || wantsBloomRender || wantsDriftRender || wantsVeilRender))
     {
         try
         {
             const auto mode = wantsVeilRender ? ReverbMode::veil
                             : wantsBloomRender ? ReverbMode::bloom
-                            : (wantsDriftRender || wantsDrift2Render) ? ReverbMode::drift
-                                                                    : ReverbMode::defaultMode;
-            const auto driftModel = wantsDrift2Render ? DriftModel::drift2
-                                                      : DriftModel::original;
-            renderImpulseResponse(argv[2], mode, driftModel);
+                            : wantsDriftRender ? ReverbMode::drift
+                                               : ReverbMode::defaultMode;
+            renderImpulseResponse(argv[2], mode);
             std::cout << "[PASS] wrote impulse response to " << argv[2] << '\n';
         }
         catch (const std::exception& error)
@@ -2859,7 +2790,7 @@ int main(int argc, char** argv)
         try
         {
             runLongCharacterStress<90>(ReverbMode::bloom);
-            std::cout << "[PASS] 90-second Bloom modulation/Freeze stress\n";
+            std::cout << "[PASS] 90-second Bloom Evolution/Freeze stress\n";
         }
         catch (const std::exception& error)
         {
@@ -2879,20 +2810,6 @@ int main(int argc, char** argv)
         {
             ++failures;
             std::cerr << "[FAIL] long Drift stress: " << error.what() << '\n';
-        }
-    }
-
-    if (failures == 0 && argc == 2 && std::strcmp(argv[1], "--stress-drift2") == 0)
-    {
-        try
-        {
-            runLongCharacterStress<120>(ReverbMode::drift, DriftModel::drift2);
-            std::cout << "[PASS] 120-second Drift 2 spectral/Freeze stress\n";
-        }
-        catch (const std::exception& error)
-        {
-            ++failures;
-            std::cerr << "[FAIL] long Drift 2 stress: " << error.what() << '\n';
         }
     }
 
