@@ -9,6 +9,7 @@ namespace
 {
 constexpr auto modeId = "mode";
 constexpr auto driftModelId = "driftModel";
+constexpr auto veilId = "veil";
 constexpr auto mixId = "mix";
 constexpr auto decayId = "decay";
 constexpr auto sizeId = "size";
@@ -19,7 +20,7 @@ constexpr auto modulationId = "modulation";
 constexpr auto widthId = "width";
 constexpr auto freezeId = "freeze";
 constexpr auto stateSchemaId = "schemaVersion";
-constexpr auto currentStateSchema = 4;
+constexpr auto currentStateSchema = 5;
 
 [[nodiscard]] juce::NormalisableRange<float> skewedRange(float minimum,
                                                           float maximum,
@@ -40,6 +41,7 @@ AmanitaOceanAudioProcessor::AmanitaOceanAudioProcessor()
 {
     modeParameter_ = state_.getRawParameterValue(modeId);
     driftModelParameter_ = state_.getRawParameterValue(driftModelId);
+    veilParameter_ = state_.getRawParameterValue(veilId);
     mixParameter_ = state_.getRawParameterValue(mixId);
     decayParameter_ = state_.getRawParameterValue(decayId);
     sizeParameter_ = state_.getRawParameterValue(sizeId);
@@ -51,6 +53,7 @@ AmanitaOceanAudioProcessor::AmanitaOceanAudioProcessor()
     freezeParameter_ = state_.getRawParameterValue(freezeId);
 
     jassert(modeParameter_ != nullptr && driftModelParameter_ != nullptr
+            && veilParameter_ != nullptr
             && mixParameter_ != nullptr
             && decayParameter_ != nullptr && sizeParameter_ != nullptr
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
@@ -97,7 +100,9 @@ void AmanitaOceanAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
 juce::AudioProcessorEditor* AmanitaOceanAudioProcessor::createEditor()
 {
-    return new juce::GenericAudioProcessorEditor(*this);
+    auto* editor = new juce::GenericAudioProcessorEditor(*this);
+    editor->setSize(editor->getWidth(), 500);
+    return editor;
 }
 
 bool AmanitaOceanAudioProcessor::hasEditor() const
@@ -177,6 +182,18 @@ void AmanitaOceanAudioProcessor::setStateInformation(const void* data, int sizeI
         restored.appendChild(defaultDriftModelState, nullptr);
     }
 
+    const auto veilState = std::find_if(restored.begin(), restored.end(), [] (const auto& child)
+    {
+        return child.getProperty("id").toString() == veilId;
+    });
+    if (veilState == restored.end())
+    {
+        juce::ValueTree defaultVeilState("PARAM");
+        defaultVeilState.setProperty("id", veilId, nullptr);
+        defaultVeilState.setProperty("value", 0.0f, nullptr);
+        restored.appendChild(defaultVeilState, nullptr);
+    }
+
     restored.setProperty(stateSchemaId, currentStateSchema, nullptr);
 
     state_.replaceState(restored);
@@ -228,6 +245,8 @@ AmanitaOceanAudioProcessor::createParameterLayout()
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID { driftModelId, 2 }, "Drift Model",
         juce::StringArray { "Original", "Drift 2" }, 0));
+    layout.add(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID { veilId, 3 }, "Veil", false));
 
     return layout;
 }
@@ -235,6 +254,7 @@ AmanitaOceanAudioProcessor::createParameterLayout()
 amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() const noexcept
 {
     jassert(modeParameter_ != nullptr && driftModelParameter_ != nullptr
+            && veilParameter_ != nullptr
             && mixParameter_ != nullptr
             && decayParameter_ != nullptr && sizeParameter_ != nullptr
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
@@ -257,6 +277,8 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
     parameters.driftModel = driftModelParameter_->load(std::memory_order_relaxed) >= 0.5f
         ? amanita::dsp::DriftModel::drift2
         : amanita::dsp::DriftModel::original;
+    if (veilParameter_->load(std::memory_order_relaxed) >= 0.5f)
+        parameters.mode = amanita::dsp::ReverbMode::veil;
     parameters.mix = mixParameter_->load(std::memory_order_relaxed) * 0.01f;
     parameters.decaySeconds = decayParameter_->load(std::memory_order_relaxed);
     parameters.size = sizeParameter_->load(std::memory_order_relaxed) * 0.01f;

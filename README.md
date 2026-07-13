@@ -1,7 +1,7 @@
 # Amanita Ocean
 
 Экспериментальный stereo algorithmic reverb для электронной музыки, Psytrance,
-Ambient и Downtempo. Текущая версия `0.4.0` — проверяемый DSP-прототип на C++20,
+Ambient и Downtempo. Текущая версия `0.5.0` — проверяемый DSP-прототип на C++20,
 JUCE 8.0.14 и CMake.
 
 Проект не воспроизводит интерфейс, пресеты, режимы или алгоритмы коммерческих
@@ -13,9 +13,11 @@ JUCE 8.0.14 и CMake.
 - ортонормальная feedback-матрица Адамара `H8 / sqrt(8)`;
 - prime nominal delay lengths, пересчитываемые при смене sample rate;
 - два независимых четырёхступенчатых stereo all-pass diffuser;
-- Character `Default/Drift/Bloom` с плавным 200-ms morph без сброса хвоста;
+- Character `Default/Drift/Bloom` и совместимый Veil override с плавным
+  200-ms morph без сброса хвоста;
 - Bloom rising-tap swell, второй stereo diffusion layer и intrinsic micro-drift;
 - Drift Original и более выраженный Drift 2 с плавным A/B morph;
+- Veil lossless AP6 disperser, превращающий атаки в плотное ~90-ms облако;
 - дробное чтение delay lines и медленная разнесённая модуляция;
 - RT60-derived gain каждой feedback-линии;
 - Low Cut и High Damping внутри feedback loop;
@@ -27,8 +29,8 @@ JUCE 8.0.14 и CMake.
   миграцией старого Character `Bloom`;
 - VST3 и Audio Unit targets для macOS.
 
-Пока не реализованы следующий Character (`Veil`), Ducking, Evolution macro,
-отдельные low/high RT60 controls, пресеты и собственный графический интерфейс.
+Пока не реализованы Ducking, Evolution macro, отдельные low/high RT60 controls,
+пресеты и собственный графический интерфейс.
 
 ## Архитектура
 
@@ -38,6 +40,7 @@ stereo input
     -> L/R all-pass diffusion (4 stages per channel)
        -> Default: direct excitation
        -> Bloom: causal rising-tap FIR -> second L/R AP4 diffusion
+       -> Veil: decorrelated L/R AP6 transient disperser
     -> smoothed Character morph
     -> two orthogonal excitation vectors
     -> 8 modulated fractional delay lines (+ Bloom slow per-line drift)
@@ -156,6 +159,34 @@ Sub не проходит отдельный изменяемый фильтр: 
 feedback-вектор. Original↔Drift 2 интерполируется за `200 ms` как convex morph
 двух contractive состояний; оба фильтра постоянно прогреты.
 
+### Veil
+
+Veil размывает атаку без envelope detector, gain pumping, lookahead и
+гранулярных окон. После общей входной AP4 diffusion сигнал проходит ещё через
+шесть строго устойчивых fixed all-pass ступеней на канал:
+
+```text
+L delays, ms: 1.57, 2.53, 3.89, 5.83, 8.47, 12.53
+L gains:      0.65, 0.62, 0.59, 0.56, 0.53, 0.50
+
+R delays, ms: 1.67, 2.63, 4.01, 5.89, 8.59, 12.67
+R gains:      0.63, 0.60, 0.58, 0.55, 0.52, 0.49
+```
+
+В `prepare()` времена пересчитываются в ближайшие нечётные простые длины.
+Magnitude response полного AP-каскада остаётся единичным, поэтому стационарный
+сигнал не становится просто тише: перераспределяется фаза и групповая задержка
+коротких атак. Центр энергии самого AP6 находится около `35 ms`; вместе с
+базовой diffusion основная энергия облака укладывается примерно в `90 ms`.
+Same-sample составляющая импульса находится около `-50 dB`, но onset остаётся
+каузальным — скрытый pre-delay не добавляется.
+
+Veil находится только в excitation path и не увеличивает feedback gain. Его
+состояние обрабатывается постоянно даже при выключенном режиме, поэтому
+Default/Bloom/Drift↔Veil интерполируются за `200 ms` без холодного старта и
+щелчка. Modulation продолжает управлять общей FDN-модуляцией; сам AP6 остаётся
+фиксированным и не создаёт chorus или pitch wobble.
+
 DSP находится в `Source/dsp` и не зависит от JUCE/UI. Все буферы создаются в
 `prepare()`; `process()` и `processSample()` не выделяют память и не используют
 блокировки или системные вызовы.
@@ -166,6 +197,7 @@ DSP находится в `Source/dsp` и не зависит от JUCE/UI. Вс
 |---|---:|---|
 | Character | Default/Drift/Bloom | Выбор характера хвоста |
 | Drift Model | Original/Drift 2 | A/B модели при Character=Drift |
+| Veil | Off/On | Включает Veil; Off возвращает сохранённый Character |
 | Mix | 0–100 % | Линейный dry/wet mix |
 | Decay | 0.2–30 s | Broadband RT60 feedback-сети |
 | Size | 50–200 % | Масштаб всех FDN delay lengths |
@@ -180,8 +212,14 @@ DSP находится в `Source/dsp` и не зависит от JUCE/UI. Вс
 `0.0/1.0` по-прежнему означают Default/Bloom. При загрузке state без schema
 старый raw index Bloom `1` мигрирует в index `2`. Drift из версии `0.3.0`
 остаётся моделью Original; состояния без нового параметра всегда получают
-Original. Новые состояния сохраняются с `schemaVersion=4`. `Drift Model` имеет
-повышенный JUCE version hint, чтобы не переиндексировать старые AU-параметры.
+Original. Veil намеренно добавлен отдельным последним параметром, а не четвёртым
+choice старого Character: так прежние normalized VST3 values и indexed AU values
+не меняют смысл. При `Veil=On` он временно имеет приоритет над Character; после
+Off восстанавливается выбранный Default/Drift/Bloom. Состояния без Veil получают
+Off, новые состояния сохраняются с `schemaVersion=5`. `Drift Model` и `Veil`
+имеют последовательные JUCE version hints `2/3`, чтобы не переиндексировать
+старые AU-параметры. Generic Editor увеличен до `500 px`, поэтому все строки
+видны без скрытой вертикальной прокрутки.
 
 ## Требования
 
@@ -245,11 +283,16 @@ ctest --test-dir build --output-on-failure
 ./build/AmanitaOceanDSPTests \
   --render-drift2 ./build/amanita_ocean_drift2_ir.wav
 
+./build/AmanitaOceanDSPTests \
+  --render-veil ./build/amanita_ocean_veil_ir.wav
+
 ./build/AmanitaOceanDSPTests --stress-bloom
 
 ./build/AmanitaOceanDSPTests --stress-drift
 
 ./build/AmanitaOceanDSPTests --stress-drift2
+
+./build/AmanitaOceanDSPTests --stress-veil
 ```
 
 Offline utility создаёт 10-секундный stereo Float32 WAV при 48 kHz. Тестовый
@@ -269,6 +312,9 @@ Offline utility создаёт 10-секундный stereo Float32 WAV при 4
 - contractive energy guard Drift;
 - bit-transparent и contractive kernel Drift 2, включая 55/80-Hz sub bypass;
 - block invariance и плавный Original↔Drift 2 morph;
+- сохранение энергии, L/R decorrelation и sample-rate timing AP6 Veil;
+- настоящее размытие импульса Veil: leading energy, crest, centroid и NRMS;
+- плавные Default/Bloom/Drift↔Veil morph и точный host→DSP routing;
 - повторяющийся kick+bass pattern при 190 BPM с четырёхполосным анализом;
 - автоматические bit-level fingerprints Default, Bloom и Drift Original;
 - совместимость host automation и миграцию состояний Character;
@@ -280,12 +326,19 @@ Offline utility создаёт 10-секундный stereo Float32 WAV при 4
 Bloom LFO (~77 секунд) и проверяет энергию по десятисекундным окнам.
 `--stress-drift` делает аналогичный 120-секундный render, перекрывая все Drift
 LFO periods. `--stress-drift2` отдельно перекрывает быстрые и 68-секундный
-медленный cycle Drift 2.
+медленный cycle Drift 2. `--stress-veil` выполняет 90-секундную проверку
+AP6 excitation и Freeze с нижней и верхней границами энергии хвоста.
 
 В контрольном 190-BPM render Drift 2 показал примерно на `12.7%` больше
 non-sub spectral motion и на `4.4%` больше stereo spectral motion относительно
 Original; symmetric NRMS между моделями — около `0.19`. Средняя и p95 sub energy
 не выросли, а slow sub motion снизился с `0.375` до `0.274 dB`.
+
+В контрольном Veil impulse доля энергии первых `12 ms` после onset снизилась с
+`7.04%` до `0.059%`, crest — примерно на `29%`, а centroid переместился с
+`53.1` до `74.4 ms` при отношении полной энергии `1.000`. На повторяющемся
+kick+bass при 190 BPM high-frequency peak равен `0.702x` Default, полная энергия
+`0.9999x`, средняя sub energy `0.9974x`; symmetric NRMS — `1.57`.
 
 Release Default render остаётся побитово равен версии до Bloom:
 
@@ -309,6 +362,12 @@ SHA-256 d6f78802d4dc1594627f86907fb3715dbbfb3cc0c9234ee4bff61a53702db8c8
 
 ```text
 SHA-256 1f868a66b2d9e57be5d8f61263ce9573498daad95c448692397614dff88dbe62
+```
+
+Контрольный Release render Veil версии `0.5.0`:
+
+```text
+SHA-256 052309402e1207111ebcaf86c906fc0b4ba0af84727b368128c49243be5294dd
 ```
 
 Для дополнительной проверки памяти:

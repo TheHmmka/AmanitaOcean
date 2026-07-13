@@ -289,12 +289,15 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
     bloom_.prepare(sampleRate_);
     drift_.prepare(sampleRate_);
     drift2_.prepare(sampleRate_);
+    veil_.prepare(sampleRate_);
     bloomAmount_.prepare(sampleRate_, 0.20,
                          parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
     driftAmount_.prepare(sampleRate_, 0.20,
                          parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
     drift2Amount_.prepare(sampleRate_, 0.20,
                           parameters_.driftModel == DriftModel::drift2 ? 1.0f : 0.0f);
+    veilAmount_.prepare(sampleRate_, 0.20,
+                        parameters_.mode == ReverbMode::veil ? 1.0f : 0.0f);
     mix_.prepare(sampleRate_, 0.02, parameters_.mix);
     size_.prepare(sampleRate_, 0.25, parameters_.size);
     preDelaySamples_.prepare(sampleRate_, 0.10,
@@ -327,6 +330,8 @@ void FDNReverb::reset() noexcept
                          parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
     drift2Amount_.prepare(sampleRate_, 0.20,
                           parameters_.driftModel == DriftModel::drift2 ? 1.0f : 0.0f);
+    veilAmount_.prepare(sampleRate_, 0.20,
+                        parameters_.mode == ReverbMode::veil ? 1.0f : 0.0f);
     for (auto& delay : delayLines_)
         delay.reset();
     for (auto& delay : preDelayLines_)
@@ -338,6 +343,7 @@ void FDNReverb::reset() noexcept
     bloom_.reset();
     drift_.reset();
     drift2_.reset();
+    veil_.reset();
 
     lowCutStates_.fill(0.0f);
     dampingStates_.fill(0.0f);
@@ -350,6 +356,7 @@ void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
     {
         case ReverbMode::bloom:
         case ReverbMode::drift:
+        case ReverbMode::veil:
             parameters_.mode = newParameters.mode;
             break;
         case ReverbMode::defaultMode:
@@ -389,6 +396,7 @@ void FDNReverb::updateTargets() noexcept
     bloomAmount_.setTarget(parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
     driftAmount_.setTarget(parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
     drift2Amount_.setTarget(parameters_.driftModel == DriftModel::drift2 ? 1.0f : 0.0f);
+    veilAmount_.setTarget(parameters_.mode == ReverbMode::veil ? 1.0f : 0.0f);
     mix_.setTarget(parameters_.mix);
     size_.setTarget(parameters_.size);
     preDelaySamples_.setTarget(parameters_.preDelayMs * 0.001f * static_cast<float>(sampleRate_));
@@ -437,15 +445,22 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     const auto diffusedRight = diffuseInput(preDelayLines_[1].process(dryRight, preDelay),
                                             diffusersRight_);
     const auto bloomExcitation = bloom_.processExcitation(diffusedLeft, diffusedRight);
+    const auto veilExcitation = veil_.processExcitation(diffusedLeft, diffusedRight);
     const auto bloomAmount = bloomAmount_.next();
     const auto driftAmount = driftAmount_.next();
     const auto drift2Amount = drift2Amount_.next();
+    const auto veilAmount = veilAmount_.next();
     auto excitationLeft = diffusedLeft;
     auto excitationRight = diffusedRight;
     if (bloomAmount > 0.0f)
     {
         excitationLeft += bloomAmount * (bloomExcitation.left - diffusedLeft);
         excitationRight += bloomAmount * (bloomExcitation.right - diffusedRight);
+    }
+    if (veilAmount > 0.0f)
+    {
+        excitationLeft += veilAmount * (veilExcitation.left - diffusedLeft);
+        excitationRight += veilAmount * (veilExcitation.right - diffusedRight);
     }
 
     const auto size = size_.next();

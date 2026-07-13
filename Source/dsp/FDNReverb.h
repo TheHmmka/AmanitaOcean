@@ -3,6 +3,7 @@
 #include "BloomCharacter.h"
 #include "DriftCharacter.h"
 #include "Drift2Character.h"
+#include "VeilCharacter.h"
 
 #include <array>
 #include <cstddef>
@@ -14,7 +15,8 @@ enum class ReverbMode
 {
     defaultMode = 0,
     bloom,
-    drift
+    drift,
+    veil
 };
 
 enum class DriftModel
@@ -134,10 +136,12 @@ private:
     BloomCharacter bloom_;
     DriftCharacter drift_;
     Drift2Character drift2_;
+    VeilCharacter veil_;
 
     LinearSmoother bloomAmount_;
     LinearSmoother driftAmount_;
     LinearSmoother drift2Amount_;
+    LinearSmoother veilAmount_;
     LinearSmoother mix_;
     LinearSmoother size_;
     LinearSmoother preDelaySamples_;

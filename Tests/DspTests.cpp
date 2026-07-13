@@ -1,6 +1,7 @@
 #include "dsp/FDNReverb.h"
 #include "dsp/Drift2Character.h"
 #include "dsp/DriftCharacter.h"
+#include "dsp/VeilCharacter.h"
 
 #include <algorithm>
 #include <array>
@@ -107,6 +108,7 @@ using amanita::dsp::DriftCharacter;
 using amanita::dsp::DriftModel;
 using amanita::dsp::ReverbMode;
 using amanita::dsp::ReverbParameters;
+using amanita::dsp::VeilCharacter;
 
 [[nodiscard]] bool isPrime(int value)
 {
@@ -153,6 +155,243 @@ struct StereoRender
     render.left[0] = 1.0f;
     reverb.process(render.left.data(), render.right.data(), sampleCount);
     return render;
+}
+
+void testVeilDisperserKernel()
+{
+    constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
+    std::array<double, sampleRates.size()> leftCentroidsMs {};
+    std::array<double, sampleRates.size()> rightCentroidsMs {};
+
+    for (std::size_t rateIndex = 0; rateIndex < sampleRates.size(); ++rateIndex)
+    {
+        const auto sampleRate = sampleRates[rateIndex];
+        const auto sampleCount = static_cast<int>(sampleRate);
+        VeilCharacter veil;
+        VeilCharacter repeat;
+        veil.prepare(sampleRate);
+        repeat.prepare(sampleRate);
+
+        std::vector<double> stereoEnergy(static_cast<std::size_t>(sampleCount), 0.0);
+        auto leftEnergy = 0.0;
+        auto rightEnergy = 0.0;
+        auto crossEnergy = 0.0;
+        auto leftMoment = 0.0;
+        auto rightMoment = 0.0;
+        auto peak = 0.0f;
+        for (auto sample = 0; sample < sampleCount; ++sample)
+        {
+            const auto input = sample == 0 ? 1.0f : 0.0f;
+            const auto output = veil.processExcitation(input, input);
+            const auto repeated = repeat.processExcitation(input, input);
+            require(std::bit_cast<std::uint32_t>(output.left)
+                        == std::bit_cast<std::uint32_t>(repeated.left)
+                        && std::bit_cast<std::uint32_t>(output.right)
+                            == std::bit_cast<std::uint32_t>(repeated.right),
+                    "Veil disperser is not deterministic");
+            require(std::isfinite(output.left) && std::isfinite(output.right),
+                    "Veil disperser produced NaN/Inf");
+
+            const auto leftSquared = static_cast<double>(output.left) * output.left;
+            const auto rightSquared = static_cast<double>(output.right) * output.right;
+            stereoEnergy[static_cast<std::size_t>(sample)] = leftSquared + rightSquared;
+            leftEnergy += leftSquared;
+            rightEnergy += rightSquared;
+            crossEnergy += static_cast<double>(output.left) * output.right;
+            leftMoment += static_cast<double>(sample) * leftSquared;
+            rightMoment += static_cast<double>(sample) * rightSquared;
+            peak = std::max({ peak, std::abs(output.left), std::abs(output.right) });
+
+            if (sample == 0)
+                require(std::abs(output.left) < 0.04f && std::abs(output.right) < 0.04f,
+                        "Veil same-sample impulse is not sufficiently softened");
+        }
+
+        require(leftEnergy > 0.995 && leftEnergy < 1.005
+                    && rightEnergy > 0.995 && rightEnergy < 1.005,
+                "Veil all-pass cascade does not preserve impulse energy");
+        const auto correlation = crossEnergy / std::sqrt(leftEnergy * rightEnergy);
+        require(std::abs(correlation) < 0.20,
+                "Veil left/right dispersers are insufficiently decorrelated");
+        require(peak < 0.35f, "Veil disperser impulse crest is too high");
+
+        leftCentroidsMs[rateIndex] = 1000.0 * leftMoment / leftEnergy / sampleRate;
+        rightCentroidsMs[rateIndex] = 1000.0 * rightMoment / rightEnergy / sampleRate;
+        require(leftCentroidsMs[rateIndex] > 30.0 && leftCentroidsMs[rateIndex] < 42.0
+                    && rightCentroidsMs[rateIndex] > 30.0
+                    && rightCentroidsMs[rateIndex] < 42.0,
+                "Veil disperser energy centroid is outside the intended cloud window");
+
+        const auto totalStereoEnergy = leftEnergy + rightEnergy;
+        auto cumulativeEnergy = 0.0;
+        auto percentile95Sample = 0;
+        for (auto sample = 0; sample < sampleCount; ++sample)
+        {
+            cumulativeEnergy += stereoEnergy[static_cast<std::size_t>(sample)];
+            if (cumulativeEnergy >= 0.95 * totalStereoEnergy)
+            {
+                percentile95Sample = sample;
+                break;
+            }
+        }
+        const auto percentile95Ms = 1000.0 * percentile95Sample / sampleRate;
+        require(percentile95Ms > 45.0 && percentile95Ms < 80.0,
+                "Veil disperser cloud is outside its intended p95 duration");
+    }
+
+    const auto [minimumLeft, maximumLeft] = std::minmax_element(leftCentroidsMs.begin(),
+                                                                leftCentroidsMs.end());
+    const auto [minimumRight, maximumRight] = std::minmax_element(rightCentroidsMs.begin(),
+                                                                  rightCentroidsMs.end());
+    std::cout << "[METRIC] Veil kernel centroid range: L=" << *minimumLeft << ".."
+              << *maximumLeft << " ms, R=" << *minimumRight << ".."
+              << *maximumRight << " ms\n";
+    require(*maximumLeft - *minimumLeft < 1.0 && *maximumRight - *minimumRight < 1.0,
+            "Veil timing changes audibly across sample rates");
+}
+
+void testVeilImpulseSofteningAndEnergy()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto sampleCount = static_cast<int>(sampleRate * 4.0);
+    constexpr auto shapeWindowSamples = static_cast<int>(sampleRate * 0.120);
+    constexpr auto leadingWindowSamples = static_cast<int>(sampleRate * 0.012);
+
+    ReverbParameters parameters;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 3.0f;
+    parameters.size = 1.0f;
+    parameters.preDelayMs = 0.0f;
+    parameters.lowCutHz = 20.0f;
+    parameters.highDampingHz = 20000.0f;
+    parameters.modulation = 0.0f;
+    parameters.width = 1.0f;
+
+    parameters.mode = ReverbMode::defaultMode;
+    const auto defaultRender = renderImpulse(parameters, sampleRate, sampleCount);
+    parameters.mode = ReverbMode::veil;
+    const auto veilRender = renderImpulse(parameters, sampleRate, sampleCount);
+    const auto veilRepeat = renderImpulse(parameters, sampleRate, sampleCount);
+
+    struct ShapeMetrics
+    {
+        int onset = -1;
+        double leadingFraction = 0.0;
+        double crest = 0.0;
+        double centroidMs = 0.0;
+        double totalEnergy = 0.0;
+        double lateEnergy = 0.0;
+        float peak = 0.0f;
+    };
+
+    const auto analyse = [&] (const StereoRender& render)
+    {
+        ShapeMetrics metrics;
+        for (auto sample = 0; sample < sampleCount; ++sample)
+        {
+            const auto index = static_cast<std::size_t>(sample);
+            require(std::isfinite(render.left[index]) && std::isfinite(render.right[index]),
+                    "Veil impulse comparison produced NaN/Inf");
+            metrics.peak = std::max({ metrics.peak,
+                                      std::abs(render.left[index]),
+                                      std::abs(render.right[index]) });
+            const auto energy = static_cast<double>(render.left[index]) * render.left[index]
+                              + static_cast<double>(render.right[index]) * render.right[index];
+            metrics.totalEnergy += energy;
+            if (metrics.onset < 0
+                && std::max(std::abs(render.left[index]), std::abs(render.right[index]))
+                       > 1.0e-8f)
+                metrics.onset = sample;
+        }
+        require(metrics.onset >= 0, "Veil impulse comparison is silent");
+
+        auto leadingEnergy = 0.0;
+        auto shapeEnergy = 0.0;
+        auto shapeMoment = 0.0;
+        auto maximumSampleEnergy = 0.0;
+        const auto shapeEnd = std::min(sampleCount, metrics.onset + shapeWindowSamples);
+        for (auto sample = metrics.onset; sample < shapeEnd; ++sample)
+        {
+            const auto index = static_cast<std::size_t>(sample);
+            const auto energy = static_cast<double>(render.left[index]) * render.left[index]
+                              + static_cast<double>(render.right[index]) * render.right[index];
+            shapeEnergy += energy;
+            shapeMoment += static_cast<double>(sample - metrics.onset) * energy;
+            maximumSampleEnergy = std::max(maximumSampleEnergy, energy);
+            if (sample < metrics.onset + leadingWindowSamples)
+                leadingEnergy += energy;
+        }
+        metrics.leadingFraction = leadingEnergy / (shapeEnergy + 1.0e-30);
+        metrics.crest = std::sqrt(maximumSampleEnergy
+                                  / (shapeEnergy / static_cast<double>(shapeEnd - metrics.onset)
+                                     + 1.0e-30));
+        metrics.centroidMs = 1000.0 * shapeMoment / (shapeEnergy + 1.0e-30) / sampleRate;
+
+        const auto lateStart = metrics.onset + static_cast<int>(sampleRate * 0.25);
+        const auto lateEnd = std::min(sampleCount,
+                                      metrics.onset + static_cast<int>(sampleRate * 2.5));
+        for (auto sample = lateStart; sample < lateEnd; ++sample)
+        {
+            const auto index = static_cast<std::size_t>(sample);
+            metrics.lateEnergy += static_cast<double>(render.left[index]) * render.left[index]
+                                + static_cast<double>(render.right[index]) * render.right[index];
+        }
+        return metrics;
+    };
+
+    const auto defaultShape = analyse(defaultRender);
+    const auto veilShape = analyse(veilRender);
+    auto differenceEnergy = 0.0;
+    auto referenceEnergy = 0.0;
+    for (auto sample = 0; sample < sampleCount; ++sample)
+    {
+        const auto index = static_cast<std::size_t>(sample);
+        require(std::bit_cast<std::uint32_t>(veilRender.left[index])
+                    == std::bit_cast<std::uint32_t>(veilRepeat.left[index])
+                    && std::bit_cast<std::uint32_t>(veilRender.right[index])
+                        == std::bit_cast<std::uint32_t>(veilRepeat.right[index]),
+                "Veil impulse render is not deterministic");
+        const auto differenceLeft = static_cast<double>(veilRender.left[index])
+                                  - defaultRender.left[index];
+        const auto differenceRight = static_cast<double>(veilRender.right[index])
+                                   - defaultRender.right[index];
+        differenceEnergy += differenceLeft * differenceLeft + differenceRight * differenceRight;
+        referenceEnergy += 0.5
+                         * (static_cast<double>(veilRender.left[index]) * veilRender.left[index]
+                            + static_cast<double>(veilRender.right[index]) * veilRender.right[index]
+                            + static_cast<double>(defaultRender.left[index])
+                                  * defaultRender.left[index]
+                            + static_cast<double>(defaultRender.right[index])
+                                  * defaultRender.right[index]);
+    }
+
+    const auto totalEnergyRatio = veilShape.totalEnergy / defaultShape.totalEnergy;
+    const auto lateEnergyRatio = veilShape.lateEnergy / defaultShape.lateEnergy;
+    const auto normalisedDifference = std::sqrt(differenceEnergy / referenceEnergy);
+    std::cout << "[METRIC] Veil impulse: leading Default="
+              << defaultShape.leadingFraction << " Veil=" << veilShape.leadingFraction
+              << ", crest Default=" << defaultShape.crest << " Veil=" << veilShape.crest
+              << ", centroid Default=" << defaultShape.centroidMs
+              << " ms Veil=" << veilShape.centroidMs
+              << " ms, total ratio=" << totalEnergyRatio
+              << ", late ratio=" << lateEnergyRatio
+              << ", NRMS=" << normalisedDifference << '\n';
+
+    require(std::abs(veilShape.onset - defaultShape.onset)
+                <= static_cast<int>(sampleRate * 0.0015),
+            "Veil behaves like an unintended pre-delay");
+    require(veilShape.leadingFraction <= defaultShape.leadingFraction * 0.80,
+            "Veil does not sufficiently redistribute leading transient energy");
+    require(veilShape.crest <= defaultShape.crest * 0.90,
+            "Veil does not sufficiently reduce the early impulse crest");
+    require(veilShape.centroidMs >= defaultShape.centroidMs + 3.0,
+            "Veil does not move the attack energy centroid later");
+    require(totalEnergyRatio >= 0.63 && totalEnergyRatio <= 1.58,
+            "Veil changes total impulse energy excessively");
+    require(lateEnergyRatio >= 0.50 && lateEnergyRatio <= 1.80,
+            "Veil changes late reverb energy excessively");
+    require(normalisedDifference > 0.10, "Veil is too similar to Default");
+    require(veilShape.peak < 4.0f, "Veil impulse exceeded the safety range");
 }
 
 void testFeedbackMatrix()
@@ -1204,6 +1443,142 @@ void requireSmoothDriftModelSwitch(DriftModel fromModel,
                 + std::to_string(normalisedReturnedRms));
 }
 
+void testVeilSampleRatesAndStability()
+{
+    constexpr std::array<double, 4> sampleRates { 48000.0, 96000.0, 44100.0, 88200.0 };
+    FDNReverb reverb;
+
+    for (const auto sampleRate : sampleRates)
+    {
+        ReverbParameters parameters;
+        parameters.mode = ReverbMode::veil;
+        parameters.mix = 1.0f;
+        parameters.decaySeconds = 30.0f;
+        parameters.size = 2.0f;
+        parameters.preDelayMs = 0.0f;
+        parameters.lowCutHz = 20.0f;
+        parameters.highDampingHz = 20000.0f;
+        parameters.modulation = 1.0f;
+        parameters.width = 2.0f;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 512);
+
+        std::uint32_t noiseState = 0x7ea10f5du;
+        auto peak = 0.0f;
+        const auto excitationSamples = static_cast<int>(sampleRate * 0.5);
+        for (auto sample = 0; sample < excitationSamples; ++sample)
+        {
+            noiseState = noiseState * 1664525u + 1013904223u;
+            const auto noise = static_cast<float>(static_cast<std::int32_t>(noiseState))
+                             / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+            auto left = (sample == 0 ? 1.0f : 0.0f) + 0.01f * noise;
+            auto right = (sample == 0 ? -0.35f : 0.0f) - 0.007f * noise;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Veil excitation produced NaN/Inf");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+        }
+
+        parameters.freeze = true;
+        reverb.setParameters(parameters);
+        double firstWindowEnergy = 0.0;
+        double lastWindowEnergy = 0.0;
+        const auto frozenSamples = static_cast<int>(sampleRate * 6.0);
+        for (auto sample = 0; sample < frozenSamples; ++sample)
+        {
+            auto left = 0.0f;
+            auto right = 0.0f;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Veil Freeze produced NaN/Inf");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+            const auto energy = static_cast<double>(left) * left
+                              + static_cast<double>(right) * right;
+            if (sample >= static_cast<int>(sampleRate)
+                && sample < static_cast<int>(sampleRate * 2.0))
+                firstWindowEnergy += energy;
+            if (sample >= static_cast<int>(sampleRate * 5.0))
+                lastWindowEnergy += energy;
+        }
+
+        require(firstWindowEnergy > 1.0e-10, "Veil Freeze tail became silent");
+        require(lastWindowEnergy >= firstWindowEnergy * 0.50,
+                "Veil Freeze tail collapsed unexpectedly");
+        require(lastWindowEnergy <= firstWindowEnergy * 1.25 + 1.0e-12,
+                "Veil Freeze feedback energy grows over time");
+        require(peak < 4.0f, "Veil stress test exceeded the safety range");
+    }
+}
+
+void testVeilBlockInvarianceAndModeSwitching()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto comparisonSamples = 48000;
+    ReverbParameters parameters;
+    parameters.mode = ReverbMode::veil;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 6.0f;
+    parameters.preDelayMs = 11.0f;
+    parameters.modulation = 0.8f;
+
+    std::vector<float> singleLeft(comparisonSamples, 0.0f);
+    std::vector<float> singleRight(comparisonSamples, 0.0f);
+    std::vector<float> blockLeft(comparisonSamples, 0.0f);
+    std::vector<float> blockRight(comparisonSamples, 0.0f);
+    singleLeft[0] = blockLeft[0] = 1.0f;
+
+    FDNReverb singleSample;
+    FDNReverb blockBased;
+    singleSample.setParameters(parameters);
+    blockBased.setParameters(parameters);
+    singleSample.prepare(sampleRate, 1);
+    blockBased.prepare(sampleRate, 127);
+
+    for (auto sample = 0; sample < comparisonSamples; ++sample)
+        singleSample.process(singleLeft.data() + sample, singleRight.data() + sample, 1);
+    for (auto offset = 0; offset < comparisonSamples; offset += 127)
+    {
+        const auto blockSize = std::min(127, comparisonSamples - offset);
+        blockBased.process(blockLeft.data() + offset, blockRight.data() + offset, blockSize);
+    }
+    for (auto sample = 0; sample < comparisonSamples; ++sample)
+    {
+        const auto index = static_cast<std::size_t>(sample);
+        require(std::abs(singleLeft[index] - blockLeft[index]) <= 1.0e-7f
+                    && std::abs(singleRight[index] - blockRight[index]) <= 1.0e-7f,
+                "Veil result depends on process block segmentation");
+    }
+
+    requireSmoothModeSwitch(ReverbMode::defaultMode, ReverbMode::veil,
+                            "Default to Veil switch");
+    requireSmoothModeSwitch(ReverbMode::veil, ReverbMode::defaultMode,
+                            "Veil to Default switch");
+    requireSmoothModeSwitch(ReverbMode::bloom, ReverbMode::veil,
+                            "Bloom to Veil switch");
+    requireSmoothModeSwitch(ReverbMode::veil, ReverbMode::bloom,
+                            "Veil to Bloom switch");
+    requireSmoothModeSwitch(ReverbMode::drift, ReverbMode::veil,
+                            "Drift to Veil switch");
+    requireSmoothModeSwitch(ReverbMode::veil, ReverbMode::drift,
+                            "Veil to Drift switch");
+
+    parameters.mix = 0.0f;
+    FDNReverb dryPath;
+    dryPath.setParameters(parameters);
+    dryPath.prepare(sampleRate, 64);
+    for (auto sample = 0; sample < 10000; ++sample)
+    {
+        const auto expectedLeft = 0.1f * std::sin(0.01f * static_cast<float>(sample));
+        const auto expectedRight = -0.7f * expectedLeft;
+        auto left = expectedLeft;
+        auto right = expectedRight;
+        dryPath.processSample(left, right);
+        require(std::abs(left - expectedLeft) <= 1.0e-8f
+                    && std::abs(right - expectedRight) <= 1.0e-8f,
+                "Veil changes the dry path at Mix=0");
+    }
+}
+
 void testDriftSampleRatesAndStability()
 {
     constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
@@ -1942,11 +2317,207 @@ void testDrift2KickBass190()
             "Drift 2 adds excessive stereo motion in the sub band");
 }
 
+void testVeilKickBass190()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto warmupBeats = 16;
+    constexpr auto totalBeats = warmupBeats + static_cast<int>(kickBassMeasureBeats);
+    constexpr auto beatSeconds = 60.0 / 190.0;
+    const auto totalSamples = static_cast<int>(
+        std::ceil(static_cast<double>(totalBeats) * beatSeconds * sampleRate));
+
+    ReverbParameters parameters;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 6.0f;
+    parameters.size = 1.2f;
+    parameters.preDelayMs = 0.0f;
+    parameters.lowCutHz = 20.0f;
+    parameters.highDampingHz = 18000.0f;
+    parameters.modulation = 0.5f;
+    parameters.width = 1.0f;
+
+    FDNReverb defaultReverb;
+    parameters.mode = ReverbMode::defaultMode;
+    defaultReverb.setParameters(parameters);
+    defaultReverb.prepare(sampleRate, 512);
+    FDNReverb veilReverb;
+    parameters.mode = ReverbMode::veil;
+    veilReverb.setParameters(parameters);
+    veilReverb.prepare(sampleRate, 512);
+
+    const auto returnOffsetSeconds = parameters.size
+        * *std::min_element(defaultReverb.getNominalDelaySamples().begin(),
+                            defaultReverb.getNominalDelaySamples().end())
+        / sampleRate;
+    FourBandMeter defaultLeftMeter(sampleRate);
+    FourBandMeter defaultRightMeter(sampleRate);
+    FourBandMeter veilLeftMeter(sampleRate);
+    FourBandMeter veilRightMeter(sampleRate);
+
+    std::array<double, kickBassMeasureBeats> defaultAttackHigh {};
+    std::array<double, kickBassMeasureBeats> veilAttackHigh {};
+    std::array<double, kickBassMeasureBeats> defaultCloudHigh {};
+    std::array<double, kickBassMeasureBeats> veilCloudHigh {};
+    std::array<double, kickBassMeasureBeats> defaultCloudNonSub {};
+    std::array<double, kickBassMeasureBeats> veilCloudNonSub {};
+    std::array<double, kickBassMeasureBeats> defaultHighPeak {};
+    std::array<double, kickBassMeasureBeats> veilHighPeak {};
+    std::array<double, kickBassMeasureBeats> defaultTotalEnergy {};
+    std::array<double, kickBassMeasureBeats> veilTotalEnergy {};
+    std::array<double, kickBassMeasureBeats> defaultSubEnergy {};
+    std::array<double, kickBassMeasureBeats> veilSubEnergy {};
+    auto differenceEnergy = 0.0;
+    auto referenceEnergy = 0.0;
+
+    for (auto sample = 0; sample < totalSamples; ++sample)
+    {
+        const auto input = kickBass190Sample(sample, sampleRate);
+        auto defaultLeft = input;
+        auto defaultRight = input;
+        auto veilLeft = input;
+        auto veilRight = input;
+        defaultReverb.processSample(defaultLeft, defaultRight);
+        veilReverb.processSample(veilLeft, veilRight);
+        require(std::isfinite(defaultLeft) && std::isfinite(defaultRight)
+                    && std::isfinite(veilLeft) && std::isfinite(veilRight),
+                "Veil kick+bass comparison produced NaN/Inf");
+
+        const auto defaultLeftBands = defaultLeftMeter.process(defaultLeft);
+        const auto defaultRightBands = defaultRightMeter.process(defaultRight);
+        const auto veilLeftBands = veilLeftMeter.process(veilLeft);
+        const auto veilRightBands = veilRightMeter.process(veilRight);
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto beat = static_cast<int>(std::floor(time / beatSeconds));
+        if (beat < warmupBeats || beat >= totalBeats)
+            continue;
+        const auto measuredBeat = static_cast<std::size_t>(beat - warmupBeats);
+        const auto phaseAfterReturn = time - static_cast<double>(beat) * beatSeconds
+                                    - returnOffsetSeconds;
+
+        auto defaultSampleEnergy = 0.0;
+        auto veilSampleEnergy = 0.0;
+        for (std::size_t band = 0; band < 4; ++band)
+        {
+            defaultSampleEnergy += defaultLeftBands[band] * defaultLeftBands[band]
+                                 + defaultRightBands[band] * defaultRightBands[band];
+            veilSampleEnergy += veilLeftBands[band] * veilLeftBands[band]
+                              + veilRightBands[band] * veilRightBands[band];
+        }
+        defaultTotalEnergy[measuredBeat] += defaultSampleEnergy;
+        veilTotalEnergy[measuredBeat] += veilSampleEnergy;
+        defaultSubEnergy[measuredBeat] += defaultLeftBands[0] * defaultLeftBands[0]
+                                       + defaultRightBands[0] * defaultRightBands[0];
+        veilSubEnergy[measuredBeat] += veilLeftBands[0] * veilLeftBands[0]
+                                    + veilRightBands[0] * veilRightBands[0];
+
+        const auto defaultHighEnergy = defaultLeftBands[3] * defaultLeftBands[3]
+                                     + defaultRightBands[3] * defaultRightBands[3];
+        const auto veilHighEnergy = veilLeftBands[3] * veilLeftBands[3]
+                                  + veilRightBands[3] * veilRightBands[3];
+        if (phaseAfterReturn >= 0.0 && phaseAfterReturn < 0.012)
+        {
+            defaultAttackHigh[measuredBeat] += defaultHighEnergy;
+            veilAttackHigh[measuredBeat] += veilHighEnergy;
+            defaultHighPeak[measuredBeat] = std::max(
+                defaultHighPeak[measuredBeat],
+                std::max(std::abs(defaultLeftBands[3]), std::abs(defaultRightBands[3])));
+            veilHighPeak[measuredBeat] = std::max(
+                veilHighPeak[measuredBeat],
+                std::max(std::abs(veilLeftBands[3]), std::abs(veilRightBands[3])));
+        }
+        else if (phaseAfterReturn >= 0.012 && phaseAfterReturn < 0.065)
+        {
+            defaultCloudHigh[measuredBeat] += defaultHighEnergy;
+            veilCloudHigh[measuredBeat] += veilHighEnergy;
+            for (std::size_t band = 1; band < 4; ++band)
+            {
+                defaultCloudNonSub[measuredBeat]
+                    += defaultLeftBands[band] * defaultLeftBands[band]
+                     + defaultRightBands[band] * defaultRightBands[band];
+                veilCloudNonSub[measuredBeat]
+                    += veilLeftBands[band] * veilLeftBands[band]
+                     + veilRightBands[band] * veilRightBands[band];
+            }
+        }
+
+        const auto differenceLeft = static_cast<double>(veilLeft) - defaultLeft;
+        const auto differenceRight = static_cast<double>(veilRight) - defaultRight;
+        differenceEnergy += differenceLeft * differenceLeft + differenceRight * differenceRight;
+        referenceEnergy += 0.5
+                         * (static_cast<double>(defaultLeft) * defaultLeft
+                            + static_cast<double>(defaultRight) * defaultRight
+                            + static_cast<double>(veilLeft) * veilLeft
+                            + static_cast<double>(veilRight) * veilRight);
+    }
+
+    auto defaultAttackConcentration = 0.0;
+    auto veilAttackConcentration = 0.0;
+    for (std::size_t beat = 0; beat < kickBassMeasureBeats; ++beat)
+    {
+        defaultAttackConcentration += defaultAttackHigh[beat]
+                                    / (defaultAttackHigh[beat]
+                                       + defaultCloudHigh[beat] + 1.0e-30);
+        veilAttackConcentration += veilAttackHigh[beat]
+                                 / (veilAttackHigh[beat] + veilCloudHigh[beat] + 1.0e-30);
+    }
+    defaultAttackConcentration /= static_cast<double>(kickBassMeasureBeats);
+    veilAttackConcentration /= static_cast<double>(kickBassMeasureBeats);
+
+    const auto highPeakRatio = percentile95(veilHighPeak) / percentile95(defaultHighPeak);
+    const auto cloudEnergyRatio = meanValue(veilCloudNonSub)
+                                / meanValue(defaultCloudNonSub);
+    const auto totalEnergyRatio = meanValue(veilTotalEnergy)
+                                / meanValue(defaultTotalEnergy);
+    const auto meanSubRatio = meanValue(veilSubEnergy) / meanValue(defaultSubEnergy);
+    const auto p95SubRatio = percentile95(veilSubEnergy) / percentile95(defaultSubEnergy);
+    const auto normalisedDifference = std::sqrt(differenceEnergy / referenceEnergy);
+    auto earlyEnergy = 0.0;
+    auto lateEnergy = 0.0;
+    for (std::size_t beat = 0; beat < 16; ++beat)
+    {
+        earlyEnergy += veilTotalEnergy[beat];
+        lateEnergy += veilTotalEnergy[kickBassMeasureBeats - 16 + beat];
+    }
+    const auto lateEarlyRatio = lateEnergy / earlyEnergy;
+
+    std::cout << "[METRIC] Veil kick+bass 190 BPM: high peak ratio=" << highPeakRatio
+              << ", concentration Default=" << defaultAttackConcentration
+              << " Veil=" << veilAttackConcentration
+              << ", cloud ratio=" << cloudEnergyRatio
+              << ", total ratio=" << totalEnergyRatio
+              << ", NRMS=" << normalisedDifference
+              << ", sub mean ratio=" << meanSubRatio
+              << ", sub p95 ratio=" << p95SubRatio
+              << ", late/early=" << lateEarlyRatio << '\n';
+
+    require(highPeakRatio <= 0.90,
+            "Veil does not sufficiently soften kick high-frequency peaks");
+    require(veilAttackConcentration <= defaultAttackConcentration * 0.85,
+            "Veil does not redistribute kick attack energy into the cloud");
+    require(cloudEnergyRatio >= 0.70 && cloudEnergyRatio <= 1.80,
+            "Veil loses or amplifies excessive non-sub cloud energy");
+    require(totalEnergyRatio >= 0.63 && totalEnergyRatio <= 1.58,
+            "Veil changes repeated-pattern energy excessively");
+    require(normalisedDifference > 0.10,
+            "Veil is too similar to Default on kick+bass at 190 BPM");
+    require(meanSubRatio >= 0.55 && meanSubRatio <= 1.25 && p95SubRatio <= 1.35,
+            "Veil changes sub energy excessively");
+    require(lateEarlyRatio <= 1.25,
+            "Veil energy grows over the repeated kick+bass pattern");
+}
+
 void testNoAllocationsInProcess()
 {
     FDNReverb reverb;
     reverb.prepare(48000.0, 512);
     ReverbParameters parameters;
+    constexpr std::array modes {
+        ReverbMode::defaultMode,
+        ReverbMode::bloom,
+        ReverbMode::drift,
+        ReverbMode::veil
+    };
+    auto modeIndex = std::size_t { 0 };
 
     allocationCount.store(0, std::memory_order_relaxed);
     countAllocations.store(true, std::memory_order_relaxed);
@@ -1954,8 +2525,8 @@ void testNoAllocationsInProcess()
     {
         if (sample % 257 == 0)
         {
-            const auto nextMode = (static_cast<int>(parameters.mode) + 1) % 3;
-            parameters.mode = static_cast<ReverbMode>(nextMode);
+            modeIndex = (modeIndex + 1) % modes.size();
+            parameters.mode = modes[modeIndex];
             parameters.driftModel = parameters.driftModel == DriftModel::original
                 ? DriftModel::drift2
                 : DriftModel::original;
@@ -2033,11 +2604,12 @@ void runLongCharacterStress(ReverbMode mode,
                 "Long Character stress found an energy-pumping LFO phase");
     require(windowEnergy.back() <= windowEnergy.front() * 1.25 + 1.0e-12,
             "Long Character stress tail grows over time");
-    if (mode == ReverbMode::drift)
+    if (mode == ReverbMode::drift || mode == ReverbMode::veil)
     {
         const auto finalEnergyRatio = windowEnergy.back() / windowEnergy.front();
-        require(windowEnergy.back() > 1.0e-16 && finalEnergyRatio >= 1.0e-8,
-                "Long Drift Freeze tail collapsed to silence: last/first="
+        const auto minimumRatio = mode == ReverbMode::veil ? 0.05 : 1.0e-8;
+        require(windowEnergy.back() > 1.0e-16 && finalEnergyRatio >= minimumRatio,
+                "Long Character Freeze tail collapsed to silence: last/first="
                     + std::to_string(finalEnergyRatio));
     }
     require(peak < 4.0f, "Long Character stress exceeded safety range");
@@ -2212,6 +2784,9 @@ int main(int argc, char** argv)
                     testDriftInstantaneousNormContraction },
         NamedTest { "Drift 2 kernel safety and sub bypass",
                     testDrift2KernelSafetyAndSubBypass },
+        NamedTest { "Veil disperser kernel", testVeilDisperserKernel },
+        NamedTest { "Veil impulse softening and energy",
+                    testVeilImpulseSofteningAndEnergy },
         NamedTest { "delay geometry and sample rates", testDelayGeometryAndSampleRates },
         NamedTest { "impulse decay and finite output", testImpulseDecayAndFiniteOutput },
         NamedTest { "feedback freeze and bad inputs", testFeedbackFreezeAndBadInputs },
@@ -2220,6 +2795,9 @@ int main(int argc, char** argv)
         NamedTest { "Bloom block invariance and mode switching",
                     testBloomBlockInvarianceAndModeSwitching },
         NamedTest { "Bloom stereo evolution and dry path", testBloomStereoEvolutionAndDryPath },
+        NamedTest { "Veil sample rates and stability", testVeilSampleRatesAndStability },
+        NamedTest { "Veil block invariance and mode switching",
+                    testVeilBlockInvarianceAndModeSwitching },
         NamedTest { "Drift sample rates and stability", testDriftSampleRatesAndStability },
         NamedTest { "Drift 2 sample rates and stability",
                     testDrift2SampleRatesAndStability },
@@ -2229,6 +2807,7 @@ int main(int argc, char** argv)
                     testDrift2BlockInvarianceAndModelSwitching },
         NamedTest { "Drift spectral motion", testDriftSpectralMotion },
         NamedTest { "Drift 2 kick+bass 190 BPM", testDrift2KickBass190 },
+        NamedTest { "Veil kick+bass 190 BPM", testVeilKickBass190 },
         NamedTest { "legacy 10-second render fingerprints", testLegacyRenderFingerprints },
         NamedTest { "no allocations in process", testNoAllocationsInProcess }
     };
@@ -2252,12 +2831,15 @@ int main(int argc, char** argv)
     const auto wantsBloomRender = argc == 3 && std::strcmp(argv[1], "--render-bloom") == 0;
     const auto wantsDriftRender = argc == 3 && std::strcmp(argv[1], "--render-drift") == 0;
     const auto wantsDrift2Render = argc == 3 && std::strcmp(argv[1], "--render-drift2") == 0;
+    const auto wantsVeilRender = argc == 3 && std::strcmp(argv[1], "--render-veil") == 0;
     if (failures == 0
-        && (wantsDefaultRender || wantsBloomRender || wantsDriftRender || wantsDrift2Render))
+        && (wantsDefaultRender || wantsBloomRender || wantsDriftRender || wantsDrift2Render
+            || wantsVeilRender))
     {
         try
         {
-            const auto mode = wantsBloomRender ? ReverbMode::bloom
+            const auto mode = wantsVeilRender ? ReverbMode::veil
+                            : wantsBloomRender ? ReverbMode::bloom
                             : (wantsDriftRender || wantsDrift2Render) ? ReverbMode::drift
                                                                     : ReverbMode::defaultMode;
             const auto driftModel = wantsDrift2Render ? DriftModel::drift2
@@ -2311,6 +2893,20 @@ int main(int argc, char** argv)
         {
             ++failures;
             std::cerr << "[FAIL] long Drift 2 stress: " << error.what() << '\n';
+        }
+    }
+
+    if (failures == 0 && argc == 2 && std::strcmp(argv[1], "--stress-veil") == 0)
+    {
+        try
+        {
+            runLongCharacterStress<90>(ReverbMode::veil);
+            std::cout << "[PASS] 90-second Veil diffusion/Freeze stress\n";
+        }
+        catch (const std::exception& error)
+        {
+            ++failures;
+            std::cerr << "[FAIL] long Veil stress: " << error.what() << '\n';
         }
     }
 
