@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "ui/PluginEditor.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_events/juce_events.h>
@@ -6,6 +7,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -30,6 +33,25 @@ constexpr std::array algorithmCases {
 };
 
 constexpr std::array evolutionAmounts { 0.0f, 0.5f, 1.0f };
+
+struct GestureProbe final : juce::AudioProcessorListener
+{
+    void audioProcessorParameterChanged(juce::AudioProcessor*, int, float) override {}
+    void audioProcessorChanged(juce::AudioProcessor*, const ChangeDetails&) override {}
+
+    void audioProcessorParameterChangeGestureBegin(juce::AudioProcessor*, int) override
+    {
+        ++beginCount;
+    }
+
+    void audioProcessorParameterChangeGestureEnd(juce::AudioProcessor*, int) override
+    {
+        ++endCount;
+    }
+
+    int beginCount = 0;
+    int endCount = 0;
+};
 
 void require(bool condition, const std::string& message)
 {
@@ -209,20 +231,160 @@ void testCurrentStateRoundTrip()
     }
 }
 
-void testEditorFitsUnifiedControls()
+juce::Component* findDescendantById(juce::Component& component,
+                                    const juce::String& componentId)
+{
+    if (component.getComponentID() == componentId)
+        return &component;
+
+    for (auto* child : component.getChildren())
+        if (auto* match = findDescendantById(*child, componentId))
+            return match;
+
+    return nullptr;
+}
+
+void testCustomEditorLayoutAndAttachments()
 {
     AmanitaOceanAudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     require(editor != nullptr, "Processor did not create an editor");
-    require(editor->getHeight() == 420, "Generic editor height is not 420 px");
+    auto* customEditor = dynamic_cast<AmanitaOceanAudioProcessorEditor*>(editor.get());
+    require(customEditor != nullptr, "Processor did not create the custom Amanita editor");
+    require(editor->getWidth() == AmanitaOceanAudioProcessorEditor::defaultWidth
+                && editor->getHeight() == AmanitaOceanAudioProcessorEditor::defaultHeight,
+            "Custom editor default size is wrong");
+    require(editor->isResizable(), "Custom editor is not host-resizable");
 
-    auto* tree = dynamic_cast<juce::TreeView*>(editor->getChildComponent(0));
-    require(tree != nullptr, "Generic editor parameter tree was not found");
-    auto* viewport = tree->getViewport();
-    require(viewport != nullptr && viewport->getViewedComponent() != nullptr,
-            "Generic editor parameter viewport was not found");
-    require(viewport->getViewHeight() >= viewport->getViewedComponent()->getHeight(),
-            "Unified controls still require hidden vertical scrolling");
+    auto* constrainer = editor->getConstrainer();
+    require(constrainer != nullptr, "Custom editor has no resize constrainer");
+    require(constrainer->getMinimumWidth() == AmanitaOceanAudioProcessorEditor::minimumWidth
+                && constrainer->getMinimumHeight()
+                    == AmanitaOceanAudioProcessorEditor::minimumHeight
+                && constrainer->getMaximumWidth()
+                    == AmanitaOceanAudioProcessorEditor::maximumWidth
+                && constrainer->getMaximumHeight()
+                    == AmanitaOceanAudioProcessorEditor::maximumHeight,
+            "Custom editor resize limits are wrong");
+    require(std::abs(constrainer->getFixedAspectRatio() - 1.6) <= 1.0e-9,
+            "Custom editor aspect ratio is wrong");
+
+    constexpr std::array<const char*, 14> interactiveIds {
+        "character-selector", "character-default", "character-bloom", "character-drift",
+        "character-veil",
+        "evolution", "preDelay", "size", "decay", "lowCut", "highDamping",
+        "width", "mix", "freeze"
+    };
+    constexpr std::array<std::array<int, 2>, 3> editorSizes {{
+        { AmanitaOceanAudioProcessorEditor::minimumWidth,
+          AmanitaOceanAudioProcessorEditor::minimumHeight },
+        { AmanitaOceanAudioProcessorEditor::defaultWidth,
+          AmanitaOceanAudioProcessorEditor::defaultHeight },
+        { AmanitaOceanAudioProcessorEditor::maximumWidth,
+          AmanitaOceanAudioProcessorEditor::maximumHeight }
+    }};
+
+    for (const auto& size : editorSizes)
+    {
+        editor->setSize(size[0], size[1]);
+        for (const auto* id : interactiveIds)
+        {
+            auto* component = findDescendantById(*editor, id);
+            require(component != nullptr, std::string("Custom editor is missing control: ") + id);
+            require(component->isVisible(), std::string("Custom editor control is hidden: ") + id);
+            const auto localBounds = editor->getLocalArea(component, component->getLocalBounds());
+            require(!localBounds.isEmpty(), std::string("Custom editor control is empty: ") + id);
+            require(editor->getLocalBounds().contains(localBounds),
+                    std::string("Custom editor control escapes its bounds: ") + id);
+            require(component->isAccessible(),
+                    std::string("Custom editor control is not accessible: ") + id);
+        }
+
+        auto* evolutionSliderForLayout = findDescendantById(*editor, "evolution");
+        auto* evolutionName = findDescendantById(*editor, "evolution-name");
+        auto* evolutionValue = findDescendantById(*editor, "evolution-value");
+        require(evolutionSliderForLayout != nullptr
+                    && evolutionName != nullptr
+                    && evolutionValue != nullptr,
+                "Evolution external labels were not found");
+
+        const auto sliderBounds = editor->getLocalArea(
+            evolutionSliderForLayout, evolutionSliderForLayout->getLocalBounds());
+        const auto nameBounds = editor->getLocalArea(evolutionName,
+                                                     evolutionName->getLocalBounds());
+        const auto valueBounds = editor->getLocalArea(evolutionValue,
+                                                      evolutionValue->getLocalBounds());
+        require(nameBounds.getY() >= sliderBounds.getBottom(),
+                "Evolution name must be below the hero dial");
+        require(valueBounds.getY() >= nameBounds.getBottom() - 1,
+                "Evolution value must be below its name");
+    }
+
+    auto* evolutionSlider = dynamic_cast<juce::Slider*>(
+        findDescendantById(*editor, "evolution"));
+    require(evolutionSlider != nullptr, "Evolution slider was not found");
+    parameterById(processor, "evolution").setValueNotifyingHost(0.73f);
+    require(std::abs(evolutionSlider->getValue() - 73.0) <= 0.11,
+            "Host Evolution did not update the custom slider");
+    evolutionSlider->setValue(62.5, juce::sendNotificationSync);
+    require(std::abs(parameterById(processor, "evolution").getValue() - 0.625f) <= 0.001f,
+            "Custom Evolution slider did not update the host parameter");
+
+    auto* mixValueLabel = dynamic_cast<juce::Label*>(
+        findDescendantById(*editor, "mix-value"));
+    require(mixValueLabel != nullptr, "Editable Mix value label was not found");
+    GestureProbe gestureProbe;
+    processor.addListener(&gestureProbe);
+    mixValueLabel->setText("42.5 %", juce::sendNotificationSync);
+    processor.removeListener(&gestureProbe);
+    require(std::abs(parameterById(processor, "mix").getValue() - 0.425f) <= 0.001f,
+            "Typed Mix value did not update the host parameter");
+    require(gestureProbe.beginCount == 1 && gestureProbe.endCount == 1,
+            "Typed value edit did not produce one complete host gesture");
+
+    auto* veilButton = dynamic_cast<juce::Button*>(
+        findDescendantById(*editor, "character-veil"));
+    require(veilButton != nullptr, "Veil selector button was not found");
+    require(!veilButton->getWantsKeyboardFocus(),
+            "Character segment must not create a keyboard-focus trap");
+    veilButton->onClick();
+    require(algorithmParameter(processor).getIndex() == 3,
+            "Custom Character selector did not update the host parameter");
+
+    auto* freezeButton = dynamic_cast<juce::ToggleButton*>(
+        findDescendantById(*editor, "freeze"));
+    require(freezeButton != nullptr, "Freeze toggle was not found");
+    freezeButton->setToggleState(true, juce::sendNotificationSync);
+    require(parameterById(processor, "freeze").getValue() > 0.5f,
+            "Custom Freeze toggle did not update the host parameter");
+}
+
+void renderEditorPng(const juce::String& path, int characterIndex, int requestedWidth)
+{
+    AmanitaOceanAudioProcessor processor;
+    const auto safeIndex = std::clamp(characterIndex, 0, 3);
+    algorithmParameter(processor).setValueNotifyingHost(static_cast<float>(safeIndex) / 3.0f);
+    parameterById(processor, "evolution").setValueNotifyingHost(0.68f);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    require(editor != nullptr, "Could not create editor for PNG render");
+    const auto width = std::clamp(requestedWidth,
+                                  AmanitaOceanAudioProcessorEditor::minimumWidth,
+                                  AmanitaOceanAudioProcessorEditor::maximumWidth);
+    const auto height = width * AmanitaOceanAudioProcessorEditor::defaultHeight
+                      / AmanitaOceanAudioProcessorEditor::defaultWidth;
+    editor->setSize(width, height);
+
+    const auto image = editor->createComponentSnapshot(editor->getLocalBounds(), true, 2.0f,
+                                                        juce::SoftwareImageType {});
+    require(image.isValid(), "Custom editor PNG snapshot is invalid");
+    juce::File output(path);
+    output.deleteFile();
+    juce::FileOutputStream stream(output);
+    require(stream.openedOk(), "Could not open custom editor PNG output");
+    juce::PNGImageFormat png;
+    require(png.writeImageToStream(image, stream), "Could not write custom editor PNG");
+    stream.flush();
 }
 
 std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
@@ -337,7 +499,7 @@ void testUnifiedAlgorithmReachesDsp()
 }
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI initialiseJuce;
 
@@ -345,8 +507,17 @@ int main()
     {
         testUnifiedHostContract();
         testCurrentStateRoundTrip();
-        testEditorFitsUnifiedControls();
+        testCustomEditorLayoutAndAttachments();
         testUnifiedAlgorithmReachesDsp();
+        if (argc >= 3 && std::strcmp(argv[1], "--render-ui") == 0)
+        {
+            const auto characterIndex = argc >= 4 ? std::atoi(argv[3]) : 0;
+            const auto requestedWidth = argc >= 5
+                ? std::atoi(argv[4])
+                : AmanitaOceanAudioProcessorEditor::defaultWidth;
+            renderEditorPng(argv[2], characterIndex, requestedWidth);
+            std::cout << "[PASS] wrote custom editor PNG to " << argv[2] << '\n';
+        }
         std::cout << "[PASS] Unified Algorithm/Evolution state/UI/DSP routing\n";
         return 0;
     }

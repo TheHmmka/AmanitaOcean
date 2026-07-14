@@ -34,6 +34,9 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
 
+    [[nodiscard]] juce::AudioProcessorValueTreeState& getParameterState() noexcept;
+    [[nodiscard]] const juce::AudioProcessorValueTreeState& getParameterState() const noexcept;
+
 private:
     [[nodiscard]] static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     [[nodiscard]] amanita::dsp::ReverbParameters readDspParameters() const noexcept;

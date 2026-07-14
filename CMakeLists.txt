@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(AmanitaOcean VERSION 0.7.0 LANGUAGES C CXX)
+project(AmanitaOcean VERSION 0.8.2 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -56,7 +56,7 @@ juce_add_plugin(AmanitaOcean
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
-    EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+    EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     VST3_CATEGORIES Fx Reverb Stereo
     AU_MAIN_TYPE kAudioUnitType_Effect
     COPY_PLUGIN_AFTER_BUILD FALSE
@@ -66,6 +66,14 @@ target_sources(AmanitaOcean
     PRIVATE
         Source/PluginProcessor.cpp
         Source/PluginProcessor.h
+        Source/ui/CharacterSelector.cpp
+        Source/ui/CharacterSelector.h
+        Source/ui/OceanLookAndFeel.cpp
+        Source/ui/OceanLookAndFeel.h
+        Source/ui/ParameterKnob.cpp
+        Source/ui/ParameterKnob.h
+        Source/ui/PluginEditor.cpp
+        Source/ui/PluginEditor.h
 )
 
 target_compile_definitions(AmanitaOcean

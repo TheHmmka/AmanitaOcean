@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "ui/PluginEditor.h"
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -91,9 +92,7 @@ void AmanitaOceanAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
 juce::AudioProcessorEditor* AmanitaOceanAudioProcessor::createEditor()
 {
-    auto* editor = new juce::GenericAudioProcessorEditor(*this);
-    editor->setSize(editor->getWidth(), 420);
-    return editor;
+    return new AmanitaOceanAudioProcessorEditor(*this);
 }
 
 bool AmanitaOceanAudioProcessor::hasEditor() const
@@ -140,6 +139,17 @@ void AmanitaOceanAudioProcessor::setStateInformation(const void* data, int sizeI
         return;
 
     state_.replaceState(restored);
+}
+
+juce::AudioProcessorValueTreeState& AmanitaOceanAudioProcessor::getParameterState() noexcept
+{
+    return state_;
+}
+
+const juce::AudioProcessorValueTreeState&
+AmanitaOceanAudioProcessor::getParameterState() const noexcept
+{
+    return state_;
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout
