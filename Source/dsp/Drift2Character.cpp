@@ -152,8 +152,10 @@ void Drift2Character::processFeedback(std::array<float, numFeedbackLines>& feedb
             0.5f + presenceContrast * (leftPosition - 0.5f), 0.0f, 1.0f);
         const auto rightPresencePosition = std::clamp(
             0.5f + presenceContrast * (rightPosition - 0.5f), 0.0f, 1.0f);
-        const auto bodyDepth = 0.15f + 0.37f * evolution;
-        const auto presenceDepth = 0.22f + 0.73f * evolution;
+        // A moderate per-pass range is enough to create large RT60 movement in
+        // the recursive loop without carving a near-null through vocal presence.
+        const auto bodyDepth = 0.15f + 0.27f * evolution;
+        const auto presenceDepth = 0.22f + 0.36f * evolution;
 
         std::array<float, spectralAxes.size()> filteredComponents {};
         for (std::size_t axis = 0; axis < spectralAxes.size(); ++axis)
@@ -169,30 +171,8 @@ void Drift2Character::processFeedback(std::array<float, numFeedbackLines>& feedb
             filteredComponents[axis] = components[axis] + amount * delta;
         }
 
-        for (std::size_t pairStart = 0; pairStart < spectralAxes.size(); pairStart += 2)
-        {
-            const auto delta0 = filteredComponents[pairStart] - components[pairStart];
-            const auto delta1 = filteredComponents[pairStart + 1] - components[pairStart + 1];
-            const auto projection = static_cast<double>(components[pairStart]) * delta0
-                                  + static_cast<double>(components[pairStart + 1]) * delta1;
-            const auto deltaEnergy = static_cast<double>(delta0) * delta0
-                                   + static_cast<double>(delta1) * delta1;
-            if (2.0 * projection + deltaEnergy > 0.0)
-            {
-                auto safeDeltaScale = 0.0;
-                if (projection < 0.0 && deltaEnergy > 1.0e-20)
-                {
-                    constexpr auto roundOffMargin = 0.999999;
-                    safeDeltaScale = std::clamp(
-                        roundOffMargin * (-2.0 * projection / deltaEnergy), 0.0, 1.0);
-                }
-                filteredComponents[pairStart] = components[pairStart]
-                                              + static_cast<float>(safeDeltaScale) * delta0;
-                filteredComponents[pairStart + 1] = components[pairStart + 1]
-                                                  + static_cast<float>(safeDeltaScale) * delta1;
-            }
-        }
-
+        // The band filters are stateful, so instantaneous energy limiting would
+        // become a signal-dependent waveshaper around waveform zero crossings.
         for (std::size_t index = 0; index < numFeedbackLines; ++index)
         {
             auto reconstructed = feedback[index];

@@ -14,7 +14,6 @@ constexpr float inverseSqrtEight = 0.35355339059327376220f;
 constexpr float logMinus60dB = -6.90775527898213705205f;
 constexpr float freezeFeedback = 0.9995f;
 constexpr float bloomFreezeFeedback = 0.9985f;
-constexpr float driftFreezeFeedback = 0.9985f;
 constexpr float maximumSize = 2.0f;
 constexpr float maximumPreDelaySeconds = 0.25f;
 constexpr float maximumDelayMotionSeconds = 0.00065f;
@@ -530,52 +529,24 @@ void FDNReverb::processSample(float& left, float& right) noexcept
         const auto normalGain = feedbackGains_[index].next();
         auto freezeGain = freezeFeedback
                         + bloomAmount * (bloomFreezeFeedback - freezeFeedback);
-        if (driftAmount > 0.0f)
-            freezeGain += driftAmount * (driftFreezeFeedback - freezeFeedback);
         const auto loopGain = normalGain + freeze * (freezeGain - normalGain);
         feedback[index] = sanitise(freezeMorphed * loopGain, 4.0f);
     }
 
-    const auto undriftedFeedback = feedback;
     auto originalDriftFeedback = feedback;
     auto drift2Feedback = feedback;
-    drift_.processFeedback(originalDriftFeedback, driftAmount, evolution);
-    drift2_.processFeedback(drift2Feedback, driftAmount, evolution);
+    // Freeze holds the spectrum already present in the tail. Fading the
+    // subtractive spectral kernel to bypass keeps that hold linear and stable;
+    // the independently modulated FDN delays continue to provide slow motion.
+    const auto feedbackDriftAmount = driftAmount * (1.0f - freeze);
+    drift_.processFeedback(originalDriftFeedback, feedbackDriftAmount, evolution);
+    drift2_.processFeedback(drift2Feedback, feedbackDriftAmount, evolution);
     if (driftAmount > 0.0f)
     {
-        double undriftedEnergy = 0.0;
-        for (const auto value : undriftedFeedback)
-            undriftedEnergy += static_cast<double>(value) * value;
-
         for (std::size_t index = 0; index < numDelayLines; ++index)
             feedback[index] = originalDriftFeedback[index]
                             + evolution
                                   * (drift2Feedback[index] - originalDriftFeedback[index]);
-
-        // Drift is deliberately contractive in normal operation. During Freeze,
-        // restore only the vector norm it removed so the spectral motion remains
-        // alive without cancelling the conservative feedback gain or adding energy.
-        if (freeze > 0.0f && undriftedEnergy > 0.0)
-        {
-            double driftedEnergy = 0.0;
-            for (const auto value : feedback)
-                driftedEnergy += static_cast<double>(value) * value;
-
-            if (driftedEnergy > 1.0e-30)
-            {
-                const auto normRatio = static_cast<float>(
-                    std::sqrt(undriftedEnergy / driftedEnergy));
-                const auto compensation = 1.0f + freeze * (normRatio - 1.0f);
-                for (auto& value : feedback)
-                    value = sanitise(value * compensation, 4.0f);
-            }
-            else
-            {
-                for (std::size_t index = 0; index < numDelayLines; ++index)
-                    feedback[index] += freeze * (undriftedFeedback[index]
-                                                  - feedback[index]);
-            }
-        }
     }
     applyFeedbackMatrix(feedback);
 

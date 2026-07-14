@@ -114,25 +114,8 @@ void DriftCharacter::processFeedback(std::array<float, numFeedbackLines>& feedba
                                      + depth * (filtered - components[axis]);
         }
 
-        // Keep the left and right spectral pairs independently non-expansive.
-        // The small downward margin absorbs float round-off in reconstruction.
-        for (std::size_t pairStart = 0; pairStart < spectralAxes.size(); pairStart += 2)
-        {
-            const auto inputEnergy = components[pairStart] * components[pairStart]
-                                   + components[pairStart + 1] * components[pairStart + 1];
-            const auto outputEnergy = filteredComponents[pairStart]
-                                          * filteredComponents[pairStart]
-                                    + filteredComponents[pairStart + 1]
-                                          * filteredComponents[pairStart + 1];
-            if (outputEnergy > inputEnergy && outputEnergy > 0.0f)
-            {
-                constexpr auto roundOffMargin = 0.999999f;
-                const auto energyScale = roundOffMargin * std::sqrt(inputEnergy / outputEnergy);
-                filteredComponents[pairStart] *= energyScale;
-                filteredComponents[pairStart + 1] *= energyScale;
-            }
-        }
-
+        // Keep this path linear: a sample-wise norm guard is invalid for filters
+        // with stored energy and turns ordinary phase shift into harmonic distortion.
         for (std::size_t index = 0; index < numFeedbackLines; ++index)
         {
             auto reconstructed = feedback[index];

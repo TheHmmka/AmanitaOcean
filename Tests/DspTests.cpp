@@ -8,6 +8,7 @@
 #include <atomic>
 #include <bit>
 #include <cmath>
+#include <complex>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -440,70 +441,75 @@ void testFeedbackMatrix()
     }
 }
 
-void testDriftInstantaneousNormContraction()
+void testDriftSuperpositionLinearity()
 {
-    constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
-    constexpr std::array<float, 3> characterAmounts { 0.25f, 0.67f, 1.0f };
-    constexpr std::array<float, 3> evolutionAmounts { 0.0f, 0.5f, 1.0f };
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto totalSamples = 144000;
+    constexpr auto measurementStart = 48000;
+    constexpr auto twoPi = 6.28318530717958647692;
+    constexpr std::array<float, 3> evolutionValues { 0.0f, 0.5f, 1.0f };
+    ReverbParameters parameters;
+    parameters.mode = ReverbMode::drift;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 10.0f;
+    parameters.preDelayMs = 0.0f;
+    parameters.lowCutHz = 80.0f;
+    parameters.highDampingHz = 9000.0f;
 
-    for (const auto sampleRate : sampleRates)
+    for (const auto evolution : evolutionValues)
     {
-        for (const auto characterAmount : characterAmounts)
+        parameters.evolution = evolution;
+        FDNReverb first;
+        FDNReverb second;
+        FDNReverb summed;
+        for (auto* reverb : { &first, &second, &summed })
         {
-            for (const auto evolutionAmount : evolutionAmounts)
+            reverb->setParameters(parameters);
+            reverb->prepare(sampleRate, 64);
+        }
+
+        auto errorEnergy = 0.0;
+        auto referenceEnergy = 0.0;
+        for (auto sample = 0; sample < totalSamples; ++sample)
+        {
+            const auto time = static_cast<double>(sample) / sampleRate;
+            auto firstLeft = static_cast<float>(0.035 * std::sin(twoPi * 1000.0 * time));
+            auto firstRight = 0.71f * firstLeft;
+            auto secondLeft = static_cast<float>(0.027 * std::sin(
+                twoPi * 4500.0 * time + 0.31));
+            auto secondRight = -0.63f * secondLeft;
+            auto summedLeft = firstLeft + secondLeft;
+            auto summedRight = firstRight + secondRight;
+            first.processSample(firstLeft, firstRight);
+            second.processSample(secondLeft, secondRight);
+            summed.processSample(summedLeft, summedRight);
+
+            require(std::isfinite(summedLeft) && std::isfinite(summedRight),
+                    "Drift superposition render produced NaN/Inf");
+            if (sample >= measurementStart)
             {
-                DriftCharacter drift;
-                drift.prepare(sampleRate);
-                std::uint32_t state = 0x6d2b79f5u;
-
-                for (auto iteration = 0; iteration < 8192; ++iteration)
-                {
-                    std::array<float, DriftCharacter::numFeedbackLines> feedback {};
-                    auto inputNorm = 0.0;
-                    for (auto& value : feedback)
-                    {
-                        state = state * 1664525u + 1013904223u;
-                        value = 0.75f
-                              * static_cast<float>(static_cast<std::int32_t>(state))
-                              / static_cast<float>(
-                                  std::numeric_limits<std::int32_t>::max());
-                        inputNorm += static_cast<double>(value) * value;
-                    }
-
-                    // Exercise stored filter energy as well as ordinary broadband input.
-                    if (iteration % 257 == 0)
-                    {
-                        feedback.fill(0.0f);
-                        inputNorm = 0.0;
-                    }
-
-                    drift.processFeedback(feedback, characterAmount, evolutionAmount);
-
-                    auto outputNorm = 0.0;
-                    for (const auto value : feedback)
-                    {
-                        require(std::isfinite(value),
-                                "Drift contraction produced NaN/Inf");
-                        outputNorm += static_cast<double>(value) * value;
-                    }
-
-                    const auto tolerance = std::max(1.0e-10, inputNorm * 2.0e-5);
-                    require(outputNorm <= inputNorm + tolerance,
-                            "Drift feedback processing increased instantaneous norm at "
-                                + std::to_string(sampleRate) + " Hz: input="
-                                + std::to_string(inputNorm) + " output="
-                                + std::to_string(outputNorm));
-                }
+                const auto leftError = static_cast<double>(summedLeft - firstLeft - secondLeft);
+                const auto rightError = static_cast<double>(summedRight - firstRight - secondRight);
+                errorEnergy += leftError * leftError + rightError * rightError;
+                referenceEnergy += static_cast<double>(summedLeft) * summedLeft
+                                 + static_cast<double>(summedRight) * summedRight;
             }
         }
+
+        require(referenceEnergy > 1.0e-12, "Drift superposition reference became silent");
+        const auto normalisedError = std::sqrt(errorEnergy / referenceEnergy);
+        std::cout << "[METRIC] Drift superposition Evolution=" << evolution
+                  << " NRMS=" << normalisedError << '\n';
+        require(normalisedError <= 2.0e-4,
+                "Drift is signal-dependent/nonlinear at Evolution="
+                    + std::to_string(evolution) + ": superposition NRMS="
+                    + std::to_string(normalisedError));
     }
 }
 
-void testDrift2KernelSafetyAndSubBypass()
+void testDrift2KernelIdentityAndSubBypass()
 {
     constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
-    constexpr std::array<float, 3> characterAmounts { 0.25f, 0.67f, 1.0f };
-    constexpr std::array<float, 3> evolutionAmounts { 0.0f, 0.5f, 1.0f };
     constexpr std::array<float, 2> subFrequencies { 55.0f, 80.0f };
     constexpr float inverseSqrtEight = 0.35355339059327376220f;
     constexpr float twoPi = 6.28318530717958647692f;
@@ -533,50 +539,6 @@ void testDrift2KernelSafetyAndSubBypass()
                 require(std::bit_cast<std::uint32_t>(feedback[index])
                             == std::bit_cast<std::uint32_t>(original[index]),
                         "Drift 2 amount=0 is not bit-transparent");
-        }
-
-        for (const auto characterAmount : characterAmounts)
-        {
-            for (const auto evolutionAmount : evolutionAmounts)
-            {
-                Drift2Character drift2;
-                drift2.prepare(sampleRate);
-                std::uint32_t state = 0xbb67ae85u;
-                for (auto iteration = 0; iteration < 8192; ++iteration)
-                {
-                    std::array<float, Drift2Character::numFeedbackLines> feedback {};
-                    auto inputNorm = 0.0;
-                    for (auto& value : feedback)
-                    {
-                        state = state * 1664525u + 1013904223u;
-                        value = 0.75f
-                              * static_cast<float>(static_cast<std::int32_t>(state))
-                              / static_cast<float>(
-                                  std::numeric_limits<std::int32_t>::max());
-                        inputNorm += static_cast<double>(value) * value;
-                    }
-                    if (iteration % 257 == 0)
-                    {
-                        feedback.fill(0.0f);
-                        inputNorm = 0.0;
-                    }
-
-                    drift2.processFeedback(feedback, characterAmount, evolutionAmount);
-                    auto outputNorm = 0.0;
-                    for (const auto value : feedback)
-                    {
-                        require(std::isfinite(value),
-                                "Drift 2 contraction produced NaN/Inf");
-                        outputNorm += static_cast<double>(value) * value;
-                    }
-                    const auto tolerance = std::max(1.0e-10, inputNorm * 2.0e-5);
-                    require(outputNorm <= inputNorm + tolerance,
-                            "Drift 2 increased instantaneous feedback norm at "
-                                + std::to_string(sampleRate) + " Hz: input="
-                                + std::to_string(inputNorm) + " output="
-                                + std::to_string(outputNorm));
-                }
-            }
         }
 
         for (const auto frequency : subFrequencies)
@@ -632,6 +594,281 @@ void testDrift2KernelSafetyAndSubBypass()
             }
         }
     }
+}
+
+void driftRegressionFft(std::vector<std::complex<double>>& values)
+{
+    const auto size = values.size();
+    for (std::size_t index = 1, reversed = 0; index < size; ++index)
+    {
+        auto bit = size >> 1;
+        while ((reversed & bit) != 0)
+        {
+            reversed ^= bit;
+            bit >>= 1;
+        }
+        reversed ^= bit;
+        if (index < reversed)
+            std::swap(values[index], values[reversed]);
+    }
+
+    constexpr auto twoPi = 6.28318530717958647692;
+    for (std::size_t length = 2; length <= size; length <<= 1)
+    {
+        const auto step = std::polar(1.0, -twoPi / static_cast<double>(length));
+        for (std::size_t offset = 0; offset < size; offset += length)
+        {
+            auto phase = std::complex<double>(1.0, 0.0);
+            for (std::size_t index = 0; index < length / 2; ++index)
+            {
+                const auto even = values[offset + index];
+                const auto odd = values[offset + index + length / 2] * phase;
+                values[offset + index] = even + odd;
+                values[offset + index + length / 2] = even - odd;
+                phase *= step;
+            }
+        }
+    }
+}
+
+[[nodiscard]] double driftHighBandFraction(const StereoRender& render,
+                                           double sampleRate,
+                                           std::size_t startSample)
+{
+    constexpr std::size_t fftSize = 65536;
+    constexpr auto twoPi = 6.28318530717958647692;
+    auto totalEnergy = 0.0;
+    auto highBandEnergy = 0.0;
+    for (const auto* channel : { &render.left, &render.right })
+    {
+        std::vector<std::complex<double>> spectrum(fftSize);
+        for (std::size_t index = 0; index < fftSize; ++index)
+        {
+            const auto window = 0.5 - 0.5 * std::cos(
+                twoPi * static_cast<double>(index) / static_cast<double>(fftSize - 1));
+            spectrum[index] = static_cast<double>((*channel)[startSample + index]) * window;
+        }
+        driftRegressionFft(spectrum);
+        for (std::size_t bin = 1; bin <= fftSize / 2; ++bin)
+        {
+            const auto frequency = static_cast<double>(bin) * sampleRate / fftSize;
+            const auto energy = std::norm(spectrum[bin]);
+            totalEnergy += energy;
+            if (frequency >= 6000.0 && frequency < 10000.0)
+                highBandEnergy += energy;
+        }
+    }
+    return highBandEnergy / (totalEnergy + 1.0e-300);
+}
+
+class DriftVocalSource
+{
+public:
+    DriftVocalSource()
+    {
+        for (std::size_t index = 0; index < weights_.size(); ++index)
+        {
+            const auto harmonic = static_cast<double>(index + 1);
+            const auto frequency = 200.0 * harmonic;
+            const auto formant1 = std::exp(-0.5 * std::pow((frequency - 760.0) / 190.0, 2.0));
+            const auto formant2 = std::exp(-0.5 * std::pow((frequency - 1180.0) / 260.0, 2.0));
+            const auto formant3 = std::exp(-0.5 * std::pow((frequency - 2850.0) / 480.0, 2.0));
+            weights_[index] = (0.08 + 0.95 * formant1
+                                   + 0.75 * formant2 + 0.55 * formant3) / harmonic;
+            weightSum_ += weights_[index];
+        }
+    }
+
+    [[nodiscard]] float sample(int index, int length, double sampleRate) const noexcept
+    {
+        if (index >= length)
+            return 0.0f;
+        constexpr auto twoPi = 6.28318530717958647692;
+        const auto time = static_cast<double>(index) / sampleRate;
+        const auto attack = std::min(1.0, time / 0.05);
+        const auto remaining = static_cast<double>(length - index) / sampleRate;
+        const auto envelope = attack * std::min(1.0, remaining / 0.15);
+        auto voice = 0.0;
+        for (std::size_t harmonicIndex = 0; harmonicIndex < weights_.size(); ++harmonicIndex)
+        {
+            const auto harmonic = static_cast<double>(harmonicIndex + 1);
+            voice += weights_[harmonicIndex] * std::sin(
+                twoPi * 200.0 * harmonic * time + 0.17 * harmonic);
+        }
+        return static_cast<float>(0.42 * envelope * voice / weightSum_);
+    }
+
+private:
+    std::array<double, 29> weights_ {};
+    double weightSum_ = 0.0;
+};
+
+void testDriftBandLimitedVocalTail()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto excitationSamples = 192000;
+    constexpr auto totalSamples = 288000;
+    constexpr std::array<float, 2> evolutionValues { 0.30f, 1.0f };
+    constexpr std::size_t analysisStart = excitationSamples + 9600;
+    const DriftVocalSource vocal;
+
+    for (const auto evolution : evolutionValues)
+    {
+        ReverbParameters parameters;
+        parameters.mode = ReverbMode::drift;
+        parameters.mix = 1.0f;
+        parameters.decaySeconds = 15.0f;
+        parameters.size = 1.0f;
+        parameters.preDelayMs = 0.0f;
+        parameters.lowCutHz = 80.0f;
+        parameters.highDampingHz = 9000.0f;
+        parameters.evolution = evolution;
+        parameters.width = 1.0f;
+
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 512);
+        StereoRender render {
+            std::vector<float>(totalSamples, 0.0f),
+            std::vector<float>(totalSamples, 0.0f)
+        };
+        for (auto sample = 0; sample < totalSamples; ++sample)
+        {
+            const auto input = vocal.sample(sample, excitationSamples, sampleRate);
+            auto left = input;
+            auto right = input;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Band-limited Drift vocal render produced NaN/Inf");
+            render.left[static_cast<std::size_t>(sample)] = left;
+            render.right[static_cast<std::size_t>(sample)] = right;
+        }
+
+        const auto highBandFraction = driftHighBandFraction(
+            render, sampleRate, analysisStart);
+        const auto highBandDb = 10.0 * std::log10(highBandFraction + 1.0e-300);
+        std::cout << "[METRIC] Drift band-limited vocal Evolution=" << evolution
+                  << " 6-10 kHz fraction=" << highBandDb << " dB\n";
+        require(highBandFraction <= 1.0e-6,
+                "Drift generated excessive 6-10 kHz energy from a <=5.8 kHz vocal input: "
+                    + std::to_string(highBandDb) + " dB");
+    }
+}
+
+void testDriftFreezeLinearityAndBandLimitedTail()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto excitationSamples = 192000;
+    constexpr auto frozenSamples = 384000;
+    constexpr auto rampSettledSample = 12000;
+    constexpr auto twoPi = 6.28318530717958647692;
+    ReverbParameters parameters;
+    parameters.mode = ReverbMode::drift;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 15.0f;
+    parameters.preDelayMs = 0.0f;
+    parameters.lowCutHz = 80.0f;
+    parameters.highDampingHz = 9000.0f;
+    parameters.evolution = 1.0f;
+
+    std::array<FDNReverb, 3> superposition;
+    for (auto& reverb : superposition)
+    {
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 64);
+    }
+    for (auto sample = 0; sample < excitationSamples; ++sample)
+    {
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto firstLeft = static_cast<float>(0.08 * std::sin(twoPi * 1000.0 * time));
+        const auto firstRight = 0.71f * firstLeft;
+        const auto secondLeft = static_cast<float>(0.065 * std::sin(
+            twoPi * 4500.0 * time + 0.31));
+        const auto secondRight = -0.63f * secondLeft;
+        std::array<float, 3> left { firstLeft, secondLeft, firstLeft + secondLeft };
+        std::array<float, 3> right { firstRight, secondRight, firstRight + secondRight };
+        for (std::size_t index = 0; index < superposition.size(); ++index)
+            superposition[index].processSample(left[index], right[index]);
+    }
+    parameters.freeze = true;
+    for (auto& reverb : superposition)
+        reverb.setParameters(parameters);
+    auto errorEnergy = 0.0;
+    auto referenceEnergy = 0.0;
+    for (auto sample = 0; sample < frozenSamples / 2; ++sample)
+    {
+        std::array<float, 3> left {};
+        std::array<float, 3> right {};
+        for (std::size_t index = 0; index < superposition.size(); ++index)
+            superposition[index].processSample(left[index], right[index]);
+        if (sample >= rampSettledSample)
+        {
+            const auto leftError = static_cast<double>(left[2] - left[0] - left[1]);
+            const auto rightError = static_cast<double>(right[2] - right[0] - right[1]);
+            errorEnergy += leftError * leftError + rightError * rightError;
+            referenceEnergy += static_cast<double>(left[2]) * left[2]
+                             + static_cast<double>(right[2]) * right[2];
+        }
+    }
+    require(referenceEnergy > 1.0e-12, "Drift Freeze superposition reference became silent");
+    const auto normalisedError = std::sqrt(errorEnergy / referenceEnergy);
+    require(normalisedError <= 2.0e-4,
+            "Fully engaged Drift Freeze is signal-dependent/nonlinear: NRMS="
+                + std::to_string(normalisedError));
+
+    parameters.freeze = false;
+    FDNReverb vocalReverb;
+    vocalReverb.setParameters(parameters);
+    vocalReverb.prepare(sampleRate, 512);
+    StereoRender vocalRender {
+        std::vector<float>(excitationSamples + frozenSamples, 0.0f),
+        std::vector<float>(excitationSamples + frozenSamples, 0.0f)
+    };
+    const DriftVocalSource vocal;
+    auto peak = 0.0f;
+    auto earlyEnergy = 0.0;
+    auto lateEnergy = 0.0;
+    for (auto sample = 0; sample < excitationSamples + frozenSamples; ++sample)
+    {
+        if (sample == excitationSamples)
+        {
+            parameters.freeze = true;
+            vocalReverb.setParameters(parameters);
+        }
+        auto left = vocal.sample(sample, excitationSamples, sampleRate);
+        auto right = left;
+        vocalReverb.processSample(left, right);
+        require(std::isfinite(left) && std::isfinite(right),
+                "Drift Freeze vocal tail produced NaN/Inf");
+        peak = std::max({ peak, std::abs(left), std::abs(right) });
+        vocalRender.left[static_cast<std::size_t>(sample)] = left;
+        vocalRender.right[static_cast<std::size_t>(sample)] = right;
+        const auto frozenOffset = sample - excitationSamples;
+        const auto energy = static_cast<double>(left) * left
+                          + static_cast<double>(right) * right;
+        if (frozenOffset >= 24000 && frozenOffset < 72000)
+            earlyEnergy += energy;
+        if (frozenOffset >= 288000 && frozenOffset < 336000)
+            lateEnergy += energy;
+    }
+
+    const auto highBandFraction = driftHighBandFraction(
+        vocalRender, sampleRate, excitationSamples + 24000);
+    const auto highBandDb = 10.0 * std::log10(highBandFraction + 1.0e-300);
+    const auto lateEarlyRatio = lateEnergy / (earlyEnergy + 1.0e-300);
+    std::cout << "[METRIC] Drift Freeze: superposition NRMS=" << normalisedError
+              << ", vocal 6-10 kHz=" << highBandDb
+              << " dB, late/early=" << lateEarlyRatio << '\n';
+    require(highBandFraction <= 1.0e-6,
+            "Drift Freeze generated excessive 6-10 kHz vocal energy: "
+                + std::to_string(highBandDb) + " dB");
+    require(earlyEnergy > 1.0e-10, "Drift Freeze vocal tail became silent");
+    require(lateEarlyRatio >= 0.20,
+            "Drift Freeze vocal tail decays too quickly: late/early="
+                + std::to_string(lateEarlyRatio));
+    require(lateEnergy <= earlyEnergy * 1.25 + 1.0e-12,
+            "Drift Freeze vocal tail grows over time");
+    require(peak < 4.0f, "Drift Freeze vocal tail exceeded the safety range");
 }
 
 void testDelayGeometryAndSampleRates()
@@ -2716,10 +2953,14 @@ int main(int argc, char** argv)
 
     const std::array tests {
         NamedTest { "orthonormal feedback matrix", testFeedbackMatrix },
-        NamedTest { "Drift instantaneous norm contraction",
-                    testDriftInstantaneousNormContraction },
-        NamedTest { "high-Evolution Drift internal kernel safety and sub bypass",
-                    testDrift2KernelSafetyAndSubBypass },
+        NamedTest { "Drift superposition linearity",
+                    testDriftSuperpositionLinearity },
+        NamedTest { "Drift 2 identity and sub bypass",
+                    testDrift2KernelIdentityAndSubBypass },
+        NamedTest { "Drift band-limited vocal tail",
+                    testDriftBandLimitedVocalTail },
+        NamedTest { "fully engaged Drift Freeze linearity and vocal tail",
+                    testDriftFreezeLinearityAndBandLimitedTail },
         NamedTest { "Veil disperser kernel", testVeilDisperserKernel },
         NamedTest { "Veil impulse softening and energy",
                     testVeilImpulseSofteningAndEnergy },
