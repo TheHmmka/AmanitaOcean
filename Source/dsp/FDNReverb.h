@@ -2,7 +2,6 @@
 
 #include "BloomCharacter.h"
 #include "DriftCharacter.h"
-#include "Drift2Character.h"
 #include "VeilCharacter.h"
 
 #include <array>
@@ -128,7 +127,6 @@ private:
     std::array<AllPass, 4> diffusersRight_;
     BloomCharacter bloom_;
     DriftCharacter drift_;
-    Drift2Character drift2_;
     VeilCharacter veil_;
 
     LinearSmoother bloomAmount_;

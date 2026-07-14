@@ -307,7 +307,6 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
 
     bloom_.prepare(sampleRate_);
     drift_.prepare(sampleRate_);
-    drift2_.prepare(sampleRate_);
     veil_.prepare(sampleRate_);
     bloomAmount_.prepare(sampleRate_, 0.20,
                          parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
@@ -357,7 +356,6 @@ void FDNReverb::reset() noexcept
         stage.reset();
     bloom_.reset();
     drift_.reset();
-    drift2_.reset();
     veil_.reset();
 
     lowCutStates_.fill(0.0f);
@@ -533,21 +531,12 @@ void FDNReverb::processSample(float& left, float& right) noexcept
         feedback[index] = sanitise(freezeMorphed * loopGain, 4.0f);
     }
 
-    auto originalDriftFeedback = feedback;
-    auto drift2Feedback = feedback;
     // Freeze holds the spectrum already present in the tail. Fading the
     // subtractive spectral kernel to bypass keeps that hold linear and stable;
     // the independently modulated FDN delays continue to provide slow motion.
     const auto feedbackDriftAmount = driftAmount * (1.0f - freeze);
-    drift_.processFeedback(originalDriftFeedback, feedbackDriftAmount, evolution);
-    drift2_.processFeedback(drift2Feedback, feedbackDriftAmount, evolution);
-    if (driftAmount > 0.0f)
-    {
-        for (std::size_t index = 0; index < numDelayLines; ++index)
-            feedback[index] = originalDriftFeedback[index]
-                            + evolution
-                                  * (drift2Feedback[index] - originalDriftFeedback[index]);
-    }
+    drift_.processFeedback(feedback, feedbackDriftAmount, evolution,
+                           driftAmount > 0.0f);
     applyFeedbackMatrix(feedback);
 
     const auto inputGain = 1.0f - freeze;

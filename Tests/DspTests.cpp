@@ -1,5 +1,4 @@
 #include "dsp/FDNReverb.h"
-#include "dsp/Drift2Character.h"
 #include "dsp/DriftCharacter.h"
 #include "dsp/VeilCharacter.h"
 
@@ -104,7 +103,6 @@ void operator delete[](void* memory, std::size_t, std::align_val_t) noexcept
 namespace
 {
 using amanita::dsp::FDNReverb;
-using amanita::dsp::Drift2Character;
 using amanita::dsp::DriftCharacter;
 
 using amanita::dsp::ReverbMode;
@@ -507,25 +505,25 @@ void testDriftSuperpositionLinearity()
     }
 }
 
-void testDrift2KernelIdentityAndSubBypass()
+void testDriftCharacterIdentityAndSubBypass()
 {
     constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
     constexpr std::array<float, 2> subFrequencies { 55.0f, 80.0f };
     constexpr float inverseSqrtEight = 0.35355339059327376220f;
     constexpr float twoPi = 6.28318530717958647692f;
-    constexpr std::array<std::array<float, Drift2Character::numFeedbackLines>, 2> axes {{
+    constexpr std::array<std::array<float, DriftCharacter::numFeedbackLines>, 2> axes {{
         { 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f },
         { 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f }
     }};
 
     for (const auto sampleRate : sampleRates)
     {
-        Drift2Character identity;
+        DriftCharacter identity;
         identity.prepare(sampleRate);
         std::uint32_t identityState = 0x3c6ef372u;
         for (auto iteration = 0; iteration < 4096; ++iteration)
         {
-            std::array<float, Drift2Character::numFeedbackLines> feedback {};
+            std::array<float, DriftCharacter::numFeedbackLines> feedback {};
             for (auto& value : feedback)
             {
                 identityState = identityState * 1664525u + 1013904223u;
@@ -538,15 +536,21 @@ void testDrift2KernelIdentityAndSubBypass()
             for (std::size_t index = 0; index < feedback.size(); ++index)
                 require(std::bit_cast<std::uint32_t>(feedback[index])
                             == std::bit_cast<std::uint32_t>(original[index]),
-                        "Drift 2 amount=0 is not bit-transparent");
+                        "Unified Drift amount=0 is not bit-transparent");
+
+            identity.processFeedback(feedback, 1.0f, 1.0f, false);
+            for (std::size_t index = 0; index < feedback.size(); ++index)
+                require(std::bit_cast<std::uint32_t>(feedback[index])
+                            == std::bit_cast<std::uint32_t>(original[index]),
+                        "Inactive unified Drift changed the feedback output");
         }
 
         for (const auto frequency : subFrequencies)
         {
             for (const auto& axis : axes)
             {
-                Drift2Character drift2;
-                drift2.prepare(sampleRate);
+                DriftCharacter drift;
+                drift.prepare(sampleRate);
                 const auto coversFullSlowCycle = sampleRate == 48000.0;
                 const auto totalSamples = static_cast<int>(
                     sampleRate * (coversFullSlowCycle ? 70.0 : 2.0));
@@ -564,12 +568,12 @@ void testDrift2KernelIdentityAndSubBypass()
                     const auto tone = std::sin(twoPi * frequency
                                                * static_cast<float>(sample)
                                                / static_cast<float>(sampleRate));
-                    std::array<float, Drift2Character::numFeedbackLines> feedback {};
+                    std::array<float, DriftCharacter::numFeedbackLines> feedback {};
                     for (std::size_t index = 0; index < feedback.size(); ++index)
                         feedback[index] = inverseSqrtEight * axis[index] * tone;
                     if (sample >= measurementStart)
                         inputEnergy += static_cast<double>(tone) * tone;
-                    drift2.processFeedback(feedback, 1.0f, 1.0f);
+                    drift.processFeedback(feedback, 1.0f, 1.0f);
                     if (sample >= measurementStart)
                         for (const auto value : feedback)
                             outputEnergy += static_cast<double>(value) * value;
@@ -2955,8 +2959,8 @@ int main(int argc, char** argv)
         NamedTest { "orthonormal feedback matrix", testFeedbackMatrix },
         NamedTest { "Drift superposition linearity",
                     testDriftSuperpositionLinearity },
-        NamedTest { "Drift 2 identity and sub bypass",
-                    testDrift2KernelIdentityAndSubBypass },
+        NamedTest { "unified Drift identity and sub bypass",
+                    testDriftCharacterIdentityAndSubBypass },
         NamedTest { "Drift band-limited vocal tail",
                     testDriftBandLimitedVocalTail },
         NamedTest { "fully engaged Drift Freeze linearity and vocal tail",

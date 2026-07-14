@@ -23,8 +23,6 @@ add_library(AmanitaOceanDSP STATIC
     Source/dsp/BloomCharacter.h
     Source/dsp/DriftCharacter.cpp
     Source/dsp/DriftCharacter.h
-    Source/dsp/Drift2Character.cpp
-    Source/dsp/Drift2Character.h
     Source/dsp/FDNReverb.cpp
     Source/dsp/FDNReverb.h
     Source/dsp/VeilCharacter.cpp
