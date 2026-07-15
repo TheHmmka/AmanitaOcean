@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(AmanitaOcean VERSION 0.11.6 LANGUAGES C CXX)
+project(AmanitaOcean VERSION 0.12.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,6 +17,19 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(JUCE)
+
+set(CLAP_JUCE_EXTENSIONS_BUILD_EXAMPLES OFF CACHE BOOL
+    "Do not build clap-juce-extensions examples" FORCE)
+
+FetchContent_Declare(
+    clap_juce_extensions
+    GIT_REPOSITORY https://github.com/free-audio/clap-juce-extensions.git
+    GIT_TAG 16e9d4ca7b1e86c76e04584b2c08e85a764bcda8
+    GIT_SUBMODULES_RECURSE TRUE
+    GIT_PROGRESS TRUE
+)
+
+FetchContent_MakeAvailable(clap_juce_extensions)
 
 add_library(AmanitaOceanDSP STATIC
     Source/dsp/BloomCharacter.cpp
@@ -94,6 +107,13 @@ target_link_libraries(AmanitaOcean
         juce::juce_recommended_warning_flags
 )
 
+clap_juce_extensions_plugin(
+    TARGET AmanitaOcean
+    CLAP_ID "audio.amanitaocean.reverb"
+    CLAP_FEATURES audio-effect reverb stereo
+    CLAP_USE_JUCE_PARAMETER_RANGES ALL
+)
+
 if(APPLE)
     add_custom_command(TARGET AmanitaOcean_VST3 POST_BUILD
         COMMAND /usr/bin/codesign --force --deep --sign -
@@ -106,6 +126,13 @@ if(APPLE)
         COMMAND /usr/bin/codesign --force --deep --sign -
                 "$<TARGET_BUNDLE_DIR:AmanitaOcean_AU>"
         COMMENT "Applying local ad-hoc signature to the finished AU bundle"
+        VERBATIM
+    )
+
+    add_custom_command(TARGET AmanitaOcean_CLAP POST_BUILD
+        COMMAND /usr/bin/codesign --force --deep --sign -
+                "$<TARGET_BUNDLE_DIR:AmanitaOcean_CLAP>"
+        COMMENT "Applying local ad-hoc signature to the finished CLAP bundle"
         VERBATIM
     )
 endif()
