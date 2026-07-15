@@ -53,6 +53,7 @@ private:
     std::atomic<float>* highDampingParameter_ = nullptr;
     std::atomic<float>* evolutionParameter_ = nullptr;
     std::atomic<float>* widthParameter_ = nullptr;
+    std::atomic<float>* duckingParameter_ = nullptr;
     std::atomic<float>* freezeParameter_ = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AmanitaOceanAudioProcessor)

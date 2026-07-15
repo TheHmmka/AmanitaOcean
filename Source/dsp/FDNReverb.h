@@ -2,6 +2,7 @@
 
 #include "BloomCharacter.h"
 #include "DriftCharacter.h"
+#include "SpatialDucker.h"
 #include "VeilCharacter.h"
 
 #include <array>
@@ -29,6 +30,7 @@ struct ReverbParameters
     float highDampingHz = 9000.0f;
     float evolution = 0.35f;
     float width = 1.0f;
+    float ducking = 0.0f;
     bool freeze = false;
 };
 
@@ -127,6 +129,7 @@ private:
     std::array<AllPass, 4> diffusersRight_;
     BloomCharacter bloom_;
     DriftCharacter drift_;
+    SpatialDucker spatialDucker_;
     VeilCharacter veil_;
 
     LinearSmoother bloomAmount_;

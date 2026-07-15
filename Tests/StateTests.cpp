@@ -115,14 +115,14 @@ juce::ValueTree findParameterState(const juce::ValueTree& state, const juce::Str
 void testUnifiedHostContract()
 {
     AmanitaOceanAudioProcessor processor;
-    constexpr std::array<const char*, 10> expectedIds {
+    constexpr std::array<const char*, 11> expectedIds {
         "algorithm", "mix", "decay", "size", "preDelay", "lowCut",
-        "highDamping", "evolution", "width", "freeze"
+        "highDamping", "evolution", "width", "ducking", "freeze"
     };
 
     const auto& parameters = processor.getParameters();
     require(parameters.size() == static_cast<int>(expectedIds.size()),
-            "Host must expose exactly ten parameters");
+            "Host must expose exactly eleven parameters");
 
     auto choiceCount = 0;
     for (std::size_t index = 0; index < expectedIds.size(); ++index)
@@ -177,6 +177,18 @@ void testUnifiedHostContract()
     require(std::abs(evolution->get() - 35.0f) <= 1.0e-6f,
             "Evolution does not default to 35 percent");
     require(evolution->getLabel() == "%", "Evolution unit label changed");
+
+    auto* ducking = dynamic_cast<juce::AudioParameterFloat*>(
+        findParameterById(processor, "ducking"));
+    require(ducking != nullptr, "Ducking is not a float parameter");
+    const auto& duckingRange = ducking->getNormalisableRange();
+    require(ducking->getName(128) == "Ducking", "Ducking UI label changed");
+    require(std::abs(duckingRange.start) <= 1.0e-6f
+                && std::abs(duckingRange.end - 100.0f) <= 1.0e-6f,
+            "Ducking range must be 0..100 percent");
+    require(std::abs(ducking->get()) <= 1.0e-6f,
+            "Ducking does not default to zero percent");
+    require(ducking->getLabel() == "%", "Ducking unit label changed");
 }
 
 void testCurrentStateRoundTrip()
@@ -193,6 +205,7 @@ void testCurrentStateRoundTrip()
         algorithmParameter(source).setValueNotifyingHost(algorithmCase.hostValue);
         parameterById(source, "evolution").setValueNotifyingHost(savedEvolutionHostValue);
         parameterById(source, "mix").setValueNotifyingHost(0.731f);
+        parameterById(source, "ducking").setValueNotifyingHost(0.58f);
 
         juce::MemoryBlock data;
         source.getStateInformation(data);
@@ -228,6 +241,8 @@ void testCurrentStateRoundTrip()
                 "Evolution did not survive save/load");
         require(std::abs(parameterById(restored, "mix").getValue() - 0.731f) < 0.001f,
                 "Non-Algorithm state did not survive save/load");
+        require(std::abs(parameterById(restored, "ducking").getValue() - 0.58f) < 0.001f,
+                "Ducking did not survive save/load");
     }
 }
 
@@ -269,11 +284,11 @@ void testCustomEditorLayoutAndAttachments()
     require(std::abs(constrainer->getFixedAspectRatio() - 1.6) <= 1.0e-9,
             "Custom editor aspect ratio is wrong");
 
-    constexpr std::array<const char*, 14> interactiveIds {
+    constexpr std::array<const char*, 15> interactiveIds {
         "character-selector", "character-default", "character-bloom", "character-drift",
         "character-veil",
         "evolution", "preDelay", "size", "decay", "lowCut", "highDamping",
-        "width", "mix", "freeze"
+        "width", "ducking", "mix", "freeze"
     };
     constexpr std::array<std::array<int, 2>, 3> editorSizes {{
         { AmanitaOceanAudioProcessorEditor::minimumWidth,
@@ -342,6 +357,16 @@ void testCustomEditorLayoutAndAttachments()
     require(gestureProbe.beginCount == 1 && gestureProbe.endCount == 1,
             "Typed value edit did not produce one complete host gesture");
 
+    auto* duckingSlider = dynamic_cast<juce::Slider*>(
+        findDescendantById(*editor, "ducking"));
+    require(duckingSlider != nullptr, "Ducking slider was not found");
+    parameterById(processor, "ducking").setValueNotifyingHost(0.64f);
+    require(std::abs(duckingSlider->getValue() - 64.0) <= 0.11,
+            "Host Ducking did not update the custom slider");
+    duckingSlider->setValue(37.5, juce::sendNotificationSync);
+    require(std::abs(parameterById(processor, "ducking").getValue() - 0.375f) <= 0.001f,
+            "Custom Ducking slider did not update the host parameter");
+
     auto* veilButton = dynamic_cast<juce::Button*>(
         findDescendantById(*editor, "character-veil"));
     require(veilButton != nullptr, "Veil selector button was not found");
@@ -388,7 +413,8 @@ void renderEditorPng(const juce::String& path, int characterIndex, int requested
 }
 
 std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
-                                   float evolution)
+                                   float evolution,
+                                   float ducking = 0.0f)
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto sampleCount = 24000;
@@ -399,6 +425,7 @@ std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
     parameterById(processor, "mix").setValueNotifyingHost(1.0f);
     parameterById(processor, "preDelay").setValueNotifyingHost(0.0f);
     parameterById(processor, "evolution").setValueNotifyingHost(evolution);
+    parameterById(processor, "ducking").setValueNotifyingHost(ducking);
     processor.prepareToPlay(sampleRate, blockSize);
 
     std::vector<float> result(static_cast<std::size_t>(sampleCount * 2), 0.0f);
@@ -424,7 +451,9 @@ std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
     return result;
 }
 
-std::vector<float> renderDsp(const AlgorithmCase& algorithmCase, float evolution)
+std::vector<float> renderDsp(const AlgorithmCase& algorithmCase,
+                             float evolution,
+                             float ducking = 0.0f)
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto sampleCount = 24000;
@@ -435,6 +464,7 @@ std::vector<float> renderDsp(const AlgorithmCase& algorithmCase, float evolution
     parameters.mix = 1.0f;
     parameters.preDelayMs = 0.0f;
     parameters.evolution = evolution;
+    parameters.ducking = ducking;
 
     amanita::dsp::FDNReverb reverb;
     reverb.setParameters(parameters);
@@ -497,6 +527,40 @@ void testUnifiedAlgorithmReachesDsp()
         }
     }
 }
+
+void testDuckingParameterReachesDsp()
+{
+    constexpr auto ducking = 0.78f;
+    const auto& algorithmCase = algorithmCases.front();
+    const auto processorRender = renderProcessor(algorithmCase, 0.35f, ducking);
+    const auto directRender = renderDsp(algorithmCase, 0.35f, ducking);
+    const auto bypassRender = renderProcessor(algorithmCase, 0.35f, 0.0f);
+    require(processorRender.size() == directRender.size()
+                && processorRender.size() == bypassRender.size(),
+            "Ducking routing render has the wrong size");
+
+    auto maximumDifference = 0.0f;
+    double bypassEnergy = 0.0;
+    double duckingDifferenceEnergy = 0.0;
+    for (std::size_t sample = 0; sample < processorRender.size(); ++sample)
+    {
+        require(std::isfinite(processorRender[sample]),
+                "Ducking routing produced NaN/Inf");
+        maximumDifference = std::max(maximumDifference,
+                                     std::abs(processorRender[sample] - directRender[sample]));
+        const auto bypass = static_cast<double>(bypassRender[sample]);
+        const auto difference = static_cast<double>(processorRender[sample]
+                                                    - bypassRender[sample]);
+        bypassEnergy += bypass * bypass;
+        duckingDifferenceEnergy += difference * difference;
+    }
+
+    require(maximumDifference <= 2.0e-7f,
+            "Host Ducking parameter does not reach the expected DSP amount");
+    require(bypassEnergy > 1.0e-10
+                && std::sqrt(duckingDifferenceEnergy / bypassEnergy) >= 0.05,
+            "Non-zero host Ducking parameter has no meaningful DSP effect");
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -509,6 +573,7 @@ int main(int argc, char** argv)
         testCurrentStateRoundTrip();
         testCustomEditorLayoutAndAttachments();
         testUnifiedAlgorithmReachesDsp();
+        testDuckingParameterReachesDsp();
         if (argc >= 3 && std::strcmp(argv[1], "--render-ui") == 0)
         {
             const auto characterIndex = argc >= 4 ? std::atoi(argv[3]) : 0;
@@ -518,12 +583,12 @@ int main(int argc, char** argv)
             renderEditorPng(argv[2], characterIndex, requestedWidth);
             std::cout << "[PASS] wrote custom editor PNG to " << argv[2] << '\n';
         }
-        std::cout << "[PASS] Unified Algorithm/Evolution state/UI/DSP routing\n";
+        std::cout << "[PASS] Unified Algorithm/Evolution/Ducking state/UI/DSP routing\n";
         return 0;
     }
     catch (const std::exception& error)
     {
-        std::cerr << "[FAIL] Unified Algorithm/Evolution state/UI/DSP routing: "
+        std::cerr << "[FAIL] Unified Algorithm/Evolution/Ducking state/UI/DSP routing: "
                   << error.what() << '\n';
         return 1;
     }

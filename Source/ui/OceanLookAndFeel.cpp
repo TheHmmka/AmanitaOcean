@@ -176,9 +176,6 @@ void OceanLookAndFeel::drawRotarySlider(juce::Graphics& graphics,
 
     if (isHero)
     {
-        graphics.setColour(accent.withAlpha(0.045f));
-        graphics.fillEllipse(outer.expanded(4.0f * controlScale));
-
         constexpr auto markerCount = 11;
         for (auto marker = 0; marker < markerCount; ++marker)
         {

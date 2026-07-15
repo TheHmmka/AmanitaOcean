@@ -308,6 +308,7 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
     bloom_.prepare(sampleRate_);
     drift_.prepare(sampleRate_);
     veil_.prepare(sampleRate_);
+    spatialDucker_.prepare(sampleRate_, parameters_.ducking);
     bloomAmount_.prepare(sampleRate_, 0.20,
                          parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
     driftAmount_.prepare(sampleRate_, 0.20,
@@ -357,6 +358,7 @@ void FDNReverb::reset() noexcept
     bloom_.reset();
     drift_.reset();
     veil_.reset();
+    spatialDucker_.reset();
 
     lowCutStates_.fill(0.0f);
     dampingStates_.fill(0.0f);
@@ -390,6 +392,8 @@ void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
     parameters_.evolution = clampFinite(newParameters.evolution, 0.0f, 1.0f,
                                         parameters_.evolution);
     parameters_.width = clampFinite(newParameters.width, 0.0f, 2.0f, parameters_.width);
+    parameters_.ducking = clampFinite(newParameters.ducking, 0.0f, 1.0f,
+                                       parameters_.ducking);
     parameters_.freeze = newParameters.freeze;
 
     if (prepared_)
@@ -413,6 +417,7 @@ void FDNReverb::updateTargets() noexcept
     dampingCoefficient_.setTarget(onePoleCoefficient(parameters_.highDampingHz, sampleRate_));
     evolution_.setTarget(parameters_.evolution);
     width_.setTarget(parameters_.width);
+    spatialDucker_.setAmount(parameters_.ducking);
     freeze_.setTarget(parameters_.freeze ? 1.0f : 0.0f);
 
     for (std::size_t index = 0; index < numDelayLines; ++index)
@@ -563,6 +568,12 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     const auto side = 0.5f * (wetLeft - wetRight) * width;
     wetLeft = mid + side;
     wetRight = mid - side;
+
+    const auto duckGains = spatialDucker_.process(dryLeft, dryRight);
+    if (duckGains.left < 1.0f)
+        wetLeft *= duckGains.left;
+    if (duckGains.right < 1.0f)
+        wetRight *= duckGains.right;
 
     const auto mix = mix_.next();
     left = flushDenormal(sanitise(dryLeft + mix * (wetLeft - dryLeft)));

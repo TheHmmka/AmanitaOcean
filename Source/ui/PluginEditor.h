@@ -49,6 +49,7 @@ private:
     amanita::ui::ParameterKnob lowCutKnob_;
     amanita::ui::ParameterKnob dampingKnob_;
     amanita::ui::ParameterKnob widthKnob_;
+    amanita::ui::ParameterKnob duckingKnob_;
     amanita::ui::ParameterKnob mixKnob_;
     juce::ToggleButton freezeButton_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freezeAttachment_;

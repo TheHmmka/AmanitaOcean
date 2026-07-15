@@ -1,5 +1,6 @@
 #include "dsp/FDNReverb.h"
 #include "dsp/DriftCharacter.h"
+#include "dsp/SpatialDucker.h"
 #include "dsp/VeilCharacter.h"
 
 #include <algorithm>
@@ -107,6 +108,7 @@ using amanita::dsp::DriftCharacter;
 
 using amanita::dsp::ReverbMode;
 using amanita::dsp::ReverbParameters;
+using amanita::dsp::SpatialDucker;
 using amanita::dsp::VeilCharacter;
 
 [[nodiscard]] bool isPrime(int value)
@@ -1042,6 +1044,7 @@ void testFeedbackFreezeAndBadInputs()
 void testParameterJumpsAndBlockSegmentation()
 {
     constexpr auto sampleRate = 48000.0;
+    constexpr float twoPi = 6.28318530717958647692f;
     ReverbParameters parameters;
     parameters.mix = 0.25f;
     parameters.decaySeconds = 2.0f;
@@ -1071,6 +1074,7 @@ void testParameterJumpsAndBlockSegmentation()
     parameters.highDampingHz = 1000.0f;
     parameters.evolution = 1.0f;
     parameters.width = 2.0f;
+    parameters.ducking = 1.0f;
     parameters.freeze = true;
     reverb.setParameters(parameters);
 
@@ -1097,11 +1101,24 @@ void testParameterJumpsAndBlockSegmentation()
     std::vector<float> singleRight(comparisonSamples, 0.0f);
     std::vector<float> blockLeft(comparisonSamples, 0.0f);
     std::vector<float> blockRight(comparisonSamples, 0.0f);
+    for (auto sample = 0; sample < comparisonSamples; ++sample)
+    {
+        const auto time = static_cast<float>(sample) / static_cast<float>(sampleRate);
+        const auto leftInput = 0.18f * std::sin(twoPi * 173.0f * time)
+                             + 0.07f * std::sin(twoPi * 997.0f * time);
+        const auto rightInput = 0.14f * std::sin(twoPi * 211.0f * time + 0.37f)
+                              + 0.05f * std::sin(twoPi * 1409.0f * time);
+        singleLeft[static_cast<std::size_t>(sample)]
+            = blockLeft[static_cast<std::size_t>(sample)] = leftInput;
+        singleRight[static_cast<std::size_t>(sample)]
+            = blockRight[static_cast<std::size_t>(sample)] = rightInput;
+    }
     singleLeft[0] = blockLeft[0] = 1.0f;
 
     parameters = {};
     parameters.mix = 1.0f;
     parameters.preDelayMs = 7.0f;
+    parameters.ducking = 0.73f;
 
     FDNReverb singleSample;
     FDNReverb blockBased;
@@ -2685,6 +2702,345 @@ void testVeilKickBass190()
             "Veil energy grows over the repeated kick+bass pattern");
 }
 
+void testSpatialDuckerStereoGeometryAndSampleRates()
+{
+    constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
+    constexpr double twoPi = 6.28318530717958647692;
+    std::array<double, sampleRates.size()> attackSeconds {};
+    std::array<double, sampleRates.size()> releaseSeconds {};
+    std::array<double, sampleRates.size()> steadyGains {};
+
+    for (std::size_t rateIndex = 0; rateIndex < sampleRates.size(); ++rateIndex)
+    {
+        const auto sampleRate = sampleRates[rateIndex];
+        SpatialDucker centred;
+        SpatialDucker hardLeft;
+        SpatialDucker hardRight;
+        SpatialDucker bypassed;
+        centred.prepare(sampleRate, 1.0f);
+        hardLeft.prepare(sampleRate, 1.0f);
+        hardRight.prepare(sampleRate, 1.0f);
+        bypassed.prepare(sampleRate, 0.0f);
+
+        const auto activeSamples = static_cast<int>(sampleRate * 2.0);
+        const auto measurementStart = activeSamples - static_cast<int>(sampleRate * 0.25);
+        auto attackSample = -1;
+        double centredGainSum = 0.0;
+        double hardLeftGainSum = 0.0;
+        double hardRightGainSum = 0.0;
+        auto measurementSamples = 0;
+
+        for (auto sample = 0; sample < activeSamples; ++sample)
+        {
+            const auto time = static_cast<double>(sample) / sampleRate;
+            const auto input = static_cast<float>(
+                0.35 * std::sin(twoPi * 997.0 * time + 0.19)
+                + 0.12 * std::sin(twoPi * 2303.0 * time + 0.73));
+            const auto centredGains = centred.process(input, input);
+            const auto hardLeftGains = hardLeft.process(input, 0.0f);
+            const auto hardRightGains = hardRight.process(0.0f, input);
+            const auto bypassGains = bypassed.process(input, -0.37f * input);
+
+            require(std::isfinite(centredGains.left) && std::isfinite(centredGains.right)
+                        && std::isfinite(hardLeftGains.left)
+                        && std::isfinite(hardRightGains.right),
+                    "Spatial Ducking produced NaN/Inf");
+            require(centredGains.left >= 0.1778f && centredGains.left <= 1.0f
+                        && centredGains.right >= 0.1778f && centredGains.right <= 1.0f,
+                    "Spatial Ducking gain escaped its configured range");
+            require(std::abs(centredGains.left - centredGains.right) <= 1.0e-7f,
+                    "Centred input does not produce identical L/R Ducking gain");
+            require(hardLeftGains.right == 1.0f && hardRightGains.left == 1.0f,
+                    "Hard-panned input ducked the silent opposite channel");
+            require(std::abs(hardLeftGains.left - hardRightGains.right) <= 1.0e-7f,
+                    "Spatial Ducking is not mirror-symmetric");
+            require(bypassGains.left == 1.0f && bypassGains.right == 1.0f,
+                    "Ducking at zero percent is not exactly transparent");
+
+            if (attackSample < 0 && centredGains.left <= 0.5f)
+                attackSample = sample;
+            if (sample >= measurementStart)
+            {
+                centredGainSum += centredGains.left;
+                hardLeftGainSum += hardLeftGains.left;
+                hardRightGainSum += hardRightGains.right;
+                ++measurementSamples;
+            }
+        }
+
+        require(attackSample >= 0, "Spatial Ducking never reached meaningful gain reduction");
+        attackSeconds[rateIndex] = static_cast<double>(attackSample) / sampleRate;
+        steadyGains[rateIndex] = centredGainSum / measurementSamples;
+        const auto hardLeftSteady = hardLeftGainSum / measurementSamples;
+        const auto hardRightSteady = hardRightGainSum / measurementSamples;
+        require(steadyGains[rateIndex] >= 0.1778 && steadyGains[rateIndex] <= 0.30,
+                "Maximum Ducking depth is outside the intended musical range");
+        require(std::abs(steadyGains[rateIndex] - hardLeftSteady) <= 1.0e-5
+                    && std::abs(hardLeftSteady - hardRightSteady) <= 1.0e-5,
+                "Strong-channel Ducking depends on pan direction");
+
+        const auto releaseLimit = static_cast<int>(sampleRate * 3.0);
+        auto releaseSample = -1;
+        for (auto sample = 0; sample < releaseLimit; ++sample)
+        {
+            const auto gains = centred.process(0.0f, 0.0f);
+            require(std::isfinite(gains.left) && std::isfinite(gains.right),
+                    "Spatial Ducking release produced NaN/Inf");
+            if (releaseSample < 0 && gains.left >= 0.9f)
+            {
+                releaseSample = sample;
+                break;
+            }
+        }
+        require(releaseSample >= 0, "Spatial Ducking did not recover after silence");
+        releaseSeconds[rateIndex] = static_cast<double>(releaseSample) / sampleRate;
+
+        const auto badGains = bypassed.process(std::numeric_limits<float>::quiet_NaN(),
+                                               std::numeric_limits<float>::infinity());
+        require(badGains.left == 1.0f && badGains.right == 1.0f,
+                "Invalid input contaminated bypassed Ducking");
+    }
+
+    const auto [minimumAttack, maximumAttack] = std::minmax_element(attackSeconds.begin(),
+                                                                    attackSeconds.end());
+    const auto [minimumRelease, maximumRelease] = std::minmax_element(releaseSeconds.begin(),
+                                                                      releaseSeconds.end());
+    const auto [minimumGain, maximumGain] = std::minmax_element(steadyGains.begin(),
+                                                                steadyGains.end());
+    std::cout << "[METRIC] Spatial Ducking: attack-to-0.5=" << attackSeconds[1] * 1000.0
+              << " ms, recovery-to-0.9=" << releaseSeconds[1] * 1000.0
+              << " ms, steady gain=" << steadyGains[1] << '\n';
+    require(*minimumAttack >= 0.0045 && *maximumAttack <= 0.0065,
+            "Spatial Ducking attack time is outside its intended range");
+    require(*maximumAttack - *minimumAttack <= 0.001,
+            "Spatial Ducking attack changes across sample rates");
+    require(*minimumRelease >= 0.70 && *maximumRelease <= 0.82,
+            "Spatial Ducking release time is outside its intended range");
+    require(*maximumRelease - *minimumRelease <= 0.010,
+            "Spatial Ducking release changes across sample rates");
+    require(*minimumGain >= 0.1778 && *maximumGain <= 0.19
+                && *maximumGain - *minimumGain <= 0.002,
+            "Spatial Ducking depth changes across sample rates");
+
+}
+
+void testSpatialDuckerAutomationAndAdaptiveLink()
+{
+    constexpr auto sampleRate = 48000.0;
+    SpatialDucker transition;
+    transition.prepare(sampleRate, 1.0f);
+    for (auto sample = 0; sample < static_cast<int>(sampleRate); ++sample)
+        (void) transition.process(0.25f, 0.25f);
+
+    auto previousRightGain = transition.process(0.25f, 0.0f).right;
+    auto maximumRightStep = 0.0f;
+    auto rightRecoverySample = -1;
+    auto finalLeftGain = 1.0f;
+    auto finalRightGain = previousRightGain;
+    const auto transitionSamples = static_cast<int>(sampleRate * 0.5);
+    for (auto sample = 0; sample < transitionSamples; ++sample)
+    {
+        const auto gains = transition.process(0.25f, 0.0f);
+        maximumRightStep = std::max(maximumRightStep,
+                                    std::abs(gains.right - previousRightGain));
+        previousRightGain = gains.right;
+        if (rightRecoverySample < 0 && gains.right >= 0.9f)
+            rightRecoverySample = sample;
+        finalLeftGain = gains.left;
+        finalRightGain = gains.right;
+    }
+
+    require(rightRecoverySample >= 0
+                && static_cast<double>(rightRecoverySample) / sampleRate <= 0.35,
+            "Centre-to-hard-left transition keeps ducking the right channel too long");
+    require(finalLeftGain <= 0.22f && finalRightGain >= 0.98f,
+            "Hard-left transition did not converge to independent channel gains");
+    require(maximumRightStep <= 0.005f,
+            "Spatial unlinking caused an abrupt right-channel gain step");
+
+    SpatialDucker macro;
+    macro.prepare(sampleRate, 1.0f);
+    SpatialDucker::Gains macroGains;
+    for (auto sample = 0; sample < static_cast<int>(sampleRate); ++sample)
+        macroGains = macro.process(0.25f, 0.25f);
+    const auto engagedGain = macroGains.left;
+    macro.setAmount(0.0f);
+    auto halfwayGain = engagedGain;
+    const auto bypassSamples = static_cast<int>(sampleRate * 0.06);
+    for (auto sample = 0; sample < bypassSamples; ++sample)
+    {
+        macroGains = macro.process(0.25f, 0.25f);
+        if (sample == static_cast<int>(sampleRate * 0.025))
+            halfwayGain = macroGains.left;
+    }
+    require(halfwayGain > engagedGain + 0.10f && halfwayGain < 0.90f,
+            "Ducking macro does not ramp smoothly toward bypass");
+    require(macroGains.left == 1.0f && macroGains.right == 1.0f,
+            "Ducking at zero percent is not neutral after its 50-ms ramp");
+
+    macro.setAmount(1.0f);
+    for (auto sample = 0; sample < bypassSamples; ++sample)
+        macroGains = macro.process(0.25f, 0.25f);
+    require(macroGains.left <= 0.22f && macroGains.right <= 0.22f,
+            "Re-engaged Ducking did not use the continuously warmed detector state");
+
+    SpatialDucker correlated;
+    SpatialDucker weakChannelBaseline;
+    correlated.prepare(sampleRate, 1.0f);
+    weakChannelBaseline.prepare(sampleRate, 1.0f);
+    SpatialDucker::Gains correlatedGains;
+    SpatialDucker::Gains baselineGains;
+    for (auto sample = 0; sample < static_cast<int>(sampleRate); ++sample)
+    {
+        correlatedGains = correlated.process(0.08f, 0.04f);
+        baselineGains = weakChannelBaseline.process(0.0f, 0.04f);
+    }
+    require(correlatedGains.left < correlatedGains.right,
+            "Adaptive stereo link erased the level direction of a panned source");
+    require(correlatedGains.right < baselineGains.right - 0.08f,
+            "Correlated near-centre input did not engage adaptive stereo linking");
+    require(correlatedGains.right > correlatedGains.left + 0.01f,
+            "Adaptive stereo link fully linked a meaningfully panned source");
+
+    std::cout << "[METRIC] Spatial Ducking transition: right recovery="
+              << 1000.0 * static_cast<double>(rightRecoverySample) / sampleRate
+              << " ms, max step=" << maximumRightStep
+              << ", macro half=" << halfwayGain
+              << ", linked weak=" << correlatedGains.right
+              << ", independent weak=" << baselineGains.right << '\n';
+}
+
+void testSpatialDuckingFreezeIsolation()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr double twoPi = 6.28318530717958647692;
+    ReverbParameters referenceParameters;
+    referenceParameters.mode = ReverbMode::drift;
+    referenceParameters.mix = 1.0f;
+    referenceParameters.decaySeconds = 30.0f;
+    referenceParameters.size = 1.2f;
+    referenceParameters.preDelayMs = 0.0f;
+    referenceParameters.lowCutHz = 30.0f;
+    referenceParameters.highDampingHz = 16000.0f;
+    referenceParameters.evolution = 1.0f;
+    referenceParameters.width = 1.4f;
+    referenceParameters.ducking = 0.0f;
+    auto duckedParameters = referenceParameters;
+    duckedParameters.ducking = 1.0f;
+
+    FDNReverb reference;
+    FDNReverb ducked;
+    reference.setParameters(referenceParameters);
+    ducked.setParameters(duckedParameters);
+    reference.prepare(sampleRate, 127);
+    ducked.prepare(sampleRate, 127);
+
+    const auto seedSamples = static_cast<int>(sampleRate * 0.7);
+    for (auto sample = 0; sample < seedSamples; ++sample)
+    {
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto input = static_cast<float>(0.13 * std::sin(twoPi * 311.0 * time)
+                                              + 0.09 * std::sin(twoPi * 727.0 * time));
+        auto referenceLeft = input;
+        auto referenceRight = input;
+        auto duckedLeft = input;
+        auto duckedRight = input;
+        reference.processSample(referenceLeft, referenceRight);
+        ducked.processSample(duckedLeft, duckedRight);
+    }
+
+    referenceParameters.freeze = true;
+    duckedParameters.freeze = true;
+    reference.setParameters(referenceParameters);
+    ducked.setParameters(duckedParameters);
+
+    const auto settleSamples = static_cast<int>(sampleRate * 4.0);
+    for (auto sample = 0; sample < settleSamples; ++sample)
+    {
+        auto referenceLeft = 0.0f;
+        auto referenceRight = 0.0f;
+        auto duckedLeft = 0.0f;
+        auto duckedRight = 0.0f;
+        reference.processSample(referenceLeft, referenceRight);
+        ducked.processSample(duckedLeft, duckedRight);
+        require(std::isfinite(duckedLeft) && std::isfinite(duckedRight),
+                "Spatial Ducking Freeze settle produced NaN/Inf");
+    }
+
+    const auto pulseSamples = static_cast<int>(sampleRate * 0.4);
+    const auto measureStart = static_cast<int>(sampleRate * 0.1);
+    double referenceLeftEnergy = 0.0;
+    double duckedLeftEnergy = 0.0;
+    double referenceRightEnergy = 0.0;
+    double rightErrorEnergy = 0.0;
+    for (auto sample = 0; sample < pulseSamples; ++sample)
+    {
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto detectorInput = static_cast<float>(
+            0.45 * std::sin(twoPi * 181.0 * time + 0.23));
+        auto referenceLeft = detectorInput;
+        auto referenceRight = 0.0f;
+        auto duckedLeft = detectorInput;
+        auto duckedRight = 0.0f;
+        reference.processSample(referenceLeft, referenceRight);
+        ducked.processSample(duckedLeft, duckedRight);
+        require(std::isfinite(duckedLeft) && std::isfinite(duckedRight),
+                "Spatial Ducking frozen pulse produced NaN/Inf");
+        if (sample >= measureStart)
+        {
+            referenceLeftEnergy += static_cast<double>(referenceLeft) * referenceLeft;
+            duckedLeftEnergy += static_cast<double>(duckedLeft) * duckedLeft;
+            referenceRightEnergy += static_cast<double>(referenceRight) * referenceRight;
+            const auto rightError = static_cast<double>(duckedRight - referenceRight);
+            rightErrorEnergy += rightError * rightError;
+        }
+    }
+
+    require(referenceLeftEnergy > 1.0e-10 && referenceRightEnergy > 1.0e-10,
+            "Frozen tail became silent before the spatial Ducking test");
+    const auto leftEnergyRatio = duckedLeftEnergy / referenceLeftEnergy;
+    const auto rightNormalisedError = std::sqrt(rightErrorEnergy / referenceRightEnergy);
+    require(leftEnergyRatio <= 0.25,
+            "Hard-left detector did not sufficiently duck the left frozen tail");
+    require(rightNormalisedError <= 1.0e-6,
+            "Hard-left detector changed the right frozen tail");
+
+    duckedParameters.ducking = 0.0f;
+    ducked.setParameters(duckedParameters);
+    const auto recoverySamples = static_cast<int>(sampleRate * 4.0);
+    const auto comparisonStart = recoverySamples - static_cast<int>(sampleRate * 0.5);
+    double referenceEnergy = 0.0;
+    double errorEnergy = 0.0;
+    for (auto sample = 0; sample < recoverySamples; ++sample)
+    {
+        auto referenceLeft = 0.0f;
+        auto referenceRight = 0.0f;
+        auto duckedLeft = 0.0f;
+        auto duckedRight = 0.0f;
+        reference.processSample(referenceLeft, referenceRight);
+        ducked.processSample(duckedLeft, duckedRight);
+        require(std::isfinite(duckedLeft) && std::isfinite(duckedRight),
+                "Spatial Ducking Freeze recovery produced NaN/Inf");
+        if (sample >= comparisonStart)
+        {
+            referenceEnergy += static_cast<double>(referenceLeft) * referenceLeft
+                             + static_cast<double>(referenceRight) * referenceRight;
+            const auto leftError = static_cast<double>(duckedLeft - referenceLeft);
+            const auto rightError = static_cast<double>(duckedRight - referenceRight);
+            errorEnergy += leftError * leftError + rightError * rightError;
+        }
+    }
+
+    require(referenceEnergy > 1.0e-10, "Frozen tail vanished during Ducking recovery");
+    const auto recoveryError = std::sqrt(errorEnergy / referenceEnergy);
+    require(recoveryError <= 1.0e-5,
+            "Ducking altered the internal frozen FDN state");
+
+    std::cout << "[METRIC] Spatial Ducking Freeze: left energy ratio=" << leftEnergyRatio
+              << ", right NRMS=" << rightNormalisedError
+              << ", recovered NRMS=" << recoveryError << '\n';
+}
+
 void testNoAllocationsInProcess()
 {
     FDNReverb reverb;
@@ -2707,6 +3063,7 @@ void testNoAllocationsInProcess()
             modeIndex = (modeIndex + 1) % modes.size();
             parameters.mode = modes[modeIndex];
             parameters.evolution = 1.0f - parameters.evolution;
+            parameters.ducking = 1.0f - parameters.ducking;
             parameters.freeze = !parameters.freeze;
             reverb.setParameters(parameters);
         }
@@ -2987,14 +3344,26 @@ int main(int argc, char** argv)
         NamedTest { "Drift low/high Evolution kick+bass 190 BPM",
                     testDriftEvolutionKickBass190 },
         NamedTest { "Veil kick+bass 190 BPM", testVeilKickBass190 },
+        NamedTest { "Spatial Ducking stereo geometry and sample rates",
+                    testSpatialDuckerStereoGeometryAndSampleRates },
+        NamedTest { "Spatial Ducking automation and adaptive link",
+                    testSpatialDuckerAutomationAndAdaptiveLink },
+        NamedTest { "Spatial Ducking Freeze isolation",
+                    testSpatialDuckingFreezeIsolation },
         NamedTest { "deterministic Character/Evolution fingerprints",
                     testDeterministicRenderFingerprints },
         NamedTest { "no allocations in process", testNoAllocationsInProcess }
     };
 
+    const auto wantsDuckingTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-ducking") == 0;
     auto failures = 0;
     for (const auto& test : tests)
     {
+        if (wantsDuckingTestsOnly
+            && std::strstr(test.name, "Ducking") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
         try
         {
             test.function();
