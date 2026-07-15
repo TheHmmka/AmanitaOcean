@@ -1,0 +1,201 @@
+name: Build Windows and Linux plugins
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: plugin-builds-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CLAP_VALIDATOR_REVISION: 2f71690639a742ce805574ce42e31250e3147aa9
+
+jobs:
+  linux-x64:
+    name: Linux x64 · VST3 + CLAP
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install JUCE system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            build-essential \
+            libasound2-dev \
+            libfontconfig1-dev \
+            libfreetype-dev \
+            libx11-dev \
+            libxcomposite-dev \
+            libxcursor-dev \
+            libxext-dev \
+            libxinerama-dev \
+            libxrandr-dev \
+            libxrender-dev \
+            ninja-build \
+            pkg-config \
+            xauth \
+            xvfb
+
+      - name: Configure Release build
+        run: >-
+          cmake -S . -B build-ci -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=ON
+
+      - name: Build plugins and tests
+        run: >-
+          cmake --build build-ci
+          --target AmanitaOcean_VST3 AmanitaOcean_CLAP
+          AmanitaOceanDSPTests AmanitaOceanStateTests
+          --parallel 2
+
+      - name: Run DSP and UI tests
+        run: xvfb-run --auto-servernum ctest --test-dir build-ci --output-on-failure
+
+      - name: Build official CLAP validator
+        run: >-
+          cargo install
+          --git https://github.com/free-audio/clap-validator.git
+          --rev "${CLAP_VALIDATOR_REVISION}"
+          --locked
+          --root "${RUNNER_TEMP}/clap-validator"
+          clap-validator
+
+      - name: Validate CLAP
+        run: >-
+          "${RUNNER_TEMP}/clap-validator/bin/clap-validator"
+          -v warn validate
+          "build-ci/AmanitaOcean_artefacts/Release/CLAP/Amanita Ocean.clap"
+          --only-failed
+
+      - name: Read project version
+        id: version
+        run: |
+          version="$(sed -nE 's/^project\(AmanitaOcean VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)"
+          test -n "${version}"
+          echo "value=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify native artifacts
+        run: |
+          vst3="build-ci/AmanitaOcean_artefacts/Release/VST3/Amanita Ocean.vst3"
+          vst3_binary="${vst3}/Contents/x86_64-linux/Amanita Ocean.so"
+          clap="build-ci/AmanitaOcean_artefacts/Release/CLAP/Amanita Ocean.clap"
+          test -f "${vst3_binary}"
+          test -f "${vst3}/Contents/Resources/moduleinfo.json"
+          test -f "${clap}"
+          file "${vst3_binary}" "${clap}"
+          nm -D "${vst3_binary}" | grep -q GetPluginFactory
+          nm -D "${clap}" | grep -q clap_entry
+          ldd "${vst3_binary}"
+          ldd "${clap}"
+          if ldd "${vst3_binary}" | grep -q 'not found'; then exit 1; fi
+          if ldd "${clap}" | grep -q 'not found'; then exit 1; fi
+
+      - name: Package Linux plugins
+        run: |
+          package="Amanita-Ocean-${{ steps.version.outputs.value }}-Linux-x64"
+          mkdir -p "dist/${package}"
+          cp -a "build-ci/AmanitaOcean_artefacts/Release/VST3/Amanita Ocean.vst3" "dist/${package}/"
+          cp -a "build-ci/AmanitaOcean_artefacts/Release/CLAP/Amanita Ocean.clap" "dist/${package}/"
+          tar -C dist -czf "dist/${package}.tar.gz" "${package}"
+
+      - name: Upload Linux plugins
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Amanita-Ocean-${{ steps.version.outputs.value }}-Linux-x64
+          path: dist/Amanita-Ocean-${{ steps.version.outputs.value }}-Linux-x64.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  windows-x64:
+    name: Windows x64 · VST3 + CLAP
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Configure Release build
+        run: >-
+          cmake -S . -B build-ci
+          -G "Visual Studio 17 2022"
+          -A x64
+          -DBUILD_TESTING=ON
+
+      - name: Build plugins and tests
+        run: >-
+          cmake --build build-ci
+          --config Release
+          --target AmanitaOcean_VST3 AmanitaOcean_CLAP
+          AmanitaOceanDSPTests AmanitaOceanStateTests
+          --parallel 2
+
+      - name: Run DSP and UI tests
+        run: ctest --test-dir build-ci --build-config Release --output-on-failure
+
+      - name: Build official CLAP validator
+        run: >-
+          cargo install
+          --git https://github.com/free-audio/clap-validator.git
+          --rev "$env:CLAP_VALIDATOR_REVISION"
+          --locked
+          --root "$env:RUNNER_TEMP/clap-validator"
+          clap-validator
+
+      - name: Validate CLAP
+        run: >-
+          & "$env:RUNNER_TEMP/clap-validator/bin/clap-validator.exe"
+          -v warn validate
+          "build-ci/AmanitaOcean_artefacts/Release/CLAP/Amanita Ocean.clap"
+          --only-failed
+
+      - name: Read project version
+        id: version
+        run: |
+          $cmake = Get-Content CMakeLists.txt -Raw
+          if ($cmake -notmatch 'project\(AmanitaOcean VERSION ([0-9]+\.[0-9]+\.[0-9]+)') {
+            throw 'Could not read the Amanita Ocean version from CMakeLists.txt'
+          }
+          "value=$($Matches[1])" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Verify native artifacts
+        run: |
+          $vst3 = 'build-ci/AmanitaOcean_artefacts/Release/VST3/Amanita Ocean.vst3'
+          $vst3Binary = "$vst3/Contents/x86_64-win/Amanita Ocean.vst3"
+          $vst3Manifest = "$vst3/Contents/Resources/moduleinfo.json"
+          $clap = 'build-ci/AmanitaOcean_artefacts/Release/CLAP/Amanita Ocean.clap'
+          if (-not (Test-Path $vst3Binary -PathType Leaf)) { throw "Missing $vst3Binary" }
+          if (-not (Test-Path $vst3Manifest -PathType Leaf)) { throw "Missing $vst3Manifest" }
+          if (-not (Test-Path $clap -PathType Leaf)) { throw "Missing $clap" }
+          Get-Item $vst3Binary, $clap | Format-Table FullName, Length
+
+      - name: Package Windows plugins
+        run: |
+          $package = 'Amanita-Ocean-${{ steps.version.outputs.value }}-Windows-x64'
+          $stage = "dist/$package"
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          Copy-Item -Recurse -Force 'build-ci/AmanitaOcean_artefacts/Release/VST3/Amanita Ocean.vst3' $stage
+          Copy-Item -Force 'build-ci/AmanitaOcean_artefacts/Release/CLAP/Amanita Ocean.clap' $stage
+          Compress-Archive -Path $stage -DestinationPath "dist/$package.zip" -CompressionLevel Optimal
+
+      - name: Upload Windows plugins
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Amanita-Ocean-${{ steps.version.outputs.value }}-Windows-x64
+          path: dist/Amanita-Ocean-${{ steps.version.outputs.value }}-Windows-x64.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

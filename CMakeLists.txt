@@ -1,10 +1,14 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(AmanitaOcean VERSION 0.12.0 LANGUAGES C CXX)
+project(AmanitaOcean VERSION 0.13.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+if(MSVC AND NOT CMAKE_MSVC_RUNTIME_LIBRARY)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 include(FetchContent)
 
@@ -12,7 +16,6 @@ FetchContent_Declare(
     JUCE
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
     GIT_TAG 2cdfca8feb300fb424002ba2c2751569e5bacb64 # 8.0.14
-    GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE
 )
 
@@ -57,12 +60,17 @@ target_link_libraries(AmanitaOceanDSP
         juce::juce_recommended_warning_flags
 )
 
+set(AMANITA_OCEAN_PLUGIN_FORMATS VST3)
+if(APPLE)
+    list(APPEND AMANITA_OCEAN_PLUGIN_FORMATS AU)
+endif()
+
 juce_add_plugin(AmanitaOcean
     COMPANY_NAME "Amanita Ocean"
     BUNDLE_ID "audio.amanitaocean.reverb"
     PLUGIN_MANUFACTURER_CODE Aman
     PLUGIN_CODE AmRv
-    FORMATS AU VST3
+    FORMATS ${AMANITA_OCEAN_PLUGIN_FORMATS}
     PRODUCT_NAME "Amanita Ocean"
     DESCRIPTION "Experimental evolving algorithmic reverb"
     IS_SYNTH FALSE
@@ -95,6 +103,8 @@ target_compile_definitions(AmanitaOcean
     PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
+        JUCE_JACK=0
+        JUCE_PLUGINHOST_LADSPA=0
         JUCE_VST3_CAN_REPLACE_VST2=0
 )
 
