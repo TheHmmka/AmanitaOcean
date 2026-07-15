@@ -18,7 +18,7 @@ namespace
 
 [[nodiscard]] juce::String percentValue(double value)
 {
-    return juce::String(value, 0) + " %";
+    return juce::String(juce::roundToInt(value)) + " %";
 }
 
 [[nodiscard]] juce::String decimalPercentValue(double value)
@@ -38,8 +38,9 @@ namespace
 
 [[nodiscard]] juce::String hertzValue(double value)
 {
-    return juce::String(value, 0) + " Hz";
+    return juce::String(juce::roundToInt(value)) + " Hz";
 }
+
 } // namespace
 
 AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
@@ -110,12 +111,16 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
     focusKnob_.setFocusOrder(12);
     mixKnob_.setFocusOrder(13);
 
+    deepCurrent_.reset(visualCharacter_,
+                       static_cast<float>(evolutionKnob_.getSlider().getValue() * 0.01),
+                       freezeButton_.getToggleState());
+
     setResizable(true, true);
     setResizeLimits(minimumWidth, minimumHeight, maximumWidth, maximumHeight);
     if (auto* constrainer = getConstrainer())
         constrainer->setFixedAspectRatio(static_cast<double>(defaultWidth) / defaultHeight);
     setSize(defaultWidth, defaultHeight);
-    startTimerHz(24);
+    startTimerHz(30);
 }
 
 AmanitaOceanAudioProcessorEditor::~AmanitaOceanAudioProcessorEditor()
@@ -137,8 +142,10 @@ void AmanitaOceanAudioProcessorEditor::paint(juce::Graphics& graphics)
     graphics.setGradientFill(background);
     graphics.fillRect(bounds);
 
+    deepCurrent_.paint(graphics, bounds);
+
     const auto heroField = scaledBounds(32.0f, 126.0f, 896.0f, 300.0f).toFloat();
-    const auto evolution = static_cast<float>(evolutionKnob_.getSlider().getValue() * 0.01);
+    const auto evolution = deepCurrent_.getEvolution();
 
     drawBathymetricField(graphics, heroField, evolution);
 
@@ -175,9 +182,13 @@ void AmanitaOceanAudioProcessorEditor::paint(juce::Graphics& graphics)
 
 void AmanitaOceanAudioProcessorEditor::resized()
 {
+    deepCurrent_.setSize(getWidth(), getHeight());
+    deepCurrent_.render(currentAccent_);
+    backgroundDirty_ = false;
+
     characterSelector_.setBounds(scaledBounds(184.0f, 72.0f, 592.0f, 44.0f));
     evolutionKnob_.setBounds(scaledBounds(360.0f, 154.0f, 240.0f, 268.0f));
-    freezeButton_.setBounds(scaledBounds(820.0f, 20.0f, 108.0f, 34.0f));
+    freezeButton_.setBounds(scaledBounds(840.0f, 20.0f, 88.0f, 34.0f));
 
     constexpr std::array<float, 8> cellX { 32.0f, 144.0f, 256.0f, 368.0f,
                                            480.0f, 592.0f, 704.0f, 816.0f };
@@ -191,20 +202,42 @@ void AmanitaOceanAudioProcessorEditor::resized()
 
 void AmanitaOceanAudioProcessorEditor::timerCallback()
 {
-    animationPhase_ += 0.004f;
-    if (animationPhase_ >= juce::MathConstants<float>::twoPi)
-        animationPhase_ -= juce::MathConstants<float>::twoPi;
+    if (!isShowing())
+        return;
 
+    constexpr auto timerRate = 30.0;
+    const auto evolution = static_cast<float>(evolutionKnob_.getSlider().getValue() * 0.01);
+    const auto frozen = freezeButton_.getToggleState();
+    backgroundDirty_ = deepCurrent_.advance(1.0 / timerRate,
+                                            visualCharacter_,
+                                            evolution,
+                                            frozen)
+                    || backgroundDirty_;
+
+    const auto previousAccent = currentAccent_;
     currentAccent_ = currentAccent_.interpolatedWith(targetAccent_, 0.16f);
+    if (currentAccent_ == previousAccent && currentAccent_ != targetAccent_)
+        currentAccent_ = targetAccent_;
+    backgroundDirty_ = currentAccent_ != previousAccent || backgroundDirty_;
     lookAndFeel_.setAccentColour(currentAccent_);
     characterSelector_.setAccentColour(currentAccent_);
-    repaint();
+    const auto highRefresh = evolutionKnob_.getSlider().isMouseButtonDown()
+                          || currentAccent_ != targetAccent_
+                          || deepCurrent_.needsHighRefresh(visualCharacter_, evolution, frozen);
+    const auto scheduledBackgroundFrame = ++backgroundFrameCounter_ % 2 == 0;
+    if ((highRefresh || scheduledBackgroundFrame) && backgroundDirty_)
+    {
+        deepCurrent_.render(currentAccent_);
+        repaint();
+        backgroundDirty_ = false;
+    }
 }
 
 void AmanitaOceanAudioProcessorEditor::updateCharacterVisuals(int characterIndex)
 {
     visualCharacter_ = juce::jlimit(0, 3, characterIndex);
     targetAccent_ = accentForCharacter(visualCharacter_);
+    backgroundDirty_ = true;
     repaint();
 }
 
@@ -214,6 +247,8 @@ void AmanitaOceanAudioProcessorEditor::drawBathymetricField(juce::Graphics& grap
 {
     const auto centre = field.getCentre().translated(0.0f, -5.0f);
     const auto scale = field.getWidth() / 896.0f;
+    const auto phase = static_cast<float>(deepCurrent_.getTimeSeconds() * 0.096);
+    const auto& characterBlend = deepCurrent_.getCharacterBlend();
     constexpr auto pointsPerContour = 112;
     constexpr auto contourCount = 10;
 
@@ -229,36 +264,40 @@ void AmanitaOceanAudioProcessorEditor::drawBathymetricField(juce::Graphics& grap
         {
             const auto angle = juce::MathConstants<float>::twoPi
                              * static_cast<float>(point) / pointsPerContour;
-            const auto slow = std::sin(angle * 3.0f + animationPhase_ + spread * 2.2f);
-            const auto fine = std::sin(angle * 5.0f - animationPhase_ * 0.63f + spread * 4.1f);
-            auto x = centre.x + std::cos(angle) * radiusX;
-            auto y = centre.y + std::sin(angle) * radiusY;
+            const auto slow = std::sin(angle * 3.0f + phase + spread * 2.2f);
+            const auto fine = std::sin(angle * 5.0f - phase * 0.63f + spread * 4.1f);
+            const auto baseX = centre.x + std::cos(angle) * radiusX;
+            const auto baseY = centre.y + std::sin(angle) * radiusY;
 
-            if (visualCharacter_ == 1)
-            {
-                const auto rise = evolution * (0.30f + 0.70f * spread);
-                x += scale * (slow * 3.0f + fine * 1.4f) * rise;
-                y -= scale * (8.0f + 24.0f * spread) * rise * (0.5f + 0.5f * std::sin(angle));
-            }
-            else if (visualCharacter_ == 2)
-            {
-                const auto drift = evolution * (5.0f + 13.0f * spread) * scale;
-                x += drift * std::sin(angle * 2.0f + animationPhase_ * 0.72f);
-                y += drift * 0.38f * std::sin(angle * 3.0f - animationPhase_);
-            }
-            else if (visualCharacter_ == 3)
-            {
-                const auto veil = evolution * (3.0f + 11.0f * spread) * scale;
-                x += veil * 0.55f * fine;
-                y = centre.y + (y - centre.y) * (0.88f - 0.10f * evolution)
-                  + veil * slow;
-            }
-            else
-            {
-                const auto motion = evolution * (1.5f + 4.0f * spread) * scale;
-                x += motion * slow;
-                y += motion * 0.45f * fine;
-            }
+            const auto defaultMotion = evolution * (1.5f + 4.0f * spread) * scale;
+            const auto defaultX = baseX + defaultMotion * slow;
+            const auto defaultY = baseY + defaultMotion * 0.45f * fine;
+
+            const auto rise = evolution * (0.30f + 0.70f * spread);
+            const auto bloomX = baseX + scale * (slow * 3.0f + fine * 1.4f) * rise;
+            const auto bloomY = baseY - scale * (8.0f + 24.0f * spread) * rise
+                * (0.5f + 0.5f * std::sin(angle));
+
+            const auto drift = evolution * (5.0f + 13.0f * spread) * scale;
+            const auto driftX = baseX
+                + drift * std::sin(angle * 2.0f + phase * 0.72f);
+            const auto driftY = baseY
+                + drift * 0.38f * std::sin(angle * 3.0f - phase);
+
+            const auto veil = evolution * (3.0f + 11.0f * spread) * scale;
+            const auto veilX = baseX + veil * 0.55f * fine;
+            const auto veilY = centre.y
+                + (baseY - centre.y) * (0.88f - 0.10f * evolution)
+                + veil * slow;
+
+            const auto x = characterBlend[0] * defaultX
+                         + characterBlend[1] * bloomX
+                         + characterBlend[2] * driftX
+                         + characterBlend[3] * veilX;
+            const auto y = characterBlend[0] * defaultY
+                         + characterBlend[1] * bloomY
+                         + characterBlend[2] * driftY
+                         + characterBlend[3] * veilY;
 
             if (point == 0)
                 path.startNewSubPath(x, y);
@@ -266,9 +305,9 @@ void AmanitaOceanAudioProcessorEditor::drawBathymetricField(juce::Graphics& grap
                 path.lineTo(x, y);
         }
         path.closeSubPath();
-        const auto alpha = (0.025f + 0.035f * evolution) * (1.0f - 0.30f * spread);
+        const auto alpha = 0.052f * (1.0f - 0.30f * spread);
         graphics.setColour(currentAccent_.withAlpha(alpha));
-        graphics.strokePath(path, juce::PathStrokeType(0.8f + 0.35f * evolution,
+        graphics.strokePath(path, juce::PathStrokeType(0.98f * scale,
                                                         juce::PathStrokeType::curved,
                                                         juce::PathStrokeType::rounded));
     }

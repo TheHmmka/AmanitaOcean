@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "ui/CharacterSelector.h"
+#include "ui/DeepCurrentRenderer.h"
 #include "ui/OceanLookAndFeel.h"
 #include "ui/ParameterKnob.h"
 
@@ -41,6 +42,7 @@ private:
 
     AmanitaOceanAudioProcessor& processor_;
     amanita::ui::OceanLookAndFeel lookAndFeel_;
+    amanita::ui::DeepCurrentRenderer deepCurrent_;
     amanita::ui::CharacterSelector characterSelector_;
     amanita::ui::ParameterKnob evolutionKnob_;
     amanita::ui::ParameterKnob preDelayKnob_;
@@ -58,7 +60,8 @@ private:
     juce::Colour currentAccent_;
     juce::Colour targetAccent_;
     int visualCharacter_ = 0;
-    float animationPhase_ = 0.0f;
+    unsigned int backgroundFrameCounter_ = 0;
+    bool backgroundDirty_ = true;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AmanitaOceanAudioProcessorEditor)
 };

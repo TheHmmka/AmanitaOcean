@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(AmanitaOcean VERSION 0.10.1 LANGUAGES C CXX)
+project(AmanitaOcean VERSION 0.11.6 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -68,6 +68,8 @@ target_sources(AmanitaOcean
         Source/PluginProcessor.h
         Source/ui/CharacterSelector.cpp
         Source/ui/CharacterSelector.h
+        Source/ui/DeepCurrentRenderer.cpp
+        Source/ui/DeepCurrentRenderer.h
         Source/ui/OceanLookAndFeel.cpp
         Source/ui/OceanLookAndFeel.h
         Source/ui/ParameterKnob.cpp

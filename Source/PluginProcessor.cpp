@@ -28,6 +28,66 @@ constexpr auto freezeId = "freeze";
     range.setSkewForCentre(centre);
     return range;
 }
+
+[[nodiscard]] juce::NormalisableRange<float> smoothLogarithmicRange(float minimum,
+                                                                     float maximum,
+                                                                     float centre)
+{
+    jassert(minimum > 0.0f && minimum < centre && centre < maximum);
+    const auto fullLogSpan = std::log(static_cast<double>(maximum / minimum));
+    const auto centreLogSpan = std::log(static_cast<double>(centre / minimum));
+    const auto quadratic = 2.0 * fullLogSpan - 4.0 * centreLogSpan;
+    const auto linear = 4.0 * centreLogSpan - fullLogSpan;
+    jassert(linear > 0.0 && linear + 2.0 * quadratic > 0.0);
+
+    return {
+        minimum,
+        maximum,
+        [quadratic, linear](float rangeStart, float rangeEnd, float position)
+        {
+            if (position <= 0.0f)
+                return rangeStart;
+            if (position >= 1.0f)
+                return rangeEnd;
+
+            const auto p = static_cast<double>(position);
+            return static_cast<float>(static_cast<double>(rangeStart)
+                                      * std::exp(quadratic * p * p + linear * p));
+        },
+        [quadratic, linear](float rangeStart, float rangeEnd, float value)
+        {
+            if (!std::isfinite(value) || value <= rangeStart)
+                return 0.0f;
+            if (value >= rangeEnd)
+                return 1.0f;
+
+            const auto safeValue = static_cast<double>(value);
+            const auto logValue = std::log(safeValue / static_cast<double>(rangeStart));
+            const auto discriminant = juce::jmax(0.0,
+                                                  linear * linear
+                                                      + 4.0 * quadratic * logValue);
+            const auto denominator = linear + std::sqrt(discriminant);
+            return denominator > 1.0e-12
+                ? static_cast<float>(2.0 * logValue / denominator)
+                : 0.0f;
+        }
+    };
+}
+
+[[nodiscard]] juce::String limitHostText(juce::String text, int maximumLength)
+{
+    return maximumLength > 0 ? text.substring(0, maximumLength) : text;
+}
+
+[[nodiscard]] juce::String decayText(float value, int maximumLength)
+{
+    return limitHostText(juce::String(value, value < 10.0f ? 2 : 1), maximumLength);
+}
+
+[[nodiscard]] juce::String lowCutText(float value, int maximumLength)
+{
+    return limitHostText(juce::String(juce::roundToInt(value)), maximumLength);
+}
 } // namespace
 
 AmanitaOceanAudioProcessor::AmanitaOceanAudioProcessor()
@@ -170,8 +230,8 @@ AmanitaOceanAudioProcessor::createParameterLayout()
         FloatAttributes().withLabel("%")));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { decayId, 1 }, "Decay",
-        skewedRange(0.2f, 30.0f, 0.01f, 3.0f), 5.0f,
-        FloatAttributes().withLabel("s")));
+        smoothLogarithmicRange(0.2f, 30.0f, 3.0f), 5.0f,
+        FloatAttributes().withLabel("s").withStringFromValueFunction(decayText)));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { sizeId, 1 }, "Size",
         juce::NormalisableRange<float> { 50.0f, 200.0f, 0.1f }, 100.0f,
@@ -182,8 +242,8 @@ AmanitaOceanAudioProcessor::createParameterLayout()
         FloatAttributes().withLabel("ms")));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { lowCutId, 1 }, "Low Cut",
-        skewedRange(20.0f, 1000.0f, 1.0f, 120.0f), 80.0f,
-        FloatAttributes().withLabel("Hz")));
+        smoothLogarithmicRange(20.0f, 1000.0f, 120.0f), 80.0f,
+        FloatAttributes().withLabel("Hz").withStringFromValueFunction(lowCutText)));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { highDampingId, 1 }, "High Damping",
         skewedRange(1000.0f, 20000.0f, 1.0f, 7000.0f), 9000.0f,
@@ -198,7 +258,7 @@ AmanitaOceanAudioProcessor::createParameterLayout()
         FloatAttributes().withLabel("%")));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { focusId, 1 }, "Focus",
-        juce::NormalisableRange<float> { 0.0f, 100.0f, 0.1f }, 0.0f,
+        juce::NormalisableRange<float> { 0.0f, 100.0f, 0.1f }, 100.0f,
         FloatAttributes().withLabel("%")));
     layout.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID { freezeId, 1 }, "Freeze", false));
