@@ -56,8 +56,8 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
       lowCutKnob_(processorToUse.getParameterState(), "lowCut", "Low Cut", hertzValue),
       dampingKnob_(processorToUse.getParameterState(), "highDamping", "Damping", hertzValue),
       widthKnob_(processorToUse.getParameterState(), "width", "Width", decimalPercentValue),
-      duckingKnob_(processorToUse.getParameterState(), "ducking", "Ducking",
-                   decimalPercentValue),
+      focusKnob_(processorToUse.getParameterState(), "focus", "Focus",
+                 decimalPercentValue),
       mixKnob_(processorToUse.getParameterState(), "mix", "Mix", decimalPercentValue),
       currentAccent_(accentForCharacter(characterSelector_.getSelectedIndex())),
       targetAccent_(currentAccent_),
@@ -79,7 +79,7 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
 
     for (auto* component : std::array<juce::Component*, 10> {
              &characterSelector_, &evolutionKnob_, &preDelayKnob_, &sizeKnob_,
-             &decayKnob_, &lowCutKnob_, &dampingKnob_, &widthKnob_, &duckingKnob_,
+             &decayKnob_, &lowCutKnob_, &dampingKnob_, &widthKnob_, &focusKnob_,
              &mixKnob_
          })
         addAndMakeVisible(*component);
@@ -107,7 +107,7 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
     lowCutKnob_.setFocusOrder(9);
     dampingKnob_.setFocusOrder(10);
     widthKnob_.setFocusOrder(11);
-    duckingKnob_.setFocusOrder(12);
+    focusKnob_.setFocusOrder(12);
     mixKnob_.setFocusOrder(13);
 
     setResizable(true, true);
@@ -183,7 +183,7 @@ void AmanitaOceanAudioProcessorEditor::resized()
                                            480.0f, 592.0f, 704.0f, 816.0f };
     const std::array<amanita::ui::ParameterKnob*, 8> knobs {
         &preDelayKnob_, &sizeKnob_, &decayKnob_, &lowCutKnob_,
-        &dampingKnob_, &widthKnob_, &duckingKnob_, &mixKnob_
+        &dampingKnob_, &widthKnob_, &focusKnob_, &mixKnob_
     };
     for (std::size_t index = 0; index < knobs.size(); ++index)
         knobs[index]->setBounds(scaledBounds(cellX[index] + 2.0f, 452.0f, 108.0f, 126.0f));

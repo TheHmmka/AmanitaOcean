@@ -117,7 +117,7 @@ void testUnifiedHostContract()
     AmanitaOceanAudioProcessor processor;
     constexpr std::array<const char*, 11> expectedIds {
         "algorithm", "mix", "decay", "size", "preDelay", "lowCut",
-        "highDamping", "evolution", "width", "ducking", "freeze"
+        "highDamping", "evolution", "width", "focus", "freeze"
     };
 
     const auto& parameters = processor.getParameters();
@@ -141,8 +141,8 @@ void testUnifiedHostContract()
     }
 
     require(choiceCount == 1, "Host must expose exactly one choice parameter");
-    constexpr std::array<const char*, 5> removedIds {
-        "character", "mode", "driftModel", "veil", "modulation"
+    constexpr std::array<const char*, 6> removedIds {
+        "character", "mode", "driftModel", "veil", "modulation", "ducking"
     };
     for (const auto* removedId : removedIds)
         require(findParameterById(processor, removedId) == nullptr,
@@ -178,25 +178,25 @@ void testUnifiedHostContract()
             "Evolution does not default to 35 percent");
     require(evolution->getLabel() == "%", "Evolution unit label changed");
 
-    auto* ducking = dynamic_cast<juce::AudioParameterFloat*>(
-        findParameterById(processor, "ducking"));
-    require(ducking != nullptr, "Ducking is not a float parameter");
-    const auto& duckingRange = ducking->getNormalisableRange();
-    require(ducking->getName(128) == "Ducking", "Ducking UI label changed");
-    require(std::abs(duckingRange.start) <= 1.0e-6f
-                && std::abs(duckingRange.end - 100.0f) <= 1.0e-6f,
-            "Ducking range must be 0..100 percent");
-    require(std::abs(ducking->get()) <= 1.0e-6f,
-            "Ducking does not default to zero percent");
-    require(ducking->getLabel() == "%", "Ducking unit label changed");
+    auto* focus = dynamic_cast<juce::AudioParameterFloat*>(
+        findParameterById(processor, "focus"));
+    require(focus != nullptr, "Focus is not a float parameter");
+    const auto& focusRange = focus->getNormalisableRange();
+    require(focus->getName(128) == "Focus", "Focus UI label changed");
+    require(std::abs(focusRange.start) <= 1.0e-6f
+                && std::abs(focusRange.end - 100.0f) <= 1.0e-6f,
+            "Focus range must be 0..100 percent");
+    require(std::abs(focus->get()) <= 1.0e-6f,
+            "Focus does not default to zero percent");
+    require(focus->getLabel() == "%", "Focus unit label changed");
 }
 
 void testCurrentStateRoundTrip()
 {
     constexpr auto savedEvolutionHostValue = 0.625f;
     constexpr auto savedEvolutionRawValue = 62.5f;
-    constexpr std::array<const char*, 5> removedIds {
-        "character", "mode", "driftModel", "veil", "modulation"
+    constexpr std::array<const char*, 6> removedIds {
+        "character", "mode", "driftModel", "veil", "modulation", "ducking"
     };
 
     for (const auto& algorithmCase : algorithmCases)
@@ -205,7 +205,7 @@ void testCurrentStateRoundTrip()
         algorithmParameter(source).setValueNotifyingHost(algorithmCase.hostValue);
         parameterById(source, "evolution").setValueNotifyingHost(savedEvolutionHostValue);
         parameterById(source, "mix").setValueNotifyingHost(0.731f);
-        parameterById(source, "ducking").setValueNotifyingHost(0.58f);
+        parameterById(source, "focus").setValueNotifyingHost(0.58f);
 
         juce::MemoryBlock data;
         source.getStateInformation(data);
@@ -241,8 +241,8 @@ void testCurrentStateRoundTrip()
                 "Evolution did not survive save/load");
         require(std::abs(parameterById(restored, "mix").getValue() - 0.731f) < 0.001f,
                 "Non-Algorithm state did not survive save/load");
-        require(std::abs(parameterById(restored, "ducking").getValue() - 0.58f) < 0.001f,
-                "Ducking did not survive save/load");
+        require(std::abs(parameterById(restored, "focus").getValue() - 0.58f) < 0.001f,
+                "Focus did not survive save/load");
     }
 }
 
@@ -288,7 +288,7 @@ void testCustomEditorLayoutAndAttachments()
         "character-selector", "character-default", "character-bloom", "character-drift",
         "character-veil",
         "evolution", "preDelay", "size", "decay", "lowCut", "highDamping",
-        "width", "ducking", "mix", "freeze"
+        "width", "focus", "mix", "freeze"
     };
     constexpr std::array<std::array<int, 2>, 3> editorSizes {{
         { AmanitaOceanAudioProcessorEditor::minimumWidth,
@@ -357,15 +357,15 @@ void testCustomEditorLayoutAndAttachments()
     require(gestureProbe.beginCount == 1 && gestureProbe.endCount == 1,
             "Typed value edit did not produce one complete host gesture");
 
-    auto* duckingSlider = dynamic_cast<juce::Slider*>(
-        findDescendantById(*editor, "ducking"));
-    require(duckingSlider != nullptr, "Ducking slider was not found");
-    parameterById(processor, "ducking").setValueNotifyingHost(0.64f);
-    require(std::abs(duckingSlider->getValue() - 64.0) <= 0.11,
-            "Host Ducking did not update the custom slider");
-    duckingSlider->setValue(37.5, juce::sendNotificationSync);
-    require(std::abs(parameterById(processor, "ducking").getValue() - 0.375f) <= 0.001f,
-            "Custom Ducking slider did not update the host parameter");
+    auto* focusSlider = dynamic_cast<juce::Slider*>(
+        findDescendantById(*editor, "focus"));
+    require(focusSlider != nullptr, "Focus slider was not found");
+    parameterById(processor, "focus").setValueNotifyingHost(0.64f);
+    require(std::abs(focusSlider->getValue() - 64.0) <= 0.11,
+            "Host Focus did not update the custom slider");
+    focusSlider->setValue(37.5, juce::sendNotificationSync);
+    require(std::abs(parameterById(processor, "focus").getValue() - 0.375f) <= 0.001f,
+            "Custom Focus slider did not update the host parameter");
 
     auto* veilButton = dynamic_cast<juce::Button*>(
         findDescendantById(*editor, "character-veil"));
@@ -414,7 +414,7 @@ void renderEditorPng(const juce::String& path, int characterIndex, int requested
 
 std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
                                    float evolution,
-                                   float ducking = 0.0f)
+                                   float focus = 0.0f)
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto sampleCount = 24000;
@@ -425,7 +425,7 @@ std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
     parameterById(processor, "mix").setValueNotifyingHost(1.0f);
     parameterById(processor, "preDelay").setValueNotifyingHost(0.0f);
     parameterById(processor, "evolution").setValueNotifyingHost(evolution);
-    parameterById(processor, "ducking").setValueNotifyingHost(ducking);
+    parameterById(processor, "focus").setValueNotifyingHost(focus);
     processor.prepareToPlay(sampleRate, blockSize);
 
     std::vector<float> result(static_cast<std::size_t>(sampleCount * 2), 0.0f);
@@ -453,7 +453,7 @@ std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
 
 std::vector<float> renderDsp(const AlgorithmCase& algorithmCase,
                              float evolution,
-                             float ducking = 0.0f)
+                             float focus = 0.0f)
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto sampleCount = 24000;
@@ -464,7 +464,7 @@ std::vector<float> renderDsp(const AlgorithmCase& algorithmCase,
     parameters.mix = 1.0f;
     parameters.preDelayMs = 0.0f;
     parameters.evolution = evolution;
-    parameters.ducking = ducking;
+    parameters.ducking = focus;
 
     amanita::dsp::FDNReverb reverb;
     reverb.setParameters(parameters);
@@ -528,16 +528,16 @@ void testUnifiedAlgorithmReachesDsp()
     }
 }
 
-void testDuckingParameterReachesDsp()
+void testFocusParameterReachesDsp()
 {
-    constexpr auto ducking = 0.78f;
+    constexpr auto focus = 0.78f;
     const auto& algorithmCase = algorithmCases.front();
-    const auto processorRender = renderProcessor(algorithmCase, 0.35f, ducking);
-    const auto directRender = renderDsp(algorithmCase, 0.35f, ducking);
+    const auto processorRender = renderProcessor(algorithmCase, 0.35f, focus);
+    const auto directRender = renderDsp(algorithmCase, 0.35f, focus);
     const auto bypassRender = renderProcessor(algorithmCase, 0.35f, 0.0f);
     require(processorRender.size() == directRender.size()
                 && processorRender.size() == bypassRender.size(),
-            "Ducking routing render has the wrong size");
+            "Focus routing render has the wrong size");
 
     auto maximumDifference = 0.0f;
     double bypassEnergy = 0.0;
@@ -545,7 +545,7 @@ void testDuckingParameterReachesDsp()
     for (std::size_t sample = 0; sample < processorRender.size(); ++sample)
     {
         require(std::isfinite(processorRender[sample]),
-                "Ducking routing produced NaN/Inf");
+                "Focus routing produced NaN/Inf");
         maximumDifference = std::max(maximumDifference,
                                      std::abs(processorRender[sample] - directRender[sample]));
         const auto bypass = static_cast<double>(bypassRender[sample]);
@@ -556,10 +556,10 @@ void testDuckingParameterReachesDsp()
     }
 
     require(maximumDifference <= 2.0e-7f,
-            "Host Ducking parameter does not reach the expected DSP amount");
+            "Host Focus parameter does not reach the expected DSP amount");
     require(bypassEnergy > 1.0e-10
                 && std::sqrt(duckingDifferenceEnergy / bypassEnergy) >= 0.05,
-            "Non-zero host Ducking parameter has no meaningful DSP effect");
+            "Non-zero host Focus parameter has no meaningful DSP effect");
 }
 } // namespace
 
@@ -573,7 +573,7 @@ int main(int argc, char** argv)
         testCurrentStateRoundTrip();
         testCustomEditorLayoutAndAttachments();
         testUnifiedAlgorithmReachesDsp();
-        testDuckingParameterReachesDsp();
+        testFocusParameterReachesDsp();
         if (argc >= 3 && std::strcmp(argv[1], "--render-ui") == 0)
         {
             const auto characterIndex = argc >= 4 ? std::atoi(argv[3]) : 0;
@@ -583,12 +583,12 @@ int main(int argc, char** argv)
             renderEditorPng(argv[2], characterIndex, requestedWidth);
             std::cout << "[PASS] wrote custom editor PNG to " << argv[2] << '\n';
         }
-        std::cout << "[PASS] Unified Algorithm/Evolution/Ducking state/UI/DSP routing\n";
+        std::cout << "[PASS] Unified Algorithm/Evolution/Focus state/UI/DSP routing\n";
         return 0;
     }
     catch (const std::exception& error)
     {
-        std::cerr << "[FAIL] Unified Algorithm/Evolution/Ducking state/UI/DSP routing: "
+        std::cerr << "[FAIL] Unified Algorithm/Evolution/Focus state/UI/DSP routing: "
                   << error.what() << '\n';
         return 1;
     }

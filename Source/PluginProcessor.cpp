@@ -16,7 +16,7 @@ constexpr auto lowCutId = "lowCut";
 constexpr auto highDampingId = "highDamping";
 constexpr auto evolutionId = "evolution";
 constexpr auto widthId = "width";
-constexpr auto duckingId = "ducking";
+constexpr auto focusId = "focus";
 constexpr auto freezeId = "freeze";
 
 [[nodiscard]] juce::NormalisableRange<float> skewedRange(float minimum,
@@ -45,14 +45,14 @@ AmanitaOceanAudioProcessor::AmanitaOceanAudioProcessor()
     highDampingParameter_ = state_.getRawParameterValue(highDampingId);
     evolutionParameter_ = state_.getRawParameterValue(evolutionId);
     widthParameter_ = state_.getRawParameterValue(widthId);
-    duckingParameter_ = state_.getRawParameterValue(duckingId);
+    focusParameter_ = state_.getRawParameterValue(focusId);
     freezeParameter_ = state_.getRawParameterValue(freezeId);
 
     jassert(characterParameter_ != nullptr && mixParameter_ != nullptr
             && decayParameter_ != nullptr && sizeParameter_ != nullptr
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
             && highDampingParameter_ != nullptr && evolutionParameter_ != nullptr
-            && widthParameter_ != nullptr && duckingParameter_ != nullptr
+            && widthParameter_ != nullptr && focusParameter_ != nullptr
             && freezeParameter_ != nullptr);
 }
 
@@ -197,7 +197,7 @@ AmanitaOceanAudioProcessor::createParameterLayout()
         juce::NormalisableRange<float> { 0.0f, 200.0f, 0.1f }, 100.0f,
         FloatAttributes().withLabel("%")));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID { duckingId, 1 }, "Ducking",
+        juce::ParameterID { focusId, 1 }, "Focus",
         juce::NormalisableRange<float> { 0.0f, 100.0f, 0.1f }, 0.0f,
         FloatAttributes().withLabel("%")));
     layout.add(std::make_unique<juce::AudioParameterBool>(
@@ -212,7 +212,7 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
             && decayParameter_ != nullptr && sizeParameter_ != nullptr
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
             && highDampingParameter_ != nullptr && evolutionParameter_ != nullptr
-            && widthParameter_ != nullptr && duckingParameter_ != nullptr
+            && widthParameter_ != nullptr && focusParameter_ != nullptr
             && freezeParameter_ != nullptr);
 
     amanita::dsp::ReverbParameters parameters;
@@ -240,7 +240,7 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
     parameters.highDampingHz = highDampingParameter_->load(std::memory_order_relaxed);
     parameters.evolution = evolutionParameter_->load(std::memory_order_relaxed) * 0.01f;
     parameters.width = widthParameter_->load(std::memory_order_relaxed) * 0.01f;
-    parameters.ducking = duckingParameter_->load(std::memory_order_relaxed) * 0.01f;
+    parameters.ducking = focusParameter_->load(std::memory_order_relaxed) * 0.01f;
     parameters.freeze = freezeParameter_->load(std::memory_order_relaxed) >= 0.5f;
     return parameters;
 }
