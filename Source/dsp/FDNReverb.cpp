@@ -569,11 +569,9 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     wetLeft = mid + side;
     wetRight = mid - side;
 
-    const auto duckGains = spatialDucker_.process(dryLeft, dryRight);
-    if (duckGains.left < 1.0f)
-        wetLeft *= duckGains.left;
-    if (duckGains.right < 1.0f)
-        wetRight *= duckGains.right;
+    const auto duckedWet = spatialDucker_.process(dryLeft, dryRight, wetLeft, wetRight);
+    wetLeft = duckedWet.left;
+    wetRight = duckedWet.right;
 
     const auto mix = mix_.next();
     left = flushDenormal(sanitise(dryLeft + mix * (wetLeft - dryLeft)));

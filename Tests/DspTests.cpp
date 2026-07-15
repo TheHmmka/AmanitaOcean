@@ -2702,215 +2702,628 @@ void testVeilKickBass190()
             "Veil energy grows over the repeated kick+bass pattern");
 }
 
-void testSpatialDuckerStereoGeometryAndSampleRates()
+void testPerceptualDuckerSpectralSelectivityAndSampleRates()
 {
     constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
-    constexpr double twoPi = 6.28318530717958647692;
-    std::array<double, sampleRates.size()> attackSeconds {};
-    std::array<double, sampleRates.size()> releaseSeconds {};
-    std::array<double, sampleRates.size()> steadyGains {};
+    constexpr std::array<double, 4> frequencies { 110.0, 630.0, 2200.0, 9000.0 };
+    constexpr std::array<double, 4> phases { 0.17, 0.61, 1.13, 1.79 };
+    constexpr auto twoPi = 6.28318530717958647692;
+    std::array<double, sampleRates.size()> matchedReductionDb {};
+    std::array<double, sampleRates.size()> totalLossDb {};
 
     for (std::size_t rateIndex = 0; rateIndex < sampleRates.size(); ++rateIndex)
     {
         const auto sampleRate = sampleRates[rateIndex];
-        SpatialDucker centred;
-        SpatialDucker hardLeft;
-        SpatialDucker hardRight;
+        SpatialDucker active;
         SpatialDucker bypassed;
-        centred.prepare(sampleRate, 1.0f);
-        hardLeft.prepare(sampleRate, 1.0f);
-        hardRight.prepare(sampleRate, 1.0f);
+        SpatialDucker quietConflict;
+        active.prepare(sampleRate, 1.0f);
         bypassed.prepare(sampleRate, 0.0f);
+        quietConflict.prepare(sampleRate, 1.0f);
+        const auto highLevelBypass = bypassed.process(0.0f, 0.0f, 5.5f, -6.25f);
+        require(std::bit_cast<std::uint32_t>(highLevelBypass.left)
+                    == std::bit_cast<std::uint32_t>(5.5f)
+                    && std::bit_cast<std::uint32_t>(highLevelBypass.right)
+                        == std::bit_cast<std::uint32_t>(-6.25f),
+                "Perceptual Ducking zero-percent bypass clamps high finite wet samples");
 
-        const auto activeSamples = static_cast<int>(sampleRate * 2.0);
-        const auto measurementStart = activeSamples - static_cast<int>(sampleRate * 0.25);
-        auto attackSample = -1;
-        double centredGainSum = 0.0;
-        double hardLeftGainSum = 0.0;
-        double hardRightGainSum = 0.0;
-        auto measurementSamples = 0;
+        const auto warmupSamples = static_cast<int>(sampleRate * 2.0);
+        const auto measurementSamples = static_cast<int>(sampleRate);
+        const auto totalSamples = warmupSamples + measurementSamples;
+        std::array<double, frequencies.size()> referenceSin {};
+        std::array<double, frequencies.size()> referenceCos {};
+        std::array<double, frequencies.size()> activeSin {};
+        std::array<double, frequencies.size()> activeCos {};
+        auto quietReferenceSin = 0.0;
+        auto quietReferenceCos = 0.0;
+        auto quietActiveSin = 0.0;
+        auto quietActiveCos = 0.0;
+        auto referenceEnergy = 0.0;
+        auto activeEnergy = 0.0;
 
-        for (auto sample = 0; sample < activeSamples; ++sample)
+        for (auto sample = 0; sample < totalSamples; ++sample)
         {
             const auto time = static_cast<double>(sample) / sampleRate;
-            const auto input = static_cast<float>(
-                0.35 * std::sin(twoPi * 997.0 * time + 0.19)
-                + 0.12 * std::sin(twoPi * 2303.0 * time + 0.73));
-            const auto centredGains = centred.process(input, input);
-            const auto hardLeftGains = hardLeft.process(input, 0.0f);
-            const auto hardRightGains = hardRight.process(0.0f, input);
-            const auto bypassGains = bypassed.process(input, -0.37f * input);
+            const auto dry = static_cast<float>(
+                0.18 * std::sin(twoPi * frequencies[2] * time + 0.31));
+            auto wet = 0.0f;
+            for (std::size_t tone = 0; tone < frequencies.size(); ++tone)
+                wet += static_cast<float>(
+                    0.10 * std::sin(twoPi * frequencies[tone] * time + phases[tone]));
+            const auto quietWet = static_cast<float>(
+                0.0018 * std::sin(twoPi * frequencies[2] * time + phases[2]));
 
-            require(std::isfinite(centredGains.left) && std::isfinite(centredGains.right)
-                        && std::isfinite(hardLeftGains.left)
-                        && std::isfinite(hardRightGains.right),
-                    "Spatial Ducking produced NaN/Inf");
-            require(centredGains.left >= 0.1778f && centredGains.left <= 1.0f
-                        && centredGains.right >= 0.1778f && centredGains.right <= 1.0f,
-                    "Spatial Ducking gain escaped its configured range");
-            require(std::abs(centredGains.left - centredGains.right) <= 1.0e-7f,
-                    "Centred input does not produce identical L/R Ducking gain");
-            require(hardLeftGains.right == 1.0f && hardRightGains.left == 1.0f,
-                    "Hard-panned input ducked the silent opposite channel");
-            require(std::abs(hardLeftGains.left - hardRightGains.right) <= 1.0e-7f,
-                    "Spatial Ducking is not mirror-symmetric");
-            require(bypassGains.left == 1.0f && bypassGains.right == 1.0f,
-                    "Ducking at zero percent is not exactly transparent");
+            const auto output = active.process(dry, dry, wet, wet);
+            const auto reference = bypassed.process(dry, dry, wet, wet);
+            const auto quietOutput = quietConflict.process(dry, dry, quietWet, quietWet);
+            require(std::bit_cast<std::uint32_t>(reference.left)
+                        == std::bit_cast<std::uint32_t>(wet)
+                        && std::bit_cast<std::uint32_t>(reference.right)
+                            == std::bit_cast<std::uint32_t>(wet),
+                    "Perceptual Ducking at zero percent is not sample-exact");
+            require(std::isfinite(output.left) && std::isfinite(output.right)
+                        && std::isfinite(quietOutput.left),
+                    "Perceptual Ducking produced NaN/Inf");
 
-            if (attackSample < 0 && centredGains.left <= 0.5f)
-                attackSample = sample;
-            if (sample >= measurementStart)
+            if (sample < warmupSamples)
+                continue;
+
+            referenceEnergy += static_cast<double>(reference.left) * reference.left;
+            activeEnergy += static_cast<double>(output.left) * output.left;
+            for (std::size_t tone = 0; tone < frequencies.size(); ++tone)
             {
-                centredGainSum += centredGains.left;
-                hardLeftGainSum += hardLeftGains.left;
-                hardRightGainSum += hardRightGains.right;
-                ++measurementSamples;
+                const auto sine = std::sin(twoPi * frequencies[tone] * time);
+                const auto cosine = std::cos(twoPi * frequencies[tone] * time);
+                referenceSin[tone] += reference.left * sine;
+                referenceCos[tone] += reference.left * cosine;
+                activeSin[tone] += output.left * sine;
+                activeCos[tone] += output.left * cosine;
             }
+            const auto matchedSine = std::sin(twoPi * frequencies[2] * time);
+            const auto matchedCosine = std::cos(twoPi * frequencies[2] * time);
+            quietReferenceSin += quietWet * matchedSine;
+            quietReferenceCos += quietWet * matchedCosine;
+            quietActiveSin += quietOutput.left * matchedSine;
+            quietActiveCos += quietOutput.left * matchedCosine;
         }
 
-        require(attackSample >= 0, "Spatial Ducking never reached meaningful gain reduction");
-        attackSeconds[rateIndex] = static_cast<double>(attackSample) / sampleRate;
-        steadyGains[rateIndex] = centredGainSum / measurementSamples;
-        const auto hardLeftSteady = hardLeftGainSum / measurementSamples;
-        const auto hardRightSteady = hardRightGainSum / measurementSamples;
-        require(steadyGains[rateIndex] >= 0.1778 && steadyGains[rateIndex] <= 0.30,
-                "Maximum Ducking depth is outside the intended musical range");
-        require(std::abs(steadyGains[rateIndex] - hardLeftSteady) <= 1.0e-5
-                    && std::abs(hardLeftSteady - hardRightSteady) <= 1.0e-5,
-                "Strong-channel Ducking depends on pan direction");
-
-        const auto releaseLimit = static_cast<int>(sampleRate * 3.0);
-        auto releaseSample = -1;
-        for (auto sample = 0; sample < releaseLimit; ++sample)
+        std::array<double, frequencies.size()> bandReductionDb {};
+        for (std::size_t tone = 0; tone < frequencies.size(); ++tone)
         {
-            const auto gains = centred.process(0.0f, 0.0f);
-            require(std::isfinite(gains.left) && std::isfinite(gains.right),
-                    "Spatial Ducking release produced NaN/Inf");
-            if (releaseSample < 0 && gains.left >= 0.9f)
-            {
-                releaseSample = sample;
-                break;
-            }
+            const auto referenceAmplitude = std::hypot(referenceSin[tone], referenceCos[tone]);
+            const auto activeAmplitude = std::hypot(activeSin[tone], activeCos[tone]);
+            bandReductionDb[tone] = 20.0 * std::log10(
+                (referenceAmplitude + 1.0e-30) / (activeAmplitude + 1.0e-30));
         }
-        require(releaseSample >= 0, "Spatial Ducking did not recover after silence");
-        releaseSeconds[rateIndex] = static_cast<double>(releaseSample) / sampleRate;
+        matchedReductionDb[rateIndex] = bandReductionDb[2];
+        totalLossDb[rateIndex] = 10.0 * std::log10(
+            (referenceEnergy + 1.0e-30) / (activeEnergy + 1.0e-30));
+        const auto quietReductionDb = 20.0 * std::log10(
+            (std::hypot(quietReferenceSin, quietReferenceCos) + 1.0e-30)
+            / (std::hypot(quietActiveSin, quietActiveCos) + 1.0e-30));
 
-        const auto badGains = bypassed.process(std::numeric_limits<float>::quiet_NaN(),
-                                               std::numeric_limits<float>::infinity());
-        require(badGains.left == 1.0f && badGains.right == 1.0f,
-                "Invalid input contaminated bypassed Ducking");
+        std::cout << "[METRIC] Perceptual Ducking " << sampleRate
+                  << " Hz: bands=" << bandReductionDb[0] << ',' << bandReductionDb[1]
+                  << ',' << bandReductionDb[2] << ',' << bandReductionDb[3]
+                  << " dB, total=" << totalLossDb[rateIndex]
+                  << " dB, quiet conflict=" << quietReductionDb << " dB\n";
+
+        require(bandReductionDb[2] >= 3.0 && bandReductionDb[2] <= 6.5,
+                "Perceptual Ducking does not create a useful presence-band pocket");
+        require(bandReductionDb[0] <= 1.25 && bandReductionDb[3] <= 1.25,
+                "Perceptual Ducking changes distant wet bands excessively");
+        require(bandReductionDb[1] <= 2.25,
+                "Perceptual Ducking changes the neighbouring wet band excessively");
+        require(totalLossDb[rateIndex] <= 3.0,
+                "Perceptual Ducking collapses total wet loudness");
+        require(bandReductionDb[2] - totalLossDb[rateIndex] >= 1.5,
+                "Perceptual Ducking clarity comes mainly from full-band attenuation");
+        require(quietReductionDb <= 0.75,
+                "Perceptual Ducking cuts wet that cannot mask the dry source");
     }
 
-    const auto [minimumAttack, maximumAttack] = std::minmax_element(attackSeconds.begin(),
-                                                                    attackSeconds.end());
-    const auto [minimumRelease, maximumRelease] = std::minmax_element(releaseSeconds.begin(),
-                                                                      releaseSeconds.end());
-    const auto [minimumGain, maximumGain] = std::minmax_element(steadyGains.begin(),
-                                                                steadyGains.end());
-    std::cout << "[METRIC] Spatial Ducking: attack-to-0.5=" << attackSeconds[1] * 1000.0
-              << " ms, recovery-to-0.9=" << releaseSeconds[1] * 1000.0
-              << " ms, steady gain=" << steadyGains[1] << '\n';
-    require(*minimumAttack >= 0.0045 && *maximumAttack <= 0.0065,
-            "Spatial Ducking attack time is outside its intended range");
-    require(*maximumAttack - *minimumAttack <= 0.001,
-            "Spatial Ducking attack changes across sample rates");
-    require(*minimumRelease >= 0.70 && *maximumRelease <= 0.82,
-            "Spatial Ducking release time is outside its intended range");
-    require(*maximumRelease - *minimumRelease <= 0.010,
-            "Spatial Ducking release changes across sample rates");
-    require(*minimumGain >= 0.1778 && *maximumGain <= 0.19
-                && *maximumGain - *minimumGain <= 0.002,
-            "Spatial Ducking depth changes across sample rates");
-
+    const auto [minimumMatched, maximumMatched] = std::minmax_element(
+        matchedReductionDb.begin(), matchedReductionDb.end());
+    const auto [minimumTotal, maximumTotal] = std::minmax_element(
+        totalLossDb.begin(), totalLossDb.end());
+    require(*maximumMatched - *minimumMatched <= 0.50,
+            "Perceptual Ducking depth changes across sample rates");
+    require(*maximumTotal - *minimumTotal <= 0.30,
+            "Perceptual Ducking wet loudness changes across sample rates");
 }
 
-void testSpatialDuckerAutomationAndAdaptiveLink()
+void testPerceptualDuckerAutomationAndAdaptiveStereo()
 {
     constexpr auto sampleRate = 48000.0;
+    constexpr auto twoPi = 6.28318530717958647692;
+
+    SpatialDucker hardLeft;
+    SpatialDucker hardRight;
+    hardLeft.prepare(sampleRate, 1.0f);
+    hardRight.prepare(sampleRate, 1.0f);
+    const auto steadySamples = static_cast<int>(sampleRate * 2.0);
+    const auto measurementStart = steadySamples - static_cast<int>(sampleRate * 0.5);
+    auto wetEnergy = 0.0;
+    auto hardLeftEnergy = 0.0;
+    auto hardRightEnergy = 0.0;
+    for (auto sample = 0; sample < steadySamples; ++sample)
+    {
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto dry = static_cast<float>(0.18 * std::sin(twoPi * 2200.0 * time + 0.21));
+        const auto wet = static_cast<float>(0.10 * std::sin(twoPi * 2200.0 * time + 0.83));
+        const auto leftOutput = hardLeft.process(dry, 0.0f, wet, wet);
+        const auto rightOutput = hardRight.process(0.0f, dry, wet, wet);
+        require(std::bit_cast<std::uint32_t>(leftOutput.right)
+                    == std::bit_cast<std::uint32_t>(wet)
+                    && std::bit_cast<std::uint32_t>(rightOutput.left)
+                        == std::bit_cast<std::uint32_t>(wet),
+                "Hard-panned dry source changed the opposite wet channel");
+        require(std::abs(leftOutput.left - rightOutput.right) <= 1.0e-6f,
+                "Perceptual Ducking is not mirror-symmetric");
+        if (sample >= measurementStart)
+        {
+            wetEnergy += static_cast<double>(wet) * wet;
+            hardLeftEnergy += static_cast<double>(leftOutput.left) * leftOutput.left;
+            hardRightEnergy += static_cast<double>(rightOutput.right) * rightOutput.right;
+        }
+    }
+    const auto hardLeftReductionDb = 10.0 * std::log10(wetEnergy / hardLeftEnergy);
+    const auto hardRightReductionDb = 10.0 * std::log10(wetEnergy / hardRightEnergy);
+    require(hardLeftReductionDb >= 3.0 && hardLeftReductionDb <= 6.5,
+            "Hard-left source does not open a useful local spectral pocket");
+    require(std::abs(hardLeftReductionDb - hardRightReductionDb) <= 0.10,
+            "Perceptual Ducking depth depends on pan direction");
+
     SpatialDucker transition;
     transition.prepare(sampleRate, 1.0f);
     for (auto sample = 0; sample < static_cast<int>(sampleRate); ++sample)
-        (void) transition.process(0.25f, 0.25f);
-
-    auto previousRightGain = transition.process(0.25f, 0.0f).right;
-    auto maximumRightStep = 0.0f;
+    {
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto dry = static_cast<float>(0.18 * std::sin(twoPi * 2200.0 * time));
+        const auto wet = static_cast<float>(0.10 * std::sin(twoPi * 2200.0 * time + 0.7));
+        (void) transition.process(dry, dry, wet, wet);
+    }
+    constexpr auto transitionWindowSamples = 960;
+    auto transitionReferenceEnergy = 0.0;
+    auto transitionErrorEnergy = 0.0;
     auto rightRecoverySample = -1;
-    auto finalLeftGain = 1.0f;
-    auto finalRightGain = previousRightGain;
     const auto transitionSamples = static_cast<int>(sampleRate * 0.5);
     for (auto sample = 0; sample < transitionSamples; ++sample)
     {
-        const auto gains = transition.process(0.25f, 0.0f);
-        maximumRightStep = std::max(maximumRightStep,
-                                    std::abs(gains.right - previousRightGain));
-        previousRightGain = gains.right;
-        if (rightRecoverySample < 0 && gains.right >= 0.9f)
-            rightRecoverySample = sample;
-        finalLeftGain = gains.left;
-        finalRightGain = gains.right;
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto dry = static_cast<float>(0.18 * std::sin(twoPi * 2200.0 * time));
+        const auto wet = static_cast<float>(0.10 * std::sin(twoPi * 2200.0 * time + 0.7));
+        const auto output = transition.process(dry, 0.0f, wet, wet);
+        const auto error = static_cast<double>(output.right - wet);
+        transitionReferenceEnergy += static_cast<double>(wet) * wet;
+        transitionErrorEnergy += error * error;
+        if ((sample + 1) % transitionWindowSamples == 0)
+        {
+            const auto normalisedError = std::sqrt(
+                transitionErrorEnergy / (transitionReferenceEnergy + 1.0e-30));
+            if (rightRecoverySample < 0 && normalisedError <= 0.02)
+                rightRecoverySample = sample;
+            transitionReferenceEnergy = 0.0;
+            transitionErrorEnergy = 0.0;
+        }
     }
-
     require(rightRecoverySample >= 0
-                && static_cast<double>(rightRecoverySample) / sampleRate <= 0.35,
-            "Centre-to-hard-left transition keeps ducking the right channel too long");
-    require(finalLeftGain <= 0.22f && finalRightGain >= 0.98f,
-            "Hard-left transition did not converge to independent channel gains");
-    require(maximumRightStep <= 0.005f,
-            "Spatial unlinking caused an abrupt right-channel gain step");
+                && static_cast<double>(rightRecoverySample) / sampleRate <= 0.30,
+            "Centre-to-hard-left transition keeps shaping the right wet channel too long");
+
+    SpatialDucker centred;
+    centred.prepare(sampleRate, 1.0f);
+    std::array<double, 2> referenceSin {};
+    std::array<double, 2> referenceCos {};
+    std::array<double, 2> outputSin {};
+    std::array<double, 2> outputCos {};
+    for (auto sample = 0; sample < steadySamples; ++sample)
+    {
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto dry = static_cast<float>(
+            0.16 * std::sin(twoPi * 2200.0 * time + 0.17)
+            + 0.12 * std::sin(twoPi * 6500.0 * time + 0.57));
+        const auto wetMid = static_cast<float>(
+            0.10 * std::sin(twoPi * 2200.0 * time + 0.91));
+        const auto wetSide = static_cast<float>(
+            0.10 * std::sin(twoPi * 6500.0 * time + 1.31));
+        const auto output = centred.process(dry, dry,
+                                            wetMid + wetSide,
+                                            wetMid - wetSide);
+        if (sample < measurementStart)
+            continue;
+        const std::array reference { wetMid, wetSide };
+        const std::array measured {
+            0.5f * (output.left + output.right),
+            0.5f * (output.left - output.right)
+        };
+        constexpr std::array frequencies { 2200.0, 6500.0 };
+        for (std::size_t component = 0; component < frequencies.size(); ++component)
+        {
+            const auto sine = std::sin(twoPi * frequencies[component] * time);
+            const auto cosine = std::cos(twoPi * frequencies[component] * time);
+            referenceSin[component] += reference[component] * sine;
+            referenceCos[component] += reference[component] * cosine;
+            outputSin[component] += measured[component] * sine;
+            outputCos[component] += measured[component] * cosine;
+        }
+    }
+    std::array<double, 2> midSideReductionDb {};
+    for (std::size_t component = 0; component < midSideReductionDb.size(); ++component)
+        midSideReductionDb[component] = 20.0 * std::log10(
+            std::hypot(referenceSin[component], referenceCos[component])
+            / std::hypot(outputSin[component], outputCos[component]));
+    require(midSideReductionDb[0] >= 3.0 && midSideReductionDb[0] <= 6.5,
+            "Centred dry source does not clear the wet Mid presence band");
+    require(midSideReductionDb[1] <= 1.0,
+            "Centred dry source does not preserve the wet Side field");
 
     SpatialDucker macro;
     macro.prepare(sampleRate, 1.0f);
-    SpatialDucker::Gains macroGains;
     for (auto sample = 0; sample < static_cast<int>(sampleRate); ++sample)
-        macroGains = macro.process(0.25f, 0.25f);
-    const auto engagedGain = macroGains.left;
+    {
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto dry = static_cast<float>(0.18 * std::sin(twoPi * 2200.0 * time));
+        const auto wet = static_cast<float>(0.10 * std::sin(twoPi * 2200.0 * time + 0.7));
+        (void) macro.process(dry, dry, wet, wet);
+    }
     macro.setAmount(0.0f);
-    auto halfwayGain = engagedGain;
+    auto earlyDifferenceEnergy = 0.0;
+    auto exactBypassSamples = 0;
     const auto bypassSamples = static_cast<int>(sampleRate * 0.06);
     for (auto sample = 0; sample < bypassSamples; ++sample)
     {
-        macroGains = macro.process(0.25f, 0.25f);
-        if (sample == static_cast<int>(sampleRate * 0.025))
-            halfwayGain = macroGains.left;
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto dry = static_cast<float>(0.18 * std::sin(twoPi * 2200.0 * time));
+        const auto wet = static_cast<float>(0.10 * std::sin(twoPi * 2200.0 * time + 0.7));
+        const auto output = macro.process(dry, dry, wet, wet);
+        if (sample < static_cast<int>(sampleRate * 0.025))
+        {
+            const auto difference = static_cast<double>(output.left - wet);
+            earlyDifferenceEnergy += difference * difference;
+        }
+        if (sample >= static_cast<int>(sampleRate * 0.055)
+            && std::bit_cast<std::uint32_t>(output.left)
+                == std::bit_cast<std::uint32_t>(wet)
+            && std::bit_cast<std::uint32_t>(output.right)
+                == std::bit_cast<std::uint32_t>(wet))
+            ++exactBypassSamples;
     }
-    require(halfwayGain > engagedGain + 0.10f && halfwayGain < 0.90f,
-            "Ducking macro does not ramp smoothly toward bypass");
-    require(macroGains.left == 1.0f && macroGains.right == 1.0f,
-            "Ducking at zero percent is not neutral after its 50-ms ramp");
+    require(earlyDifferenceEnergy > 1.0e-8,
+            "Perceptual Ducking macro jumped directly to bypass");
+    require(exactBypassSamples == static_cast<int>(sampleRate * 0.005),
+            "Perceptual Ducking does not reach exact bypass after its 50-ms ramp");
 
     macro.setAmount(1.0f);
+    auto reengagedDifferenceEnergy = 0.0;
     for (auto sample = 0; sample < bypassSamples; ++sample)
-        macroGains = macro.process(0.25f, 0.25f);
-    require(macroGains.left <= 0.22f && macroGains.right <= 0.22f,
-            "Re-engaged Ducking did not use the continuously warmed detector state");
-
-    SpatialDucker correlated;
-    SpatialDucker weakChannelBaseline;
-    correlated.prepare(sampleRate, 1.0f);
-    weakChannelBaseline.prepare(sampleRate, 1.0f);
-    SpatialDucker::Gains correlatedGains;
-    SpatialDucker::Gains baselineGains;
-    for (auto sample = 0; sample < static_cast<int>(sampleRate); ++sample)
     {
-        correlatedGains = correlated.process(0.08f, 0.04f);
-        baselineGains = weakChannelBaseline.process(0.0f, 0.04f);
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto dry = static_cast<float>(0.18 * std::sin(twoPi * 2200.0 * time));
+        const auto wet = static_cast<float>(0.10 * std::sin(twoPi * 2200.0 * time + 0.7));
+        const auto output = macro.process(dry, dry, wet, wet);
+        if (sample >= static_cast<int>(sampleRate * 0.055))
+        {
+            const auto difference = static_cast<double>(output.left - wet);
+            reengagedDifferenceEnergy += difference * difference;
+        }
     }
-    require(correlatedGains.left < correlatedGains.right,
-            "Adaptive stereo link erased the level direction of a panned source");
-    require(correlatedGains.right < baselineGains.right - 0.08f,
-            "Correlated near-centre input did not engage adaptive stereo linking");
-    require(correlatedGains.right > correlatedGains.left + 0.01f,
-            "Adaptive stereo link fully linked a meaningfully panned source");
+    require(reengagedDifferenceEnergy > 1.0e-7,
+            "Re-engaged Perceptual Ducking did not use its warmed detector state");
 
-    std::cout << "[METRIC] Spatial Ducking transition: right recovery="
+    constexpr std::array<float, 5> amounts { 0.0f, 0.25f, 0.50f, 0.75f, 1.0f };
+    std::array<SpatialDucker, amounts.size()> amountDucker;
+    std::array<double, amounts.size()> amountEnergy {};
+    for (std::size_t index = 0; index < amountDucker.size(); ++index)
+        amountDucker[index].prepare(sampleRate, amounts[index]);
+    for (auto sample = 0; sample < steadySamples; ++sample)
+    {
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto dry = static_cast<float>(0.18 * std::sin(twoPi * 2200.0 * time));
+        const auto wet = static_cast<float>(0.10 * std::sin(twoPi * 2200.0 * time + 0.7));
+        for (std::size_t index = 0; index < amountDucker.size(); ++index)
+        {
+            const auto output = amountDucker[index].process(dry, dry, wet, wet);
+            if (sample >= measurementStart)
+                amountEnergy[index] += static_cast<double>(output.left) * output.left;
+        }
+    }
+    for (std::size_t index = 1; index < amountEnergy.size(); ++index)
+        require(amountEnergy[index] < amountEnergy[index - 1],
+                "Perceptual Ducking amount does not increase monotonically");
+
+    SpatialDucker invalid;
+    invalid.prepare(sampleRate, 0.0f);
+    const auto invalidOutput = invalid.process(std::numeric_limits<float>::quiet_NaN(),
+                                               std::numeric_limits<float>::infinity(),
+                                               std::numeric_limits<float>::quiet_NaN(),
+                                               std::numeric_limits<float>::infinity());
+    require(invalidOutput.left == 0.0f && invalidOutput.right == 0.0f,
+            "Invalid input contaminated bypassed Perceptual Ducking");
+
+    std::cout << "[METRIC] Perceptual Ducking stereo: hard L/R="
+              << hardLeftReductionDb << '/' << hardRightReductionDb
+              << " dB, Mid/Side=" << midSideReductionDb[0] << '/'
+              << midSideReductionDb[1] << " dB, right recovery="
               << 1000.0 * static_cast<double>(rightRecoverySample) / sampleRate
-              << " ms, max step=" << maximumRightStep
-              << ", macro half=" << halfwayGain
-              << ", linked weak=" << correlatedGains.right
-              << ", independent weak=" << baselineGains.right << '\n';
+              << " ms\n";
 }
 
-void testSpatialDuckingFreezeIsolation()
+void testPerceptualDuckingVocalClarityWithoutCollapse()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto phraseSamples = 57600;
+    constexpr auto warmupSamples = 96000;
+    constexpr auto measurementSamples = 192000;
+    constexpr auto totalSamples = warmupSamples + measurementSamples;
+    constexpr auto windowSamples = 2400;
+    const DriftVocalSource vocal;
+
+    ReverbParameters parameters;
+    parameters.mode = ReverbMode::drift;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 8.0f;
+    parameters.size = 1.0f;
+    parameters.preDelayMs = 0.0f;
+    parameters.lowCutHz = 80.0f;
+    parameters.highDampingHz = 9000.0f;
+    parameters.evolution = 0.75f;
+    parameters.width = 1.0f;
+    parameters.ducking = 0.0f;
+
+    FDNReverb wetGenerator;
+    wetGenerator.setParameters(parameters);
+    wetGenerator.prepare(sampleRate, 512);
+    SpatialDucker ducker;
+    ducker.prepare(sampleRate, 1.0f);
+    FourBandMeter referenceLeftMeter(sampleRate);
+    FourBandMeter referenceRightMeter(sampleRate);
+    FourBandMeter duckedLeftMeter(sampleRate);
+    FourBandMeter duckedRightMeter(sampleRate);
+    std::array<double, 4> referenceBandEnergy {};
+    std::array<double, 4> duckedBandEnergy {};
+    auto referenceEnergy = 0.0;
+    auto duckedEnergy = 0.0;
+    auto windowReferenceEnergy = 0.0;
+    auto windowDuckedEnergy = 0.0;
+    auto maximumWindowLossDb = 0.0;
+    auto peak = 0.0f;
+
+    for (auto sample = 0; sample < totalSamples; ++sample)
+    {
+        const auto dry = vocal.sample(sample % phraseSamples, phraseSamples, sampleRate);
+        auto wetLeft = dry;
+        auto wetRight = dry;
+        wetGenerator.processSample(wetLeft, wetRight);
+        const auto ducked = ducker.process(dry, dry, wetLeft, wetRight);
+        require(std::isfinite(ducked.left) && std::isfinite(ducked.right),
+                "Perceptual vocal Ducking produced NaN/Inf");
+        peak = std::max({ peak, std::abs(ducked.left), std::abs(ducked.right) });
+        if (sample < warmupSamples)
+            continue;
+
+        const auto referenceLeftBands = referenceLeftMeter.process(wetLeft);
+        const auto referenceRightBands = referenceRightMeter.process(wetRight);
+        const auto duckedLeftBands = duckedLeftMeter.process(ducked.left);
+        const auto duckedRightBands = duckedRightMeter.process(ducked.right);
+        for (std::size_t band = 0; band < referenceBandEnergy.size(); ++band)
+        {
+            referenceBandEnergy[band] += referenceLeftBands[band] * referenceLeftBands[band]
+                                       + referenceRightBands[band] * referenceRightBands[band];
+            duckedBandEnergy[band] += duckedLeftBands[band] * duckedLeftBands[band]
+                                    + duckedRightBands[band] * duckedRightBands[band];
+        }
+        const auto referenceSampleEnergy = static_cast<double>(wetLeft) * wetLeft
+                                         + static_cast<double>(wetRight) * wetRight;
+        const auto duckedSampleEnergy = static_cast<double>(ducked.left) * ducked.left
+                                      + static_cast<double>(ducked.right) * ducked.right;
+        referenceEnergy += referenceSampleEnergy;
+        duckedEnergy += duckedSampleEnergy;
+        windowReferenceEnergy += referenceSampleEnergy;
+        windowDuckedEnergy += duckedSampleEnergy;
+        const auto measuredSample = sample - warmupSamples + 1;
+        if (measuredSample % windowSamples == 0)
+        {
+            if (windowReferenceEnergy > 1.0e-12)
+                maximumWindowLossDb = std::max(
+                    maximumWindowLossDb,
+                    10.0 * std::log10((windowReferenceEnergy + 1.0e-30)
+                                      / (windowDuckedEnergy + 1.0e-30)));
+            windowReferenceEnergy = 0.0;
+            windowDuckedEnergy = 0.0;
+        }
+    }
+
+    std::array<double, 4> bandLossDb {};
+    for (std::size_t band = 0; band < bandLossDb.size(); ++band)
+        bandLossDb[band] = 10.0 * std::log10(
+            (referenceBandEnergy[band] + 1.0e-30)
+            / (duckedBandEnergy[band] + 1.0e-30));
+    const auto totalLossDb = 10.0 * std::log10(
+        (referenceEnergy + 1.0e-30) / (duckedEnergy + 1.0e-30));
+    const auto vocalPresenceLossDb = 10.0 * std::log10(
+        (referenceBandEnergy[2] + referenceBandEnergy[3] + 1.0e-30)
+        / (duckedBandEnergy[2] + duckedBandEnergy[3] + 1.0e-30));
+
+    std::cout << "[METRIC] Perceptual vocal Ducking: bands="
+              << bandLossDb[0] << ',' << bandLossDb[1] << ','
+              << bandLossDb[2] << ',' << bandLossDb[3]
+              << " dB, presence=" << vocalPresenceLossDb
+              << " dB, total=" << totalLossDb
+              << " dB, max 50-ms loss=" << maximumWindowLossDb << " dB\n";
+
+    require(referenceEnergy > 1.0e-10 && peak < 4.0f,
+            "Perceptual vocal Ducking lost or destabilised the wet signal");
+    require(vocalPresenceLossDb >= 1.0,
+            "Perceptual Ducking does not create enough vocal presence contrast");
+    require(totalLossDb <= 1.6,
+            "Perceptual vocal Ducking collapses the full wet tail");
+    require(vocalPresenceLossDb - bandLossDb[0] >= 0.20,
+            "Perceptual vocal Ducking does not favour clarity over low-band loss");
+    require(bandLossDb[0] <= 1.5,
+            "Perceptual vocal Ducking removes excessive low wet energy");
+    require(maximumWindowLossDb <= 2.5,
+            "Perceptual vocal Ducking creates an audible short-term wet hole");
+    require(*std::min_element(bandLossDb.begin(), bandLossDb.end()) >= -0.5,
+            "Perceptual vocal Ducking unintentionally boosts a wet band");
+}
+
+void testPerceptualDuckingKickBass190NoPumping()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto warmupBeats = 16;
+    constexpr auto measuredBeats = 32;
+    constexpr auto beatSeconds = 60.0 / 190.0;
+    constexpr auto totalBeats = warmupBeats + measuredBeats;
+    constexpr auto windowSamples = 480;
+    const auto patternSamples = static_cast<int>(
+        std::ceil(static_cast<double>(totalBeats) * beatSeconds * sampleRate));
+
+    ReverbParameters parameters;
+    parameters.mode = ReverbMode::drift;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 8.0f;
+    parameters.size = 1.1f;
+    parameters.preDelayMs = 0.0f;
+    parameters.lowCutHz = 20.0f;
+    parameters.highDampingHz = 12000.0f;
+    parameters.evolution = 0.75f;
+    parameters.width = 1.0f;
+    parameters.ducking = 0.0f;
+
+    FDNReverb wetGenerator;
+    wetGenerator.setParameters(parameters);
+    wetGenerator.prepare(sampleRate, 512);
+    SpatialDucker ducker;
+    ducker.prepare(sampleRate, 1.0f);
+    auto referenceEnergy = 0.0;
+    auto duckedEnergy = 0.0;
+    auto attackReferenceEnergy = 0.0;
+    auto attackDuckedEnergy = 0.0;
+    auto cloudReferenceEnergy = 0.0;
+    auto cloudDuckedEnergy = 0.0;
+    auto windowReferenceEnergy = 0.0;
+    auto windowDuckedEnergy = 0.0;
+    auto maximumWindowLossDb = 0.0;
+    std::array<double, 2> halfReferenceEnergy {};
+    std::array<double, 2> halfDuckedEnergy {};
+    auto peak = 0.0f;
+
+    for (auto sample = 0; sample < patternSamples; ++sample)
+    {
+        const auto dry = kickBass190Sample(sample, sampleRate);
+        auto wetLeft = dry;
+        auto wetRight = dry;
+        wetGenerator.processSample(wetLeft, wetRight);
+        const auto ducked = ducker.process(dry, dry, wetLeft, wetRight);
+        require(std::isfinite(ducked.left) && std::isfinite(ducked.right),
+                "Perceptual 190-BPM Ducking produced NaN/Inf");
+        peak = std::max({ peak, std::abs(ducked.left), std::abs(ducked.right) });
+
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto beat = static_cast<int>(std::floor(time / beatSeconds));
+        if (beat < warmupBeats || beat >= totalBeats)
+            continue;
+
+        const auto referenceSampleEnergy = static_cast<double>(wetLeft) * wetLeft
+                                         + static_cast<double>(wetRight) * wetRight;
+        const auto duckedSampleEnergy = static_cast<double>(ducked.left) * ducked.left
+                                      + static_cast<double>(ducked.right) * ducked.right;
+        referenceEnergy += referenceSampleEnergy;
+        duckedEnergy += duckedSampleEnergy;
+        const auto measuredBeat = beat - warmupBeats;
+        const auto half = measuredBeat < measuredBeats / 2 ? 0u : 1u;
+        halfReferenceEnergy[half] += referenceSampleEnergy;
+        halfDuckedEnergy[half] += duckedSampleEnergy;
+
+        const auto beatPosition = std::fmod(time, beatSeconds);
+        const auto quarterBeat = beatSeconds * 0.25;
+        const auto notePosition = std::fmod(beatPosition, quarterBeat);
+        if (notePosition < 0.012)
+        {
+            attackReferenceEnergy += referenceSampleEnergy;
+            attackDuckedEnergy += duckedSampleEnergy;
+        }
+        else if (notePosition >= 0.035 && notePosition < 0.065)
+        {
+            cloudReferenceEnergy += referenceSampleEnergy;
+            cloudDuckedEnergy += duckedSampleEnergy;
+        }
+
+        windowReferenceEnergy += referenceSampleEnergy;
+        windowDuckedEnergy += duckedSampleEnergy;
+        const auto measuredSample = sample
+            - static_cast<int>(std::ceil(warmupBeats * beatSeconds * sampleRate)) + 1;
+        if (measuredSample > 0 && measuredSample % windowSamples == 0)
+        {
+            if (windowReferenceEnergy > 1.0e-12)
+                maximumWindowLossDb = std::max(
+                    maximumWindowLossDb,
+                    10.0 * std::log10((windowReferenceEnergy + 1.0e-30)
+                                      / (windowDuckedEnergy + 1.0e-30)));
+            windowReferenceEnergy = 0.0;
+            windowDuckedEnergy = 0.0;
+        }
+    }
+
+    const auto totalLossDb = 10.0 * std::log10(
+        (referenceEnergy + 1.0e-30) / (duckedEnergy + 1.0e-30));
+    const auto attackContrastDb = 10.0 * std::log10(
+        (attackReferenceEnergy + 1.0e-30) / (attackDuckedEnergy + 1.0e-30));
+    const auto cloudLossDb = 10.0 * std::log10(
+        (cloudReferenceEnergy + 1.0e-30) / (cloudDuckedEnergy + 1.0e-30));
+    const auto firstHalfRatio = halfDuckedEnergy[0] / (halfReferenceEnergy[0] + 1.0e-30);
+    const auto secondHalfRatio = halfDuckedEnergy[1] / (halfReferenceEnergy[1] + 1.0e-30);
+
+    auto tailReferenceEnergy = 0.0;
+    auto tailErrorEnergy = 0.0;
+    const auto tailSamples = static_cast<int>(sampleRate);
+    const auto tailMeasurementStart = static_cast<int>(sampleRate * 0.45);
+    for (auto sample = 0; sample < tailSamples; ++sample)
+    {
+        auto wetLeft = 0.0f;
+        auto wetRight = 0.0f;
+        wetGenerator.processSample(wetLeft, wetRight);
+        const auto ducked = ducker.process(0.0f, 0.0f, wetLeft, wetRight);
+        require(std::isfinite(ducked.left) && std::isfinite(ducked.right),
+                "Perceptual Ducking tail recovery produced NaN/Inf");
+        if (sample >= tailMeasurementStart)
+        {
+            tailReferenceEnergy += static_cast<double>(wetLeft) * wetLeft
+                                 + static_cast<double>(wetRight) * wetRight;
+            const auto leftError = static_cast<double>(ducked.left - wetLeft);
+            const auto rightError = static_cast<double>(ducked.right - wetRight);
+            tailErrorEnergy += leftError * leftError + rightError * rightError;
+        }
+    }
+    const auto tailRecoveryError = std::sqrt(
+        tailErrorEnergy / (tailReferenceEnergy + 1.0e-30));
+
+    std::cout << "[METRIC] Perceptual Ducking kick+bass 190: total="
+              << totalLossDb << " dB, attacks=" << attackContrastDb
+              << " dB, cloud=" << cloudLossDb
+              << " dB, max 10-ms loss=" << maximumWindowLossDb
+              << " dB, half ratio=" << secondHalfRatio / firstHalfRatio
+              << ", tail NRMS=" << tailRecoveryError << '\n';
+
+    require(referenceEnergy > 1.0e-10 && peak < 4.0f,
+            "Perceptual 190-BPM Ducking lost or destabilised the wet signal");
+    require(totalLossDb <= 1.5,
+            "Perceptual 190-BPM Ducking collapses the wet pattern");
+    require(attackContrastDb >= 0.35,
+            "Perceptual Ducking does not expose kick/bass attacks");
+    require(cloudLossDb <= 1.5,
+            "Perceptual Ducking removes too much inter-attack cloud");
+    require(maximumWindowLossDb <= 2.5,
+            "Perceptual Ducking creates a pumping hole at 190 BPM");
+    require(secondHalfRatio / firstHalfRatio >= 0.90
+                && secondHalfRatio / firstHalfRatio <= 1.10,
+            "Perceptual Ducking gain drifts over the repeated 190-BPM pattern");
+    require(tailRecoveryError <= 0.02,
+            "Perceptual Ducking remains imprinted on the released tail");
+}
+
+void testPerceptualDuckingFreezeIsolation()
 {
     constexpr auto sampleRate = 48000.0;
     constexpr double twoPi = 6.28318530717958647692;
@@ -2940,7 +3353,8 @@ void testSpatialDuckingFreezeIsolation()
     {
         const auto time = static_cast<double>(sample) / sampleRate;
         const auto input = static_cast<float>(0.13 * std::sin(twoPi * 311.0 * time)
-                                              + 0.09 * std::sin(twoPi * 727.0 * time));
+                                              + 0.09 * std::sin(twoPi * 727.0 * time)
+                                              + 0.11 * std::sin(twoPi * 2200.0 * time));
         auto referenceLeft = input;
         auto referenceRight = input;
         auto duckedLeft = input;
@@ -2977,7 +3391,7 @@ void testSpatialDuckingFreezeIsolation()
     {
         const auto time = static_cast<double>(sample) / sampleRate;
         const auto detectorInput = static_cast<float>(
-            0.45 * std::sin(twoPi * 181.0 * time + 0.23));
+            0.28 * std::sin(twoPi * 2200.0 * time + 0.23));
         auto referenceLeft = detectorInput;
         auto referenceRight = 0.0f;
         auto duckedLeft = detectorInput;
@@ -3000,8 +3414,8 @@ void testSpatialDuckingFreezeIsolation()
             "Frozen tail became silent before the spatial Ducking test");
     const auto leftEnergyRatio = duckedLeftEnergy / referenceLeftEnergy;
     const auto rightNormalisedError = std::sqrt(rightErrorEnergy / referenceRightEnergy);
-    require(leftEnergyRatio <= 0.25,
-            "Hard-left detector did not sufficiently duck the left frozen tail");
+    require(leftEnergyRatio >= 0.45 && leftEnergyRatio <= 0.90,
+            "Perceptual Ducking does not balance local clarity and frozen-tail energy");
     require(rightNormalisedError <= 1.0e-6,
             "Hard-left detector changed the right frozen tail");
 
@@ -3036,7 +3450,7 @@ void testSpatialDuckingFreezeIsolation()
     require(recoveryError <= 1.0e-5,
             "Ducking altered the internal frozen FDN state");
 
-    std::cout << "[METRIC] Spatial Ducking Freeze: left energy ratio=" << leftEnergyRatio
+    std::cout << "[METRIC] Perceptual Ducking Freeze: left energy ratio=" << leftEnergyRatio
               << ", right NRMS=" << rightNormalisedError
               << ", recovered NRMS=" << recoveryError << '\n';
 }
@@ -3344,12 +3758,16 @@ int main(int argc, char** argv)
         NamedTest { "Drift low/high Evolution kick+bass 190 BPM",
                     testDriftEvolutionKickBass190 },
         NamedTest { "Veil kick+bass 190 BPM", testVeilKickBass190 },
-        NamedTest { "Spatial Ducking stereo geometry and sample rates",
-                    testSpatialDuckerStereoGeometryAndSampleRates },
-        NamedTest { "Spatial Ducking automation and adaptive link",
-                    testSpatialDuckerAutomationAndAdaptiveLink },
-        NamedTest { "Spatial Ducking Freeze isolation",
-                    testSpatialDuckingFreezeIsolation },
+        NamedTest { "Perceptual Ducking spectral selectivity and sample rates",
+                    testPerceptualDuckerSpectralSelectivityAndSampleRates },
+        NamedTest { "Perceptual Ducking automation and adaptive stereo",
+                    testPerceptualDuckerAutomationAndAdaptiveStereo },
+        NamedTest { "Perceptual Ducking vocal clarity without collapse",
+                    testPerceptualDuckingVocalClarityWithoutCollapse },
+        NamedTest { "Perceptual Ducking kick+bass 190 BPM without pumping",
+                    testPerceptualDuckingKickBass190NoPumping },
+        NamedTest { "Perceptual Ducking Freeze isolation",
+                    testPerceptualDuckingFreezeIsolation },
         NamedTest { "deterministic Character/Evolution fingerprints",
                     testDeterministicRenderFingerprints },
         NamedTest { "no allocations in process", testNoAllocationsInProcess }
