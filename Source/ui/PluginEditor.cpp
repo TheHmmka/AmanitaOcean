@@ -238,11 +238,7 @@ void AmanitaOceanAudioProcessorEditor::timerCallback()
         currentAccent_ = targetAccent_;
     backgroundDirty_ = currentAccent_ != previousAccent || backgroundDirty_;
     lookAndFeel_.setAccentColour(currentAccent_);
-    const auto highRefresh = evolutionKnob_.getSlider().isMouseButtonDown()
-                          || currentAccent_ != targetAccent_
-                          || deepCurrent_.needsHighRefresh(visualCharacter_, evolution, frozen);
-    const auto scheduledBackgroundFrame = ++backgroundFrameCounter_ % 2 == 0;
-    if ((highRefresh || scheduledBackgroundFrame) && backgroundDirty_)
+    if (backgroundDirty_)
     {
         deepCurrent_.render(currentAccent_);
         repaint();

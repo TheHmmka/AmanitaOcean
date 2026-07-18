@@ -547,6 +547,48 @@ void testDeepCurrentBackgroundRenderer()
                 && bottomPresence.normalisedMean > 0.0010,
             "Deep Current is not visible behind both upper and lower controls");
 
+    constexpr auto continuityWidth = 480;
+    constexpr auto continuityHeight = 300;
+    constexpr auto continuityFrames = 120;
+    amanita::ui::DeepCurrentRenderer continuityRenderer;
+    continuityRenderer.reset(drift, evolution, false, 11.0);
+    continuityRenderer.setSize(continuityWidth, continuityHeight);
+    continuityRenderer.render(accent);
+    auto previousContinuityFrame = paintBackgroundFrame(continuityRenderer,
+                                                        continuityWidth,
+                                                        continuityHeight);
+    std::vector<double> motionFrameDeltas;
+    motionFrameDeltas.reserve(continuityFrames);
+    for (auto frame = 0; frame < continuityFrames; ++frame)
+    {
+        require(continuityRenderer.advance(1.0 / 30.0, drift, evolution, false),
+                "Deep Current stopped during its 30 FPS continuity test");
+        continuityRenderer.render(accent);
+        auto currentContinuityFrame = paintBackgroundFrame(continuityRenderer,
+                                                           continuityWidth,
+                                                           continuityHeight);
+        motionFrameDeltas.push_back(measureImageDifference(previousContinuityFrame,
+                                                            currentContinuityFrame)
+                                        .normalisedMean);
+        previousContinuityFrame = std::move(currentContinuityFrame);
+    }
+
+    const auto meanMotionFrameDelta = std::accumulate(motionFrameDeltas.begin(),
+                                                       motionFrameDeltas.end(), 0.0)
+                                    / static_cast<double>(motionFrameDeltas.size());
+    const auto peakMotionFrameDelta = *std::max_element(motionFrameDeltas.begin(),
+                                                        motionFrameDeltas.end());
+    require(meanMotionFrameDelta > 1.0e-6,
+            "Deep Current 30 FPS sequence contains no visible motion");
+    require(peakMotionFrameDelta <= meanMotionFrameDelta * 1.75 + 1.0e-5,
+            "Deep Current 30 FPS sequence contains an abrupt motion jump");
+    for (std::size_t index = 1; index + 1 < motionFrameDeltas.size(); ++index)
+        require(motionFrameDeltas[index]
+                    <= 1.5 * std::max(motionFrameDeltas[index - 1],
+                                      motionFrameDeltas[index + 1])
+                       + 1.0e-5,
+                "Deep Current 30 FPS sequence contains an isolated visual spike");
+
     constexpr std::array<int, 4> horizontalEdges { 0, width / 3, width * 2 / 3, width };
     constexpr std::array<int, 4> verticalEdges { 0, 126, 438, height };
     auto minimumLongMean = 1.0;
@@ -739,6 +781,8 @@ void testDeepCurrentBackgroundRenderer()
               << " @" << minimumLongStrongCoverage * 100.0 << "% strong"
               << ", 3x3 2-s min=" << minimumShortMean
               << " @" << minimumShortPerceptibleCoverage * 100.0 << "% perceptible"
+              << ", 30 FPS delta mean/peak=" << meanMotionFrameDelta
+              << '/' << peakMotionFrameDelta
               << ", Freeze stop=" << freezeStopSeconds << " s\n";
 }
 
@@ -1025,11 +1069,9 @@ void benchmarkBackgroundRenderer(int requestedWidth, int requestedFrames)
               << ": mean=" << total / static_cast<double>(milliseconds.size())
               << " ms, p95=" << milliseconds[percentileIndex]
               << " ms, max=" << milliseconds.back()
-              << " ms over " << frames << " frames, one-core load="
-              << total / static_cast<double>(milliseconds.size()) * 1.5
-              << "% steady / "
+              << " ms over " << frames << " frames, one-core load at 30 FPS="
               << total / static_cast<double>(milliseconds.size()) * 3.0
-              << "% active\n";
+              << "%\n";
 }
 
 std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,

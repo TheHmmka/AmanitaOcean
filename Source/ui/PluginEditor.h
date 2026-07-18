@@ -59,7 +59,6 @@ private:
     juce::Colour currentAccent_;
     juce::Colour targetAccent_;
     int visualCharacter_ = 0;
-    unsigned int backgroundFrameCounter_ = 0;
     bool backgroundDirty_ = true;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AmanitaOceanAudioProcessorEditor)
