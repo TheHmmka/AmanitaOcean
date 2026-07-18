@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "ui/CharacterPalette.h"
 #include "ui/DeepCurrentRenderer.h"
 #include "ui/PluginEditor.h"
 
@@ -766,6 +767,28 @@ void testCustomEditorLayoutAndAttachments()
     require(std::abs(constrainer->getFixedAspectRatio() - 1.6) <= 1.0e-9,
             "Custom editor aspect ratio is wrong");
 
+    constexpr std::array<const char*, 4> characterButtonIds {
+        "character-default", "character-bloom", "character-drift", "character-veil"
+    };
+    for (int index = 0; index < static_cast<int>(characterButtonIds.size()); ++index)
+    {
+        auto* button = dynamic_cast<juce::TextButton*>(
+            findDescendantById(*editor,
+                               characterButtonIds[static_cast<std::size_t>(index)]));
+        require(button != nullptr, "Character selector text button was not found");
+        require(button->getToggleState() == (index == 0),
+                "Default Character visual selection state is wrong");
+
+        const auto selectedColour = button->findColour(juce::TextButton::textColourOnId);
+        const auto inactiveColour = button->findColour(juce::TextButton::textColourOffId);
+        require(selectedColour.withAlpha(1.0f) == amanita::ui::characterAccent(index),
+                "Character text does not retain its own algorithm accent colour");
+        require(inactiveColour.getFloatAlpha() <= 0.17f
+                    && selectedColour.getFloatAlpha()
+                        >= inactiveColour.getFloatAlpha() + 0.75f,
+                "Inactive Character text is not sufficiently de-emphasised");
+    }
+
     constexpr std::array<const char*, 15> interactiveIds {
         "character-selector", "character-default", "character-bloom", "character-drift",
         "character-veil",
@@ -885,17 +908,30 @@ void testCustomEditorLayoutAndAttachments()
     auto* freezeButton = dynamic_cast<juce::ToggleButton*>(
         findDescendantById(*editor, "freeze"));
     require(freezeButton != nullptr, "Freeze toggle was not found");
+    editor->setSize(AmanitaOceanAudioProcessorEditor::defaultWidth,
+                    AmanitaOceanAudioProcessorEditor::defaultHeight);
+    const auto freezeBounds = editor->getLocalArea(freezeButton,
+                                                    freezeButton->getLocalBounds());
+    require(freezeBounds.getRight() == 928
+                && freezeBounds.getWidth() >= 72
+                && freezeBounds.getWidth() <= 88
+                && freezeBounds.getWidth() % 4 == 0,
+            "Freeze pill is not fitted to its text on the 4-pixel layout grid");
     freezeButton->setToggleState(true, juce::sendNotificationSync);
     require(parameterById(processor, "freeze").getValue() > 0.5f,
             "Custom Freeze toggle did not update the host parameter");
 }
 
-void renderEditorPng(const juce::String& path, int characterIndex, int requestedWidth)
+void renderEditorPng(const juce::String& path,
+                     int characterIndex,
+                     int requestedWidth,
+                     bool frozen)
 {
     AmanitaOceanAudioProcessor processor;
     const auto safeIndex = std::clamp(characterIndex, 0, 3);
     algorithmParameter(processor).setValueNotifyingHost(static_cast<float>(safeIndex) / 3.0f);
     parameterById(processor, "evolution").setValueNotifyingHost(0.68f);
+    parameterById(processor, "freeze").setValueNotifyingHost(frozen ? 1.0f : 0.0f);
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     require(editor != nullptr, "Could not create editor for PNG render");
@@ -1165,7 +1201,8 @@ int main(int argc, char** argv)
             const auto requestedWidth = argc >= 5
                 ? std::atoi(argv[4])
                 : AmanitaOceanAudioProcessorEditor::defaultWidth;
-            renderEditorPng(argv[2], characterIndex, requestedWidth);
+            const auto frozen = argc >= 6 && std::atoi(argv[5]) != 0;
+            renderEditorPng(argv[2], characterIndex, requestedWidth, frozen);
             std::cout << "[PASS] wrote custom editor PNG to " << argv[2] << '\n';
         }
         if (argc >= 3 && std::strcmp(argv[1], "--render-background") == 0)

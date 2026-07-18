@@ -25,6 +25,37 @@ constexpr auto characterSegmentProperty = "characterSegment";
     return juce::Font(options);
 }
 
+void drawOpticallyCentredText(juce::Graphics& graphics,
+                              const juce::String& text,
+                              const juce::Font& font,
+                              juce::Colour colour,
+                              juce::Rectangle<float> area,
+                              bool centredHorizontally)
+{
+    if (text.isEmpty() || area.isEmpty())
+        return;
+
+    juce::GlyphArrangement glyphs;
+    glyphs.addLineOfText(font, text, 0.0f, 0.0f);
+    if (glyphs.getNumGlyphs() == 0)
+        return;
+
+    auto glyphBounds = glyphs.getBoundingBox(0, -1, false);
+    if (glyphBounds.getWidth() > area.getWidth() && glyphBounds.getWidth() > 0.0f)
+    {
+        glyphs.stretchRangeOfGlyphs(0, -1, area.getWidth() / glyphBounds.getWidth());
+        glyphBounds = glyphs.getBoundingBox(0, -1, false);
+    }
+
+    const auto targetX = centredHorizontally
+        ? area.getCentreX() - glyphBounds.getCentreX()
+        : area.getX() - glyphBounds.getX();
+    const auto targetY = area.getCentreY() - glyphBounds.getCentreY();
+    glyphs.moveRangeOfGlyphs(0, -1, targetX, targetY);
+    graphics.setColour(colour);
+    glyphs.draw(graphics);
+}
+
 [[nodiscard]] juce::Path makeButtonPath(const juce::Button& button,
                                          juce::Rectangle<float> bounds,
                                          float cornerRadius)
@@ -346,78 +377,44 @@ void OceanLookAndFeel::drawButtonText(juce::Graphics& graphics,
 
 void OceanLookAndFeel::drawToggleButton(juce::Graphics& graphics,
                                         juce::ToggleButton& button,
-                                        bool shouldDrawButtonAsHighlighted,
-                                        bool shouldDrawButtonAsDown)
+                                        bool,
+                                        bool)
 {
     juce::Graphics::ScopedSaveState saveState(graphics);
+    const auto bounds = button.getLocalBounds().toFloat().reduced(0.7f);
     const auto isOn = button.getToggleState();
-    const auto alpha = button.isEnabled() ? 1.0f : 0.40f;
-    const auto controlScale = juce::jlimit(0.75f, 1.50f,
-                                           static_cast<float>(button.getHeight()) / 34.0f);
-    auto bounds = button.getLocalBounds().toFloat().reduced(0.7f * controlScale);
-
-    if (shouldDrawButtonAsDown)
-        bounds = bounds.reduced(0.6f * controlScale);
-
+    const auto enabledAlpha = button.isEnabled() ? 1.0f : 0.40f;
+    const auto controlScale = juce::jlimit(0.65f, 1.75f, bounds.getHeight() / 38.6f);
     const auto radius = bounds.getHeight() * 0.5f;
-    auto fill = isOn ? accentColour_.withAlpha(0.16f) : surface().withAlpha(0.72f);
-    if (shouldDrawButtonAsHighlighted)
-        fill = fill.brighter(0.08f);
 
-    if (isOn)
-    {
-        graphics.setColour(accentColour_.withAlpha(0.055f * alpha));
-        graphics.fillRoundedRectangle(bounds.expanded(2.2f * controlScale),
-                                      radius + 2.2f * controlScale);
-    }
-
-    graphics.setColour(fill.withMultipliedAlpha(alpha));
+    graphics.setColour(surface().withAlpha(0.74f).withMultipliedAlpha(enabledAlpha));
     graphics.fillRoundedRectangle(bounds, radius);
-    graphics.setColour((isOn ? accentColour_.withAlpha(0.58f) : hairline().withAlpha(0.82f))
-                           .withMultipliedAlpha(alpha));
-    graphics.drawRoundedRectangle(bounds, radius,
-                                  (isOn ? 1.2f : 0.8f) * controlScale);
+    graphics.setColour(hairline().withAlpha(0.84f).withMultipliedAlpha(enabledAlpha));
+    graphics.drawRoundedRectangle(bounds, radius, 1.0f);
 
-    const auto indicatorArea = bounds.removeFromLeft(bounds.getHeight());
-    const auto indicatorCentre = indicatorArea.getCentre();
-    const auto indicatorDiameter = std::max(4.0f, indicatorArea.getHeight() * 0.22f);
-
-    graphics.setColour((isOn ? accentColour_ : secondaryText().withAlpha(0.45f))
-                           .withMultipliedAlpha(alpha));
-    graphics.fillEllipse(juce::Rectangle<float>(indicatorDiameter, indicatorDiameter)
-                             .withCentre(indicatorCentre));
+    const auto dotSize = 7.0f * controlScale;
+    const auto dot = juce::Rectangle<float>(dotSize, dotSize)
+                         .withCentre({ bounds.getX() + 17.0f * controlScale,
+                                       bounds.getCentreY() });
+    graphics.setColour((isOn ? accentColour_
+                             : secondaryText().darker(0.28f).withAlpha(0.66f))
+                           .withMultipliedAlpha(enabledAlpha));
+    graphics.fillEllipse(dot);
 
     if (isOn)
     {
-        graphics.setColour(accentColour_.withAlpha(0.17f * alpha));
-        graphics.drawEllipse(juce::Rectangle<float>(indicatorDiameter
-                                                        + 6.0f * controlScale,
-                                                    indicatorDiameter
-                                                        + 6.0f * controlScale)
-                                 .withCentre(indicatorCentre),
-                             2.0f * controlScale);
+        graphics.setColour(accentColour_.withAlpha(0.15f * enabledAlpha));
+        graphics.drawEllipse(dot.expanded(3.0f * controlScale), 1.0f);
     }
 
-    graphics.setFont(systemFont(
-        juce::jlimit(9.0f, 17.0f, static_cast<float>(button.getHeight()) * 0.32f),
-        true,
-        0.055f));
-    graphics.setColour((isOn ? primaryText() : secondaryText()).withMultipliedAlpha(alpha));
-    graphics.drawFittedText(button.getButtonText(),
-                            bounds.reduced(2.0f * controlScale, 0.0f).toNearestInt(),
-                            juce::Justification::centredLeft,
-                            1,
-                            0.86f);
-
-    if (button.hasKeyboardFocus(false))
-    {
-        graphics.setColour(focusColour().interpolatedWith(accentColour_, 0.55f)
-                               .withAlpha(0.78f * alpha));
-        graphics.drawRoundedRectangle(button.getLocalBounds().toFloat()
-                                          .reduced(2.5f * controlScale),
-                                      radius - 1.5f * controlScale,
-                                      1.0f * controlScale);
-    }
+    drawOpticallyCentredText(
+        graphics,
+        button.getButtonText().toUpperCase(),
+        systemFont(11.0f * controlScale, true, 0.075f),
+        (isOn ? accentColour_ : secondaryText()).withMultipliedAlpha(enabledAlpha),
+        bounds.withTrimmedLeft(32.0f * controlScale)
+              .withTrimmedRight(10.0f * controlScale),
+        false);
 }
 
 void OceanLookAndFeel::drawLabel(juce::Graphics& graphics, juce::Label& label)

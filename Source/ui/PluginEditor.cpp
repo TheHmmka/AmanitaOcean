@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "CharacterPalette.h"
 
 #include <algorithm>
 #include <array>
@@ -41,6 +42,20 @@ namespace
     return juce::String(juce::roundToInt(value)) + " Hz";
 }
 
+[[nodiscard]] float fittedToggleWidth(const juce::String& text,
+                                      float height,
+                                      float minimumWidth,
+                                      float maximumWidth)
+{
+    const auto paintedHeight = std::max(1.0f, height - 1.4f);
+    const auto controlScale = juce::jlimit(0.65f, 1.75f, paintedHeight / 38.6f);
+    const auto font = uiFont(11.0f * controlScale, juce::Font::bold, 0.075f);
+    const auto contentWidth = 42.0f * controlScale
+        + juce::GlyphArrangement::getStringWidth(font, text.toUpperCase());
+    const auto gridWidth = 4.0f * std::ceil(contentWidth / 4.0f);
+    return juce::jlimit(minimumWidth, maximumWidth, gridWidth);
+}
+
 } // namespace
 
 AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
@@ -60,7 +75,7 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
       focusKnob_(processorToUse.getParameterState(), "focus", "Focus",
                  decimalPercentValue),
       mixKnob_(processorToUse.getParameterState(), "mix", "Mix", decimalPercentValue),
-      currentAccent_(accentForCharacter(characterSelector_.getSelectedIndex())),
+      currentAccent_(amanita::ui::characterAccent(characterSelector_.getSelectedIndex())),
       targetAccent_(currentAccent_),
       visualCharacter_(characterSelector_.getSelectedIndex())
 {
@@ -72,7 +87,6 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
     setLookAndFeel(&lookAndFeel_);
 
     lookAndFeel_.setAccentColour(currentAccent_);
-    characterSelector_.setAccentColour(currentAccent_);
     characterSelector_.onSelectionChanged = [this](int index)
     {
         updateCharacterVisuals(index);
@@ -188,7 +202,11 @@ void AmanitaOceanAudioProcessorEditor::resized()
 
     characterSelector_.setBounds(scaledBounds(184.0f, 72.0f, 592.0f, 44.0f));
     evolutionKnob_.setBounds(scaledBounds(360.0f, 154.0f, 240.0f, 268.0f));
-    freezeButton_.setBounds(scaledBounds(840.0f, 20.0f, 88.0f, 34.0f));
+    constexpr auto freezeHeight = 34.0f;
+    const auto freezeWidth = fittedToggleWidth(freezeButton_.getButtonText(),
+                                               freezeHeight, 72.0f, 120.0f);
+    freezeButton_.setBounds(scaledBounds(928.0f - freezeWidth, 20.0f,
+                                         freezeWidth, freezeHeight));
 
     constexpr std::array<float, 8> cellX { 32.0f, 144.0f, 256.0f, 368.0f,
                                            480.0f, 592.0f, 704.0f, 816.0f };
@@ -220,7 +238,6 @@ void AmanitaOceanAudioProcessorEditor::timerCallback()
         currentAccent_ = targetAccent_;
     backgroundDirty_ = currentAccent_ != previousAccent || backgroundDirty_;
     lookAndFeel_.setAccentColour(currentAccent_);
-    characterSelector_.setAccentColour(currentAccent_);
     const auto highRefresh = evolutionKnob_.getSlider().isMouseButtonDown()
                           || currentAccent_ != targetAccent_
                           || deepCurrent_.needsHighRefresh(visualCharacter_, evolution, frozen);
@@ -236,7 +253,7 @@ void AmanitaOceanAudioProcessorEditor::timerCallback()
 void AmanitaOceanAudioProcessorEditor::updateCharacterVisuals(int characterIndex)
 {
     visualCharacter_ = juce::jlimit(0, 3, characterIndex);
-    targetAccent_ = accentForCharacter(visualCharacter_);
+    targetAccent_ = amanita::ui::characterAccent(visualCharacter_);
     backgroundDirty_ = true;
     repaint();
 }
@@ -330,14 +347,6 @@ juce::Rectangle<int> AmanitaOceanAudioProcessorEditor::scaledBounds(float x,
                                   width * scale,
                                   height * scale)
         .toNearestInt();
-}
-
-juce::Colour AmanitaOceanAudioProcessorEditor::accentForCharacter(int characterIndex) noexcept
-{
-    constexpr std::array<std::uint32_t, 4> colours {
-        0xff81bfc7, 0xffc89c83, 0xff829de0, 0xffb3a6c4
-    };
-    return juce::Colour(colours[static_cast<std::size_t>(juce::jlimit(0, 3, characterIndex))]);
 }
 
 juce::String AmanitaOceanAudioProcessorEditor::descriptionForCharacter(int characterIndex)

@@ -8,7 +8,8 @@
 
 namespace amanita::ui
 {
-class CharacterSelector final : public juce::Component
+class CharacterSelector final : public juce::Component,
+                                private juce::Timer
 {
 public:
     static constexpr int characterCount = 4;
@@ -20,7 +21,6 @@ public:
     void resized() override;
     bool keyPressed(const juce::KeyPress& key) override;
 
-    void setAccentColour(juce::Colour colour);
     [[nodiscard]] int getSelectedIndex() const noexcept;
 
     std::function<void(int)> onSelectionChanged;
@@ -28,13 +28,14 @@ public:
 private:
     void selectIndex(int index);
     void moveSelection(int offset);
-    void updateButtonStates();
+    void updateButtonStates(bool animate);
+    void timerCallback() override;
 
     std::array<std::unique_ptr<juce::TextButton>, characterCount> buttons_;
     juce::ComboBox parameterCombo_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> attachment_;
 
-    juce::Colour accentColour_ { 0xff5fc9c6 };
+    std::array<float, characterCount> selectionProgress_ {};
     int lastNotifiedIndex_ = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CharacterSelector)

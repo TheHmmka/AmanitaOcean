@@ -87,6 +87,7 @@ target_sources(AmanitaOcean
     PRIVATE
         Source/PluginProcessor.cpp
         Source/PluginProcessor.h
+        Source/ui/CharacterPalette.h
         Source/ui/CharacterSelector.cpp
         Source/ui/CharacterSelector.h
         Source/ui/DeepCurrentRenderer.cpp

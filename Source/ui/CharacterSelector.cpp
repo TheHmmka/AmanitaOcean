@@ -1,4 +1,7 @@
 #include "CharacterSelector.h"
+#include "CharacterPalette.h"
+
+#include <cmath>
 
 namespace amanita::ui
 {
@@ -6,6 +9,8 @@ namespace
 {
 constexpr auto parameterId = "algorithm";
 constexpr int radioGroupId = 0x414d;
+constexpr float selectedTextAlpha = 0.98f;
+constexpr float inactiveTextAlpha = 0.15f;
 
 constexpr std::array<const char*, CharacterSelector::characterCount> characterNames {
     "Default", "Bloom", "Drift", "Veil"
@@ -30,13 +35,24 @@ public:
     {
     }
 
+    void setSelectionProgress(float progress)
+    {
+        const auto nextProgress = juce::jlimit(0.0f, 1.0f, progress);
+        if (std::abs(selectionProgress_ - nextProgress) <= 1.0e-6f)
+            return;
+
+        selectionProgress_ = nextProgress;
+        repaint();
+    }
+
     void paintButton(juce::Graphics& graphics, bool, bool) override
     {
         const auto bounds = getLocalBounds().toFloat();
-
-        const auto colourId = getToggleState() ? juce::TextButton::textColourOnId
-                                                : juce::TextButton::textColourOffId;
-        graphics.setColour(findColour(colourId).withMultipliedAlpha(isEnabled() ? 1.0f : 0.45f));
+        const auto inactiveColour = findColour(juce::TextButton::textColourOffId);
+        const auto selectedColour = findColour(juce::TextButton::textColourOnId);
+        graphics.setColour(inactiveColour.interpolatedWith(selectedColour,
+                                                           selectionProgress_)
+                               .withMultipliedAlpha(isEnabled() ? 1.0f : 0.45f));
 
         const auto fontHeight = juce::jlimit(10.5f, 21.0f, bounds.getHeight() * 0.31f);
         graphics.setFont(getLookAndFeel().getTextButtonFont(*this, getHeight())
@@ -46,6 +62,9 @@ public:
                                 juce::Justification::centred, 1, 0.8f);
 
     }
+
+private:
+    float selectionProgress_ = 0.0f;
 };
 } // namespace
 
@@ -82,9 +101,9 @@ CharacterSelector::CharacterSelector(juce::AudioProcessorValueTreeState& state)
         button->setRadioGroupId(radioGroupId, juce::dontSendNotification);
         button->setMouseCursor(juce::MouseCursor::PointingHandCursor);
         button->setColour(juce::TextButton::textColourOffId,
-                          juce::Colours::white.withAlpha(0.55f));
+                          juce::Colours::white.withAlpha(inactiveTextAlpha));
         button->setColour(juce::TextButton::textColourOnId,
-                          juce::Colours::white.withAlpha(0.96f));
+                          characterAccent(index).withAlpha(selectedTextAlpha));
         button->onClick = [this, index]
         {
             selectIndex(index);
@@ -96,7 +115,7 @@ CharacterSelector::CharacterSelector(juce::AudioProcessorValueTreeState& state)
 
     parameterCombo_.onChange = [this]
     {
-        updateButtonStates();
+        updateButtonStates(true);
 
         const auto selectedIndex = getSelectedIndex();
         if (selectedIndex == lastNotifiedIndex_)
@@ -110,12 +129,13 @@ CharacterSelector::CharacterSelector(juce::AudioProcessorValueTreeState& state)
     attachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         state, parameterId, parameterCombo_);
 
-    updateButtonStates();
+    updateButtonStates(false);
     lastNotifiedIndex_ = getSelectedIndex();
 }
 
 CharacterSelector::~CharacterSelector()
 {
+    stopTimer();
     parameterCombo_.onChange = nullptr;
 
     for (auto& button : buttons_)
@@ -137,25 +157,6 @@ void CharacterSelector::paint(juce::Graphics& graphics)
 
     graphics.setColour(juce::Colours::white.withAlpha(0.075f));
     graphics.drawRoundedRectangle(bounds, cornerRadius, 1.0f * scale);
-
-    const auto selectedIndex = getSelectedIndex();
-    if (juce::isPositiveAndBelow(selectedIndex, characterCount))
-    {
-        const auto segmentWidth = bounds.getWidth() / static_cast<float>(characterCount);
-        auto selectedBounds = juce::Rectangle<float> {
-            bounds.getX() + segmentWidth * static_cast<float>(selectedIndex),
-            bounds.getY(), segmentWidth, bounds.getHeight()
-        }.reduced(2.0f * scale);
-
-        auto underline = selectedBounds.withY(selectedBounds.getBottom() - 3.0f * scale)
-                             .withHeight(2.0f * scale)
-                             .reduced(13.0f * scale, 0.0f);
-        graphics.setColour(accentColour_.withAlpha(0.22f));
-        graphics.fillRoundedRectangle(underline.expanded(2.5f * scale, 1.5f * scale),
-                                      2.5f * scale);
-        graphics.setColour(accentColour_);
-        graphics.fillRoundedRectangle(underline, 1.0f * scale);
-    }
 
     graphics.setColour(juce::Colours::white.withAlpha(0.055f));
     const auto segmentWidth = bounds.getWidth() / static_cast<float>(characterCount);
@@ -200,15 +201,6 @@ bool CharacterSelector::keyPressed(const juce::KeyPress& key)
     return false;
 }
 
-void CharacterSelector::setAccentColour(juce::Colour colour)
-{
-    if (accentColour_ == colour)
-        return;
-
-    accentColour_ = colour;
-    repaint();
-}
-
 int CharacterSelector::getSelectedIndex() const noexcept
 {
     return parameterCombo_.getSelectedItemIndex();
@@ -227,7 +219,7 @@ void CharacterSelector::selectIndex(int index)
             return;
     }
     else
-        updateButtonStates();
+        updateButtonStates(true);
 
 }
 
@@ -241,7 +233,7 @@ void CharacterSelector::moveSelection(int offset)
     selectIndex(wrappedIndex);
 }
 
-void CharacterSelector::updateButtonStates()
+void CharacterSelector::updateButtonStates(bool animate)
 {
     const auto selectedIndex = getSelectedIndex();
 
@@ -249,6 +241,53 @@ void CharacterSelector::updateButtonStates()
         buttons_[static_cast<std::size_t>(index)]->setToggleState(
             index == selectedIndex, juce::dontSendNotification);
 
+    if (animate)
+    {
+        startTimerHz(60);
+    }
+    else
+    {
+        stopTimer();
+        for (int index = 0; index < characterCount; ++index)
+        {
+            const auto arrayIndex = static_cast<std::size_t>(index);
+            selectionProgress_[arrayIndex] = index == selectedIndex ? 1.0f : 0.0f;
+            static_cast<SegmentButton&>(*buttons_[arrayIndex])
+                .setSelectionProgress(selectionProgress_[arrayIndex]);
+        }
+    }
+
     repaint();
+}
+
+void CharacterSelector::timerCallback()
+{
+    constexpr auto transitionAmount = 0.16f;
+    constexpr auto completionThreshold = 0.002f;
+    const auto selectedIndex = getSelectedIndex();
+    auto isAnimating = false;
+
+    for (int index = 0; index < characterCount; ++index)
+    {
+        const auto arrayIndex = static_cast<std::size_t>(index);
+        const auto target = index == selectedIndex ? 1.0f : 0.0f;
+        const auto difference = target - selectionProgress_[arrayIndex];
+
+        if (std::abs(difference) > completionThreshold)
+        {
+            selectionProgress_[arrayIndex] += difference * transitionAmount;
+            isAnimating = true;
+        }
+        else
+        {
+            selectionProgress_[arrayIndex] = target;
+        }
+
+        static_cast<SegmentButton&>(*buttons_[arrayIndex])
+            .setSelectionProgress(selectionProgress_[arrayIndex]);
+    }
+
+    if (! isAnimating)
+        stopTimer();
 }
 } // namespace amanita::ui

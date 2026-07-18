@@ -37,7 +37,6 @@ private:
                                                     float y,
                                                     float width,
                                                     float height) const;
-    [[nodiscard]] static juce::Colour accentForCharacter(int characterIndex) noexcept;
     [[nodiscard]] static juce::String descriptionForCharacter(int characterIndex);
 
     AmanitaOceanAudioProcessor& processor_;
