@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(AmanitaOcean VERSION 0.14.0 LANGUAGES C CXX)
+project(AmanitaOcean VERSION 0.18.2 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -94,8 +94,11 @@ target_sources(AmanitaOcean
         Source/ui/CharacterPalette.h
         Source/ui/CharacterSelector.cpp
         Source/ui/CharacterSelector.h
+        Source/ui/AbyssalFlowShaders.h
         Source/ui/DeepCurrentRenderer.cpp
         Source/ui/DeepCurrentRenderer.h
+        Source/ui/OceanShaderBackground.cpp
+        Source/ui/OceanShaderBackground.h
         Source/ui/OceanLookAndFeel.cpp
         Source/ui/OceanLookAndFeel.h
         Source/ui/ParameterKnob.cpp
@@ -117,6 +120,7 @@ target_link_libraries(AmanitaOcean
     PRIVATE
         AmanitaOceanDSP
         juce::juce_audio_utils
+        juce::juce_opengl
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags

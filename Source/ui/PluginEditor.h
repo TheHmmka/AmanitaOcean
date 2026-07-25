@@ -10,6 +10,11 @@
 
 #include <memory>
 
+namespace amanita::ui
+{
+class OceanShaderBackground;
+}
+
 class AmanitaOceanAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                                private juce::Timer
 {
@@ -41,6 +46,7 @@ private:
 
     AmanitaOceanAudioProcessor& processor_;
     amanita::ui::OceanLookAndFeel lookAndFeel_;
+    std::unique_ptr<amanita::ui::OceanShaderBackground> shaderBackground_;
     amanita::ui::DeepCurrentRenderer deepCurrent_;
     amanita::ui::CharacterSelector characterSelector_;
     amanita::ui::ParameterKnob evolutionKnob_;
@@ -61,6 +67,7 @@ private:
     juce::Colour targetAccent_;
     int visualCharacter_ = 0;
     bool backgroundDirty_ = true;
+    bool shaderReadyPreviously_ = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AmanitaOceanAudioProcessorEditor)
 };

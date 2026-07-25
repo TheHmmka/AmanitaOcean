@@ -35,6 +35,8 @@ jobs:
             libasound2-dev \
             libfontconfig1-dev \
             libfreetype-dev \
+            libglu1-mesa-dev \
+            mesa-common-dev \
             libx11-dev \
             libxcomposite-dev \
             libxcursor-dev \

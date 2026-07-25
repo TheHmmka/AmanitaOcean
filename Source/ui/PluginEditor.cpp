@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "CharacterPalette.h"
+#include "OceanShaderBackground.h"
 
 #include <algorithm>
 #include <array>
@@ -85,7 +86,9 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
     setName("Amanita Ocean");
     setTitle("Amanita Ocean reverb editor");
     setDescription("Custom editor for the Amanita Ocean evolving reverb");
-    setOpaque(true);
+    // The OpenGL context composites the JUCE controls over the shader. The
+    // software fallback still paints every pixel when the shader is absent.
+    setOpaque(false);
     setLookAndFeel(&lookAndFeel_);
 
     lookAndFeel_.setAccentColour(currentAccent_);
@@ -131,18 +134,28 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
     deepCurrent_.reset(visualCharacter_,
                        static_cast<float>(evolutionKnob_.getSlider().getValue() * 0.01),
                        freezeButton_.getToggleState());
+    shaderBackground_ = std::make_unique<amanita::ui::OceanShaderBackground>();
+    shaderBackground_->setSnapshot(
+        visualCharacter_,
+        static_cast<float>(evolutionKnob_.getSlider().getValue() * 0.01),
+        static_cast<float>(focusKnob_.getSlider().getValue() * 0.01),
+        freezeButton_.getToggleState(),
+        currentAccent_);
 
     setResizable(true, true);
     setResizeLimits(minimumWidth, minimumHeight, maximumWidth, maximumHeight);
     if (auto* constrainer = getConstrainer())
         constrainer->setFixedAspectRatio(static_cast<double>(defaultWidth) / defaultHeight);
     setSize(defaultWidth, defaultHeight);
+    shaderBackground_->attachTo(*this);
     startTimerHz(30);
 }
 
 AmanitaOceanAudioProcessorEditor::~AmanitaOceanAudioProcessorEditor()
 {
     stopTimer();
+    if (shaderBackground_ != nullptr)
+        shaderBackground_->detach();
     freezeAttachment_.reset();
     setLookAndFeel(nullptr);
 }
@@ -150,30 +163,54 @@ AmanitaOceanAudioProcessorEditor::~AmanitaOceanAudioProcessorEditor()
 void AmanitaOceanAudioProcessorEditor::paint(juce::Graphics& graphics)
 {
     const auto bounds = getLocalBounds().toFloat();
-    juce::ColourGradient background(amanita::ui::OceanLookAndFeel::backgroundTop(),
-                                    bounds.getTopLeft(),
-                                    amanita::ui::OceanLookAndFeel::backgroundBottom(),
-                                    bounds.getBottomLeft(),
-                                    false);
-    background.addColour(0.58, juce::Colour::fromRGB(9, 23, 26));
-    graphics.setGradientFill(background);
-    graphics.fillRect(bounds);
+    const auto shaderReady = shaderBackground_ != nullptr
+                          && shaderBackground_->isReady();
+    if (! shaderReady)
+    {
+        juce::ColourGradient background(amanita::ui::OceanLookAndFeel::backgroundTop(),
+                                        bounds.getTopLeft(),
+                                        amanita::ui::OceanLookAndFeel::backgroundBottom(),
+                                        bounds.getBottomLeft(),
+                                        false);
+        background.addColour(0.58, juce::Colour::fromRGB(9, 23, 26));
+        graphics.setGradientFill(background);
+        graphics.fillRect(bounds);
+        deepCurrent_.paint(graphics, bounds);
+    }
+    else
+    {
+        // Keep the controls calm and readable without hiding the moving field.
+        juce::ColourGradient readability(
+            amanita::ui::OceanLookAndFeel::backgroundTop().withAlpha(0.17f),
+            bounds.getTopLeft(),
+            amanita::ui::OceanLookAndFeel::backgroundBottom().withAlpha(0.08f),
+            bounds.getBottomLeft(),
+            false);
+        readability.addColour(
+            0.68,
+            amanita::ui::OceanLookAndFeel::backgroundBottom().withAlpha(0.035f));
+        graphics.setGradientFill(readability);
+        graphics.fillRect(bounds);
+    }
 
-    deepCurrent_.paint(graphics, bounds);
-
-    const auto heroField = scaledBounds(32.0f, 126.0f, 896.0f, 300.0f).toFloat();
-    const auto evolution = deepCurrent_.getEvolution();
-
-    drawBathymetricField(graphics, heroField, evolution);
+    if (! shaderReady)
+    {
+        const auto heroField = scaledBounds(32.0f, 126.0f, 896.0f, 300.0f).toFloat();
+        drawBathymetricField(graphics, heroField, deepCurrent_.getEvolution());
+    }
 
     const auto sx = static_cast<float>(getWidth()) / defaultWidth;
     const auto sy = static_cast<float>(getHeight()) / defaultHeight;
     const auto scale = juce::jmin(sx, sy);
 
-    graphics.setColour(amanita::ui::OceanLookAndFeel::primaryText());
-    graphics.setFont(uiFont(18.0f * scale, juce::Font::bold, 0.11f));
-    graphics.drawText("AMANITA OCEAN", scaledBounds(32.0f, 18.0f, 300.0f, 25.0f),
-                      juce::Justification::centredLeft, false);
+    const auto titleFont = uiFont(18.0f * scale, juce::Font::bold, 0.11f);
+    juce::AttributedString title;
+    title.setJustification(juce::Justification::centredLeft);
+    title.setWordWrap(juce::AttributedString::none);
+    title.append("AMANITA ", titleFont,
+                 amanita::ui::OceanLookAndFeel::primaryText());
+    title.append("OCEAN", titleFont, currentAccent_);
+    title.draw(graphics, scaledBounds(32.0f, 18.0f, 300.0f, 25.0f).toFloat());
 
     graphics.setColour(amanita::ui::OceanLookAndFeel::secondaryText().withAlpha(0.82f));
     graphics.setFont(uiFont(9.5f * scale, juce::Font::plain, 0.075f));
@@ -202,7 +239,10 @@ void AmanitaOceanAudioProcessorEditor::paint(juce::Graphics& graphics)
 void AmanitaOceanAudioProcessorEditor::resized()
 {
     deepCurrent_.setSize(getWidth(), getHeight());
-    deepCurrent_.render(currentAccent_);
+    if (shaderBackground_ == nullptr || ! shaderBackground_->isReady())
+        deepCurrent_.render(currentAccent_);
+    else
+        shaderBackground_->triggerRepaint();
     backgroundDirty_ = false;
 
     characterSelector_.setBounds(scaledBounds(184.0f, 72.0f, 592.0f, 44.0f));
@@ -248,7 +288,51 @@ void AmanitaOceanAudioProcessorEditor::timerCallback()
         currentAccent_ = targetAccent_;
     backgroundDirty_ = currentAccent_ != previousAccent || backgroundDirty_;
     lookAndFeel_.setAccentColour(currentAccent_);
-    if (backgroundDirty_)
+    if (currentAccent_ != previousAccent)
+        repaint(scaledBounds(30.0f, 16.0f, 305.0f, 29.0f));
+
+    const auto shaderReady = shaderBackground_ != nullptr
+                          && shaderBackground_->isReady();
+    if (shaderReady != shaderReadyPreviously_)
+    {
+        shaderReadyPreviously_ = shaderReady;
+        backgroundDirty_ = true;
+        // OpenGLContext::triggerRepaint() does not invalidate JUCE's cached
+        // component texture. Repaint once so the opaque CPU fallback is
+        // replaced by the transparent readability overlay (or vice versa).
+        repaint();
+    }
+
+    if (shaderBackground_ != nullptr)
+    {
+        shaderBackground_->setSnapshot(
+            visualCharacter_,
+            deepCurrent_.getEvolution(),
+            static_cast<float>(focusKnob_.getSlider().getValue() * 0.01),
+            frozen,
+            currentAccent_);
+    }
+
+    if (shaderReady)
+    {
+        if (currentAccent_ != previousAccent)
+        {
+            for (auto* knob : std::array<amanita::ui::ParameterKnob*, 10> {
+                     &evolutionKnob_, &preDelayKnob_, &sizeKnob_, &decayKnob_,
+                     &lowCutKnob_, &dampingKnob_, &harmonyKnob_, &widthKnob_,
+                     &focusKnob_, &mixKnob_
+                 })
+                knob->repaint();
+            freezeButton_.repaint();
+        }
+
+        // The shader integrates its own smoothed Freeze/mode transitions. A
+        // fixed 30 Hz request keeps those transitions continuous and leaves
+        // the audio thread completely uninvolved.
+        shaderBackground_->triggerRepaint();
+        backgroundDirty_ = false;
+    }
+    else if (backgroundDirty_)
     {
         deepCurrent_.render(currentAccent_);
         repaint();
