@@ -1,7 +1,7 @@
 # Amanita Ocean
 
 Экспериментальный stereo algorithmic reverb для электронной музыки, Psytrance,
-Ambient и Downtempo. Текущая версия `0.13.0` — проверяемый DSP-прототип с
+Ambient и Downtempo. Текущая версия `0.14.0` — проверяемый DSP-прототип с
 собственным масштабируемым интерфейсом на C++20, JUCE 8.0.14 и CMake.
 
 Проект не воспроизводит интерфейс, пресеты, режимы или алгоритмы коммерческих
@@ -28,6 +28,9 @@ Ambient и Downtempo. Текущая версия `0.13.0` — проверяе�
 - stereo excitation/decoding и M/S Width;
 - one-knob Focus с perceptual dry/wet masking-анализом, пассивными
   спектральными pockets, transient-aware слоем и адаптивной stereo geometry;
+- Harmonic Gravity: allocation-free Auto-анализатор формирует общую 12-note
+  pitch-class карту, направляющую 36 стабильных stereo-мод C3–B5 вне
+  feedback-петли;
 - плавный Freeze с отключением входа и feedback gain `0.9995`
   (`0.9985` для Bloom); в Drift спектральное вырезание плавно уходит в bypass,
   сохраняя чистый удерживаемый тембр и движение FDN delay lines;
@@ -52,6 +55,7 @@ Ambient и Downtempo. Текущая версия `0.13.0` — проверяе�
 
 ```text
 stereo input
+    -> Auto HarmonicAnalyzer (parallel dry analysis, 12-note chroma/confidence)
     -> smoothed variable pre-delay
     -> L/R all-pass diffusion (4 stages per channel)
        -> Default: direct excitation
@@ -64,6 +68,7 @@ stereo input
     -> Drift: Evolution morph of two linear passive spectral feedback kernels
     -> orthonormal H8 feedback matrix
     -> two orthogonal stereo output projections
+    -> Harmony-controlled HarmonicTail modal halo (post-FDN, outside feedback)
     -> wet-only M/S width
     -> wet Focus from dry/wet spectral conflict + transient detector
     -> smoothed dry/wet mix
@@ -197,6 +202,62 @@ Default/Bloom/Drift↔Veil интерполируются за `200 ms` без �
 стационарную частоту. AP6 остаётся фиксированным и не создаёт chorus или pitch
 wobble.
 
+### Harmonic Gravity
+
+`HarmonicTail` размещён после готовой stereo-проекции
+FDN и до Width, Focus и Mix. Он не возвращает сигнал в feedback, не меняет
+delay lengths и не может изменить устойчивость H8-сети. При `Harmony = 0`
+метод возвращает исходные значения wet bit-exact. Публичная ручка `Harmony`
+имеет default `0%`, поэтому новый Auto-тракт не меняет звук существующего
+ревербератора, пока пользователь его не включит.
+
+Allocation-free `HarmonicAnalyzer` анализирует исходный dry до pre-delay.
+Независимые L/R filter states объединяются только по энергии, поэтому
+hard-panned и противофазные источники не исчезают. Вход проходит 54-Hz
+high-pass, 2.4-kHz anti-alias low-pass и decimation `×4/×8`; затем 60
+TPT-SVF мод с `Q = 22` покрывают MIDI `36–95` (`C2–B6`). Chroma складывается
+с сохранением реальной энергии октав: слабый transient-артефакт больше не
+получает полный голос только из-за нормализации своего диапазона.
+
+Перед octave folding low-to-high harmonic sieve мягко отделяет самостоятельные
+ноты от обертонов одного источника. Он сохраняет evidence floor для настоящих
+open voicings, а неоднозначность переносит в confidence вместо удаления
+возможной ноты. Fast/sustained envelopes и `240 ms` onset hold подавляют
+повторяющиеся атаки; harmonic-series, polyphony, density, consonance и temporal
+stability gates не дают square/saw bass, вокальным формантам, колоколам,
+kick и несовместимым stereo-полям выдавать себя за уверенный аккорд.
+Устойчивый монодический источник всё же оставляет слабую подсказку около
+`10%`, тогда как согласованный аккорд получает полный confidence.
+Анализатор не привязывает материал к шаблонам major/minor: sus, seventh и
+modal pitch classes остаются допустимыми.
+
+Внутри работают 36 TPT-SVF band-pass мод с фиксированным `Q = 16`, настроенных
+по равномерной темперации от MIDI note `48` до `83` (`C3–B5`). Коэффициенты
+вычисляются только в `prepare()`, а L/R используют общие частоты, но полностью
+независимые состояния. 12 pitch-class weights имеют раздельные attack/release
+`80/240 ms`; confidence сглаживается за `100/300 ms`. При Freeze текущая
+гармоническая карта защёлкивается точно на control edge и продолжает формировать
+уже существующий хвост, независимо от 50-ms gain morph основной FDN.
+
+Первая версия добавляет только мягкий modal halo:
+
+```text
+depth = 0.28 * smoothstep(Harmony) * confidence * pitchActivity
+wet'  = wet + depth * softLimit(weightedModalBank)
+```
+
+Обычная триада не нормализуется вниз, а dense pitch-map получает
+энергонормализацию. `softLimit` полностью линеен до `±2`, после чего мягко
+стремится к `±4`, поэтому обычный harmonic halo не получает лишней
+интермодуляции. При нулевом Amount или неактивной карте modal bank один раз
+очищает состояния и перестаёт вычисляться: повторное включение не возвращает
+старый аккорд и не расходует CPU в bypass. Октавные веса
+`0.72 / 1.00 / 0.82` удерживают основной
+акцент в среднем регистре. Auto-анализатор продолжает следить за dry во
+Freeze, но текущая карта хвоста защёлкнута; после отпускания Freeze она плавно
+переходит к последней распознанной гармонии. MIDI source остаётся отдельным
+следующим этапом.
+
 ### Focus (Perceptual Ducking)
 
 `Focus` — один макро-параметр `0–100%`. Его внутренняя технология — perceptual
@@ -234,10 +295,11 @@ DSP находится в `Source/dsp` и не зависит от JUCE/UI. Вс
 Интерфейс построен вокруг одного главного действия: выбранный Character задаёт
 тип движения, а большой центральный `Evolution` — его силу. `Default`, `Bloom`,
 `Drift` и `Veil` образуют один взаимоисключающий selector; активный режим
-обозначается только тонким нижним подчёркиванием. Никаких скрытых переключателей
-режимов нет. Название и значение `Evolution`, как и у остальных ручек,
-расположены под регулятором. Остальные восемь непрерывных параметров собраны в
-нижнюю полосу, `Freeze` вынесен в заголовок.
+окрашивается собственным accent, а остальные подписи уходят до `15%`
+непрозрачности. Никаких скрытых переключателей режимов нет. Название и значение
+`Evolution`, как и у остальных ручек,
+расположены под регулятором. Остальные девять непрерывных параметров собраны в
+нижнюю полосу группами `3/3/3`, `Freeze` вынесен в заголовок.
 
 Визуальное направление — «bathymetric instrument»: глубокий petrol-black фон,
 тёплый светлый текст и медленно движущиеся контурные линии поля. Для каждого
@@ -256,9 +318,9 @@ Evolution изменяет геометрию поля без дискретно
 Deep Current рендерится в отдельный полупрозрачный ARGB-кэш `1:1` до
 `1200 × 750 px` с качественной интерполяцией при дальнейшем увеличении editor.
 Кэш занимает около `2.30 MB` при `960 × 600` и не более `3.60 MB` при
-максимальном размере. Во время движения Evolution, смены Character и перехода
-Freeze используется `30 FPS`; установившееся автономное течение обновляется на
-`15 FPS`. Анимация работает только в editor/message thread, пропускает
+максимальном размере. Deep Current обновляется на честных `30 FPS`, поэтому
+мягкие световые пересечения не появляются дискретными 66-ms ступенями.
+Анимация работает только в editor/message thread, пропускает
 обновления скрытого editor и не связана с audio thread.
 
 Базовый размер — `960 × 600 px`, допустимый диапазон — от `800 × 500` до
@@ -278,6 +340,7 @@ JUCE, без растровых ресурсов. Числовые значен�
 | Low Cut | 20–1000 Hz | Низкочастотное затухание внутри loop |
 | High Damping | 1–20 kHz | Cutoff однополюсного damping LPF |
 | Evolution | 0–100 % (default 35 %) | Сила и движение выбранного Character: от едва заметного до полного |
+| Harmony | 0–100 % (default 0 %) | Сила Auto Harmonic Gravity: от bit-exact bypass до полного harmonic halo |
 | Width | 0–200 % | Ширина только wet-сигнала |
 | Focus | 0–100 % (default 100 %) | Выводит dry на передний план через локальные spectral pockets, transient и stereo separation |
 | Freeze | Off/On | Плавная фиксация текущего хвоста |
@@ -441,6 +504,17 @@ clap-validator validate \
 
 ./build/AmanitaOceanDSPTests --test-ducking
 
+./build/AmanitaOceanDSPTests --test-harmony
+
+./build/AmanitaOceanDSPTests \
+  --render-harmony-ab pad ./build/harmony
+
+./build/AmanitaOceanDSPTests \
+  --render-harmony-ab vocal ./build/harmony
+
+./build/AmanitaOceanDSPTests \
+  --render-harmony-ab kickbass190 ./build/harmony
+
 ./build/AmanitaOceanDSPTests \
   --render ./build/amanita_ocean_default_ir.wav
 
@@ -464,6 +538,12 @@ clap-validator validate \
 ```
 
 Offline utility создаёт 10-секундный stereo Float32 WAV при 48 kHz. Тестовый
+Harmony A/B renderer создаёт пары `*-off.wav` / `*-on.wav` с одним общим gain
+до `−1 dBFS`; отдельная loudness-нормализация версий намеренно не применяется.
+Доступны pad-прогрессия `Am–F–C–G`, вокалоподобный источник и kick+bass
+`190 BPM`.
+
+Тестовый
 набор проверяет:
 
 - сохранение энергии feedback-матрицей;
@@ -490,6 +570,22 @@ Offline utility создаёт 10-секундный stereo Float32 WAV при 4
   общего wet-collapse, коротких pumping holes и долгого imprint на хвосте;
 - точную независимость противоположного канала, сохранение Side центрального
   источника, Freeze isolation и полное восстановление внутреннего FDN state;
+- bit-exact bypass Harmonic Tail, pitch-class focus `C3/C4/C5`, sub rejection,
+  независимые stereo states, dense-map normalisation, честный reset,
+  exact-edge Freeze latch, отсутствие stale chord после confidence dropout,
+  modal decay и стабильность на `44.1/48/88.2/96 kHz`;
+- активную интеграцию Harmonic Tail после FDN, слышимый ограниченный вклад,
+  block invariance и отсутствие влияния на прежний тракт при `Harmony = 0`;
+- Auto Harmonic Analyzer: все 12 pitch classes, major/minor chords, L/R и
+  противофазные источники, sus/seventh и root-heavy open voicings,
+  `44.1/48/88.2/96 kHz`, chord acquisition, confidence dropout и очистку
+  stale map;
+- Auto false-positive regressions: exact kick-only/bass-only/combined
+  `190 BPM`, saw/square C3, формантный вокал, inharmonic bell, white noise и
+  конфликтующие `C major / F# major` stereo-поля;
+- полный Auto Harmony тракт: block invariance, bit-exact `0%`, host→DSP
+  routing, state round-trip, UI attachment и отсутствие audio-thread
+  allocations;
 - детерминированные fingerprints минимального и максимального Evolution
   каждого Character;
 - round-trip текущего state и точный host→DSP routing четырёх Character,

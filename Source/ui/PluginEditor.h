@@ -49,6 +49,7 @@ private:
     amanita::ui::ParameterKnob decayKnob_;
     amanita::ui::ParameterKnob lowCutKnob_;
     amanita::ui::ParameterKnob dampingKnob_;
+    amanita::ui::ParameterKnob harmonyKnob_;
     amanita::ui::ParameterKnob widthKnob_;
     amanita::ui::ParameterKnob focusKnob_;
     amanita::ui::ParameterKnob mixKnob_;

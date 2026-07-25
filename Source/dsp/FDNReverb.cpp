@@ -307,6 +307,15 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
 
     bloom_.prepare(sampleRate_);
     drift_.prepare(sampleRate_);
+    harmonicAnalyzer_.prepare(sampleRate_);
+    const auto& initialAnalysis = harmonicAnalyzer_.getFrame();
+    harmonicTail_.prepare(sampleRate_,
+                          parameters_.autoHarmony
+                              ? initialAnalysis.pitchClassWeights
+                              : parameters_.harmonyPitchClasses,
+                          parameters_.autoHarmony
+                              ? initialAnalysis.confidence
+                              : parameters_.harmonyConfidence);
     veil_.prepare(sampleRate_);
     spatialDucker_.prepare(sampleRate_, parameters_.ducking);
     bloomAmount_.prepare(sampleRate_, 0.20,
@@ -325,6 +334,7 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
                                 onePoleCoefficient(parameters_.highDampingHz, sampleRate_));
     evolution_.prepare(sampleRate_, 0.15, parameters_.evolution);
     width_.prepare(sampleRate_, 0.05, parameters_.width);
+    harmony_.prepare(sampleRate_, 0.15, parameters_.harmony);
     freeze_.prepare(sampleRate_, 0.05, parameters_.freeze ? 1.0f : 0.0f);
 
     for (std::size_t index = 0; index < numDelayLines; ++index)
@@ -357,6 +367,14 @@ void FDNReverb::reset() noexcept
         stage.reset();
     bloom_.reset();
     drift_.reset();
+    harmonicAnalyzer_.reset();
+    if (parameters_.autoHarmony)
+    {
+        const auto& analysis = harmonicAnalyzer_.getFrame();
+        harmonicTail_.setPitchClassWeights(analysis.pitchClassWeights,
+                                           analysis.confidence);
+    }
+    harmonicTail_.reset();
     veil_.reset();
     spatialDucker_.reset();
 
@@ -367,6 +385,8 @@ void FDNReverb::reset() noexcept
 
 void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
 {
+    const auto autoHarmonyChanged = parameters_.autoHarmony
+                                 != newParameters.autoHarmony;
     switch (newParameters.mode)
     {
         case ReverbMode::bloom:
@@ -394,10 +414,26 @@ void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
     parameters_.width = clampFinite(newParameters.width, 0.0f, 2.0f, parameters_.width);
     parameters_.ducking = clampFinite(newParameters.ducking, 0.0f, 1.0f,
                                        parameters_.ducking);
+    parameters_.harmony = clampFinite(newParameters.harmony, 0.0f, 1.0f,
+                                      parameters_.harmony);
+    for (std::size_t index = 0; index < parameters_.harmonyPitchClasses.size(); ++index)
+    {
+        parameters_.harmonyPitchClasses[index] = clampFinite(
+            newParameters.harmonyPitchClasses[index], 0.0f, 1.0f,
+            parameters_.harmonyPitchClasses[index]);
+    }
+    parameters_.harmonyConfidence = clampFinite(newParameters.harmonyConfidence,
+                                                0.0f, 1.0f,
+                                                parameters_.harmonyConfidence);
+    parameters_.autoHarmony = newParameters.autoHarmony;
     parameters_.freeze = newParameters.freeze;
 
     if (prepared_)
+    {
+        if (autoHarmonyChanged)
+            harmonicAnalyzer_.reset();
         updateTargets();
+    }
 }
 
 const ReverbParameters& FDNReverb::getParameters() const noexcept
@@ -417,6 +453,18 @@ void FDNReverb::updateTargets() noexcept
     dampingCoefficient_.setTarget(onePoleCoefficient(parameters_.highDampingHz, sampleRate_));
     evolution_.setTarget(parameters_.evolution);
     width_.setTarget(parameters_.width);
+    harmony_.setTarget(parameters_.harmony);
+    if (parameters_.autoHarmony)
+    {
+        const auto& analysis = harmonicAnalyzer_.getFrame();
+        harmonicTail_.setPitchClassWeights(analysis.pitchClassWeights,
+                                           analysis.confidence);
+    }
+    else
+    {
+        harmonicTail_.setPitchClassWeights(parameters_.harmonyPitchClasses,
+                                           parameters_.harmonyConfidence);
+    }
     spatialDucker_.setAmount(parameters_.ducking);
     freeze_.setTarget(parameters_.freeze ? 1.0f : 0.0f);
 
@@ -453,6 +501,13 @@ void FDNReverb::processSample(float& left, float& right) noexcept
 
     const auto dryLeft = sanitise(left, 4.0f);
     const auto dryRight = sanitise(right, 4.0f);
+    if (parameters_.autoHarmony
+        && harmonicAnalyzer_.processSample(dryLeft, dryRight))
+    {
+        const auto& analysis = harmonicAnalyzer_.getFrame();
+        harmonicTail_.setPitchClassWeights(analysis.pitchClassWeights,
+                                           analysis.confidence);
+    }
     const auto preDelay = preDelaySamples_.next();
     const auto diffusedLeft = diffuseInput(preDelayLines_[0].process(dryLeft, preDelay),
                                            diffusersLeft_);
@@ -563,6 +618,16 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     wetLeft *= inverseSqrtEight;
     wetRight *= inverseSqrtEight;
 
+    // Harmonic pitch targets latch at the exact Freeze edge. The main FDN uses
+    // its 50 ms fade to avoid a gain click, but feeding that fade to the map
+    // smoother would let part of a simultaneously selected chord leak in.
+    const auto holdHarmonicMap = parameters_.freeze ? 1.0f : 0.0f;
+    const auto harmonicWet = harmonicTail_.process(wetLeft, wetRight,
+                                                   harmony_.next(),
+                                                   holdHarmonicMap);
+    wetLeft = harmonicWet.left;
+    wetRight = harmonicWet.right;
+
     const auto width = width_.next();
     const auto mid = 0.5f * (wetLeft + wetRight);
     const auto side = 0.5f * (wetLeft - wetRight) * width;
@@ -620,5 +685,10 @@ double FDNReverb::getSampleRate() const noexcept
 const std::array<float, FDNReverb::numDelayLines>& FDNReverb::getNominalDelaySamples() const noexcept
 {
     return nominalDelaySamples_;
+}
+
+const HarmonicAnalysisFrame& FDNReverb::getHarmonicAnalysisFrame() const noexcept
+{
+    return harmonicAnalyzer_.getFrame();
 }
 } // namespace amanita::dsp

@@ -2,6 +2,8 @@
 
 #include "BloomCharacter.h"
 #include "DriftCharacter.h"
+#include "HarmonicAnalyzer.h"
+#include "HarmonicTail.h"
 #include "SpatialDucker.h"
 #include "VeilCharacter.h"
 
@@ -31,6 +33,10 @@ struct ReverbParameters
     float evolution = 0.35f;
     float width = 1.0f;
     float ducking = 0.0f;
+    float harmony = 0.0f;
+    HarmonicTail::PitchClassWeights harmonyPitchClasses {};
+    float harmonyConfidence = 0.0f;
+    bool autoHarmony = false;
     bool freeze = false;
 };
 
@@ -50,6 +56,7 @@ public:
 
     [[nodiscard]] double getSampleRate() const noexcept;
     [[nodiscard]] const std::array<float, numDelayLines>& getNominalDelaySamples() const noexcept;
+    [[nodiscard]] const HarmonicAnalysisFrame& getHarmonicAnalysisFrame() const noexcept;
 
     static void applyFeedbackMatrix(std::array<float, numDelayLines>& values) noexcept;
 
@@ -129,6 +136,8 @@ private:
     std::array<AllPass, 4> diffusersRight_;
     BloomCharacter bloom_;
     DriftCharacter drift_;
+    HarmonicAnalyzer harmonicAnalyzer_;
+    HarmonicTail harmonicTail_;
     SpatialDucker spatialDucker_;
     VeilCharacter veil_;
 
@@ -142,6 +151,7 @@ private:
     LinearSmoother dampingCoefficient_;
     LinearSmoother evolution_;
     LinearSmoother width_;
+    LinearSmoother harmony_;
     LinearSmoother freeze_;
 };
 } // namespace amanita::dsp

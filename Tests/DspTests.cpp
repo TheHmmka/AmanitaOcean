@@ -1,5 +1,6 @@
 #include "dsp/FDNReverb.h"
 #include "dsp/DriftCharacter.h"
+#include "dsp/HarmonicTail.h"
 #include "dsp/SpatialDucker.h"
 #include "dsp/VeilCharacter.h"
 
@@ -13,9 +14,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <initializer_list>
 #include <iostream>
 #include <limits>
 #include <new>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -127,6 +130,9 @@ namespace
 {
 using amanita::dsp::FDNReverb;
 using amanita::dsp::DriftCharacter;
+using amanita::dsp::HarmonicAnalyzer;
+using amanita::dsp::HarmonicAnalysisFrame;
+using amanita::dsp::HarmonicTail;
 
 using amanita::dsp::ReverbMode;
 using amanita::dsp::ReverbParameters;
@@ -154,6 +160,21 @@ struct StereoRender
     std::vector<float> left;
     std::vector<float> right;
 };
+
+[[nodiscard]] HarmonicTail::PitchClassWeights harmonyWeights(
+    std::initializer_list<std::size_t> pitchClasses)
+{
+    HarmonicTail::PitchClassWeights weights {};
+    for (const auto pitchClass : pitchClasses)
+        if (pitchClass < weights.size())
+            weights[pitchClass] = 1.0f;
+    return weights;
+}
+
+[[nodiscard]] double midiFrequency(int midiNote)
+{
+    return 440.0 * std::exp2(static_cast<double>(midiNote - 69) / 12.0);
+}
 
 [[nodiscard]] StereoRender renderImpulse(const ReverbParameters& parameters,
                                          double sampleRate,
@@ -2260,6 +2281,59 @@ struct KickBassAnalysis
     return static_cast<float>(std::clamp(output, -1.0, 1.0));
 }
 
+[[nodiscard]] float kickOnly190Sample(int sample, double sampleRate) noexcept
+{
+    constexpr double bpm = 190.0;
+    constexpr double beatSeconds = 60.0 / bpm;
+    constexpr double twoPi = 6.28318530717958647692;
+    const auto time = static_cast<double>(sample) / sampleRate;
+    const auto beatPosition = std::fmod(time, beatSeconds);
+
+    auto output = 0.0;
+    if (beatPosition < 0.130)
+    {
+        constexpr double baseFrequency = 48.0;
+        constexpr double sweepFrequency = 115.0;
+        constexpr double sweepSeconds = 0.018;
+        const auto phase = twoPi
+                         * (baseFrequency * beatPosition
+                            + sweepFrequency * sweepSeconds
+                                  * (1.0 - std::exp(-beatPosition / sweepSeconds)));
+        output += 0.70 * std::exp(-beatPosition / 0.045) * std::sin(phase);
+        output += 0.12 * std::exp(-beatPosition / 0.003)
+                * std::cos(twoPi * 4500.0 * beatPosition);
+    }
+    return static_cast<float>(std::clamp(output, -1.0, 1.0));
+}
+
+[[nodiscard]] float bassOnly190Sample(int sample, double sampleRate) noexcept
+{
+    constexpr double bpm = 190.0;
+    constexpr double beatSeconds = 60.0 / bpm;
+    constexpr double twoPi = 6.28318530717958647692;
+    const auto time = static_cast<double>(sample) / sampleRate;
+    const auto beatPosition = std::fmod(time, beatSeconds);
+
+    auto output = 0.0;
+    constexpr std::array<double, 3> bassOffsets {
+        beatSeconds * 0.25, beatSeconds * 0.50, beatSeconds * 0.75
+    };
+    for (const auto offset : bassOffsets)
+    {
+        const auto noteTime = beatPosition - offset;
+        if (noteTime >= 0.0 && noteTime < 0.075)
+        {
+            const auto envelope = (1.0 - std::exp(-noteTime / 0.0015))
+                                * std::exp(-noteTime / 0.045);
+            output += 0.28 * envelope
+                    * (std::sin(twoPi * 55.0 * noteTime)
+                       + 0.32 * std::sin(twoPi * 110.0 * noteTime)
+                       + 0.12 * std::sin(twoPi * 220.0 * noteTime));
+        }
+    }
+    return static_cast<float>(std::clamp(output, -1.0, 1.0));
+}
+
 template <std::size_t numPoints>
 [[nodiscard]] double detrendedTrajectoryMotion(
     const std::array<MusicalBandVector, numPoints>& trajectory)
@@ -3477,11 +3551,1479 @@ void testPerceptualDuckingFreezeIsolation()
               << ", recovered NRMS=" << recoveryError << '\n';
 }
 
+enum class AnalyzerStereoPlacement
+{
+    centred,
+    leftOnly,
+    rightOnly,
+    antiPhase
+};
+
+[[nodiscard]] HarmonicAnalysisFrame analyseSyntheticChord(
+    double sampleRate,
+    const std::array<int, 4>& midiNotes,
+    int noteCount,
+    AnalyzerStereoPlacement placement = AnalyzerStereoPlacement::centred,
+    double seconds = 2.0,
+    float level = 0.16f)
+{
+    HarmonicAnalyzer analyzer;
+    analyzer.prepare(sampleRate);
+    const auto sampleCount = static_cast<int>(sampleRate * seconds);
+    const auto voiceGain = level / static_cast<float>(std::max(1, noteCount));
+    for (auto sample = 0; sample < sampleCount; ++sample)
+    {
+        const auto time = static_cast<double>(sample) / sampleRate;
+        auto signal = 0.0f;
+        for (auto voice = 0; voice < noteCount; ++voice)
+        {
+            const auto phase = 2.0 * 3.14159265358979323846
+                             * midiFrequency(midiNotes[static_cast<std::size_t>(voice)])
+                             * time
+                             + 0.37 * static_cast<double>(voice);
+            signal += voiceGain * static_cast<float>(
+                std::sin(phase)
+                + 0.30 * std::sin(2.0 * phase + 0.19)
+                + 0.10 * std::sin(4.0 * phase + 0.43));
+        }
+
+        auto left = signal;
+        auto right = signal;
+        switch (placement)
+        {
+            case AnalyzerStereoPlacement::leftOnly:
+                right = 0.0f;
+                break;
+            case AnalyzerStereoPlacement::rightOnly:
+                left = 0.0f;
+                break;
+            case AnalyzerStereoPlacement::antiPhase:
+                right = -signal;
+                break;
+            case AnalyzerStereoPlacement::centred:
+            default:
+                break;
+        }
+        static_cast<void>(analyzer.processSample(left, right));
+    }
+    return analyzer.getFrame();
+}
+
+[[nodiscard]] float chromaCosine(
+    const HarmonicAnalyzer::PitchClassWeights& first,
+    const HarmonicAnalyzer::PitchClassWeights& second)
+{
+    auto dot = 0.0;
+    auto firstEnergy = 0.0;
+    auto secondEnergy = 0.0;
+    for (std::size_t index = 0; index < first.size(); ++index)
+    {
+        dot += static_cast<double>(first[index]) * second[index];
+        firstEnergy += static_cast<double>(first[index]) * first[index];
+        secondEnergy += static_cast<double>(second[index]) * second[index];
+    }
+    return firstEnergy > 1.0e-20 && secondEnergy > 1.0e-20
+        ? static_cast<float>(dot / std::sqrt(firstEnergy * secondEnergy))
+        : 0.0f;
+}
+
+struct AnalyzerSourceMetrics
+{
+    HarmonicAnalyzer::PitchClassWeights confidenceWeightedPitchClasses {};
+    float meanConfidence = 0.0f;
+    float percentile95Confidence = 0.0f;
+    float maximumConfidence = 0.0f;
+    std::size_t frameCount = 0;
+};
+
+template <typename Source>
+[[nodiscard]] AnalyzerSourceMetrics analyseSourceStatistics(
+    Source source,
+    double seconds = 6.0,
+    double warmupSeconds = 1.0)
+{
+    constexpr auto sampleRate = 48000.0;
+    HarmonicAnalyzer analyzer;
+    analyzer.prepare(sampleRate);
+
+    std::vector<float> confidences;
+    confidences.reserve(static_cast<std::size_t>(seconds * 200.0));
+    HarmonicAnalyzer::PitchClassWeights confidenceWeightedSums {};
+    auto confidenceSum = 0.0;
+    const auto sampleCount = static_cast<int>(std::ceil(seconds * sampleRate));
+    const auto warmupSamples = static_cast<int>(
+        std::ceil(warmupSeconds * sampleRate));
+    for (auto sample = 0; sample < sampleCount; ++sample)
+    {
+        const auto stereo = source(sample, sampleRate);
+        if (!analyzer.processSample(stereo[0], stereo[1])
+            || sample < warmupSamples)
+            continue;
+
+        const auto& frame = analyzer.getFrame();
+        confidences.push_back(frame.confidence);
+        confidenceSum += frame.confidence;
+        for (std::size_t pitchClass = 0;
+             pitchClass < confidenceWeightedSums.size();
+             ++pitchClass)
+        {
+            confidenceWeightedSums[pitchClass]
+                += frame.confidence * frame.pitchClassWeights[pitchClass];
+        }
+    }
+
+    require(!confidences.empty(),
+            "Harmonic Analyzer source statistics produced no analysis frames");
+    AnalyzerSourceMetrics metrics;
+    metrics.frameCount = confidences.size();
+    metrics.meanConfidence = static_cast<float>(
+        std::accumulate(confidences.begin(), confidences.end(), 0.0)
+        / static_cast<double>(confidences.size()));
+    metrics.maximumConfidence = *std::max_element(
+        confidences.begin(), confidences.end());
+    std::sort(confidences.begin(), confidences.end());
+    const auto percentileIndex = static_cast<std::size_t>(
+        std::floor(0.95 * static_cast<double>(confidences.size() - 1)));
+    metrics.percentile95Confidence = confidences[percentileIndex];
+
+    const auto inverseConfidence = confidenceSum > 1.0e-12
+        ? static_cast<float>(1.0 / confidenceSum)
+        : 0.0f;
+    for (std::size_t pitchClass = 0;
+         pitchClass < metrics.confidenceWeightedPitchClasses.size();
+         ++pitchClass)
+    {
+        metrics.confidenceWeightedPitchClasses[pitchClass]
+            = confidenceWeightedSums[pitchClass] * inverseConfidence;
+    }
+    return metrics;
+}
+
+[[nodiscard]] float strongestWrongPitchClass(
+    const AnalyzerSourceMetrics& metrics,
+    std::size_t expectedPitchClass)
+{
+    auto strongestWrong = 0.0f;
+    for (std::size_t pitchClass = 0;
+         pitchClass < metrics.confidenceWeightedPitchClasses.size();
+         ++pitchClass)
+    {
+        if (pitchClass != expectedPitchClass)
+        {
+            strongestWrong = std::max(
+                strongestWrong,
+                metrics.confidenceWeightedPitchClasses[pitchClass]);
+        }
+    }
+    return strongestWrong;
+}
+
+void testHarmonicAnalyzerKickBassConfidenceRegression()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto seconds = 6.0;
+    const auto kick = analyseSourceStatistics(
+        [] (int sample, double rate)
+        {
+            const auto value = kickOnly190Sample(sample, rate);
+            return std::array { value, value };
+        },
+        seconds);
+    const auto bass = analyseSourceStatistics(
+        [] (int sample, double rate)
+        {
+            const auto value = bassOnly190Sample(sample, rate);
+            return std::array { value, value };
+        },
+        seconds);
+    const auto combined = analyseSourceStatistics(
+        [] (int sample, double rate)
+        {
+            const auto value = kickBass190Sample(sample, rate);
+            return std::array { value, value };
+        },
+        seconds);
+
+    auto maximumReconstructionError = 0.0f;
+    const auto sampleCount = static_cast<int>(seconds * sampleRate);
+    for (auto sample = 0; sample < sampleCount; ++sample)
+    {
+        const auto reconstructed = std::clamp(
+            kickOnly190Sample(sample, sampleRate)
+                + bassOnly190Sample(sample, sampleRate),
+            -1.0f, 1.0f);
+        maximumReconstructionError = std::max(
+            maximumReconstructionError,
+            std::abs(reconstructed
+                     - kickBass190Sample(sample, sampleRate)));
+    }
+
+    constexpr auto aPitchClass = std::size_t { 9 };
+    const auto combinedA
+        = combined.confidenceWeightedPitchClasses[aPitchClass];
+    const auto combinedWrong = strongestWrongPitchClass(
+        combined, aPitchClass);
+    const auto bassA = bass.confidenceWeightedPitchClasses[aPitchClass];
+    const auto bassWrong = strongestWrongPitchClass(bass, aPitchClass);
+
+    std::cout << "[METRIC] Harmonic Analyzer 190 BPM confidence"
+              << ": kick mean/p95/max=" << kick.meanConfidence << '/'
+              << kick.percentile95Confidence << '/' << kick.maximumConfidence
+              << ", bass=" << bass.meanConfidence << '/'
+              << bass.percentile95Confidence << '/' << bass.maximumConfidence
+              << ", combined=" << combined.meanConfidence << '/'
+              << combined.percentile95Confidence << '/'
+              << combined.maximumConfidence
+              << ", bass A/wrong=" << bassA << '/' << bassWrong
+              << ", combined A/wrong=" << combinedA << '/'
+              << combinedWrong
+              << ", reconstruction error=" << maximumReconstructionError
+              << '\n';
+
+    require(maximumReconstructionError <= 2.0e-6f,
+            "Kick-only and bass-only probes no longer reconstruct "
+            "kickBass190Sample");
+    require(kick.meanConfidence <= 0.10f
+                && kick.percentile95Confidence <= 0.18f,
+            "Harmonic Analyzer treats the 190 BPM kick as stable harmony");
+    require(bass.meanConfidence <= 0.30f
+                && bass.percentile95Confidence <= 0.45f,
+            "Harmonic Analyzer assigns chord-level confidence to a monophonic "
+            "A bassline");
+    require(combined.meanConfidence <= 0.35f
+                && combined.percentile95Confidence <= 0.50f,
+            "Harmonic Analyzer assigns chord-level confidence to the exact "
+            "190 BPM kick+bass pattern");
+    require(bass.meanConfidence <= 0.20f
+                || bassA >= 0.85f * bassWrong,
+            "A confident monophonic bassline points away from its A pitch class");
+    require(combined.meanConfidence <= 0.20f
+                || combinedA >= 0.85f * combinedWrong,
+            "A confident 190 BPM kick+bass analysis points away from A");
+}
+
+void testHarmonicAnalyzerOpenVoicingRegression()
+{
+    constexpr std::array midiNotes { 48, 67, 76 }; // C3, G4, E5
+    constexpr std::array gains { 0.10f, 0.05f, 0.05f };
+    constexpr auto twoPi = 6.28318530717958647692;
+    const auto settled = analyseSourceStatistics(
+        [midiNotes, gains] (int sample, double sampleRate)
+        {
+            const auto time = static_cast<double>(sample) / sampleRate;
+            auto signal = 0.0f;
+            for (std::size_t voice = 0; voice < midiNotes.size(); ++voice)
+            {
+                const auto phase = twoPi * midiFrequency(midiNotes[voice]) * time
+                                 + 0.31 * static_cast<double>(voice);
+                signal += gains[voice] * static_cast<float>(
+                    std::sin(phase)
+                    + 0.18 * std::sin(2.0 * phase + 0.2));
+            }
+            return std::array { signal, signal };
+        },
+        4.0,
+        2.0);
+
+    constexpr auto cPitchClass = std::size_t { 0 };
+    constexpr auto ePitchClass = std::size_t { 4 };
+    constexpr auto gPitchClass = std::size_t { 7 };
+    const auto cRecall
+        = settled.confidenceWeightedPitchClasses[cPitchClass];
+    const auto eRecall
+        = settled.confidenceWeightedPitchClasses[ePitchClass];
+    const auto gRecall
+        = settled.confidenceWeightedPitchClasses[gPitchClass];
+
+    std::cout << "[METRIC] Harmonic Analyzer open C3-G4-E5"
+              << ": settled confidence=" << settled.meanConfidence
+              << ", C/E/G recall=" << cRecall << '/'
+              << eRecall << '/' << gRecall << '\n';
+
+    require(settled.meanConfidence >= 0.20f,
+            "Root-dominant open C major loses chord-level confidence");
+    require(cRecall >= 0.75f && eRecall >= 0.30f && gRecall >= 0.30f,
+            "Root-dominant open C major loses a genuine C/E/G chord tone");
+}
+
+void testHarmonicAnalyzerConfidentWrongRegression()
+{
+    constexpr auto c3Frequency = 130.81278265;
+    constexpr auto twoPi = 6.28318530717958647692;
+    const auto saw = analyseSourceStatistics(
+        [] (int sample, double sampleRate)
+        {
+            const auto time = static_cast<double>(sample) / sampleRate;
+            auto signal = 0.0;
+            for (auto harmonic = 1; harmonic <= 20; ++harmonic)
+            {
+                signal += std::sin(twoPi * c3Frequency * harmonic * time)
+                        / static_cast<double>(harmonic);
+            }
+            const auto value = static_cast<float>(0.12 * signal);
+            return std::array { value, value };
+        });
+    const auto square = analyseSourceStatistics(
+        [] (int sample, double sampleRate)
+        {
+            const auto time = static_cast<double>(sample) / sampleRate;
+            auto signal = 0.0;
+            for (auto harmonic = 1; harmonic <= 21; harmonic += 2)
+            {
+                signal += std::sin(twoPi * c3Frequency * harmonic * time)
+                        / static_cast<double>(harmonic);
+            }
+            const auto value = static_cast<float>(0.12 * signal);
+            return std::array { value, value };
+        });
+
+    const DriftVocalSource vocalSource;
+    constexpr auto vocalSamples = 6 * 48000;
+    const auto vocal = analyseSourceStatistics(
+        [&vocalSource] (int sample, double sampleRate)
+        {
+            const auto value = vocalSource.sample(
+                sample, vocalSamples, sampleRate);
+            return std::array { value, 0.91f * value };
+        });
+    const auto bell = analyseSourceStatistics(
+        [] (int sample, double sampleRate)
+        {
+            constexpr std::array ratios { 1.0, 2.71, 4.08, 5.43 };
+            constexpr std::array gains { 1.0, 0.70, 0.50, 0.35 };
+            const auto time = static_cast<double>(sample) / sampleRate;
+            auto signal = 0.0;
+            for (std::size_t partial = 0; partial < ratios.size(); ++partial)
+            {
+                signal += gains[partial]
+                        * std::sin(twoPi * 261.625565
+                                   * ratios[partial] * time);
+            }
+            const auto value = static_cast<float>(0.08 * signal);
+            return std::array { value, value };
+        });
+    const auto conflict = analyseSourceStatistics(
+        [] (int sample, double sampleRate)
+        {
+            const auto time = static_cast<double>(sample) / sampleRate;
+            auto left = 0.0;
+            auto right = 0.0;
+            for (const auto note : { 60, 64, 67 })
+                left += 0.04 * std::sin(
+                    twoPi * midiFrequency(note) * time);
+            for (const auto note : { 66, 70, 73 })
+                right += 0.04 * std::sin(
+                    twoPi * midiFrequency(note) * time);
+            return std::array { static_cast<float>(left),
+                                static_cast<float>(right) };
+        });
+
+    constexpr auto cPitchClass = std::size_t { 0 };
+    const auto sawC = saw.confidenceWeightedPitchClasses[cPitchClass];
+    const auto sawWrong = strongestWrongPitchClass(saw, cPitchClass);
+    const auto squareC = square.confidenceWeightedPitchClasses[cPitchClass];
+    const auto squareWrong = strongestWrongPitchClass(square, cPitchClass);
+    std::cout << "[METRIC] Harmonic Analyzer confident-wrong sources"
+              << ": saw mean/p95=" << saw.meanConfidence << '/'
+              << saw.percentile95Confidence
+              << " C/wrong=" << sawC << '/' << sawWrong
+              << ", square=" << square.meanConfidence << '/'
+              << square.percentile95Confidence
+              << " C/wrong=" << squareC << '/' << squareWrong
+              << ", vocal=" << vocal.meanConfidence << '/'
+              << vocal.percentile95Confidence
+              << ", bell=" << bell.meanConfidence << '/'
+              << bell.percentile95Confidence
+              << ", conflicting stereo chords=" << conflict.meanConfidence
+              << '/' << conflict.percentile95Confidence << '\n';
+
+    require(saw.meanConfidence <= 0.35f
+                && saw.percentile95Confidence <= 0.50f
+                && sawC >= 0.85f * sawWrong,
+            "A saw bass creates a confidently wrong harmonic field");
+    require(square.meanConfidence <= 0.35f
+                && square.percentile95Confidence <= 0.50f
+                && squareC >= 0.85f * squareWrong,
+            "A square bass is mistaken for a polyphonic chord");
+    require(vocal.meanConfidence <= 0.35f
+                && vocal.percentile95Confidence <= 0.50f,
+            "A monophonic vocal is mistaken for a stable chord");
+    require(bell.meanConfidence <= 0.35f
+                && bell.percentile95Confidence <= 0.50f,
+            "Inharmonic bell partials are mistaken for a stable chord");
+    require(conflict.meanConfidence <= 0.65f
+                && conflict.percentile95Confidence <= 0.75f,
+            "Unrelated C-major/F#-major stereo fields are treated as one "
+            "certain harmony");
+}
+
+void testHarmonicAnalyzerPitchStereoAndSampleRates()
+{
+    auto minimumWinnerRatio = std::numeric_limits<float>::max();
+    auto minimumSingleConfidence = 1.0f;
+    auto maximumSingleConfidence = 0.0f;
+    for (auto pitchClass = 0; pitchClass < 12; ++pitchClass)
+    {
+        const auto midiNote = 60 + pitchClass;
+        const auto frame = analyseSyntheticChord(
+            48000.0, { midiNote, 0, 0, 0 }, 1);
+        const auto expected = static_cast<std::size_t>(pitchClass);
+        auto strongestWrong = 0.0f;
+        for (std::size_t index = 0; index < frame.pitchClassWeights.size(); ++index)
+        {
+            require(std::isfinite(frame.pitchClassWeights[index])
+                        && frame.pitchClassWeights[index] >= 0.0f
+                        && frame.pitchClassWeights[index] <= 1.0f,
+                    "Harmonic Analyzer produced an invalid pitch weight");
+            if (index != expected)
+                strongestWrong = std::max(strongestWrong,
+                                          frame.pitchClassWeights[index]);
+        }
+        const auto winnerRatio = frame.pitchClassWeights[expected]
+            / std::max(strongestWrong, 1.0e-6f);
+        minimumWinnerRatio = std::min(minimumWinnerRatio, winnerRatio);
+        minimumSingleConfidence = std::min(minimumSingleConfidence,
+                                           frame.confidence);
+        maximumSingleConfidence = std::max(maximumSingleConfidence,
+                                           frame.confidence);
+        require(frame.pitchClassWeights[expected] >= 0.75f
+                    && winnerRatio >= 1.6f,
+                "Harmonic Analyzer selected the wrong pitch class "
+                    + std::to_string(pitchClass)
+                    + ": expected=" + std::to_string(
+                        frame.pitchClassWeights[expected])
+                    + ", strongest wrong=" + std::to_string(strongestWrong)
+                    + ", confidence=" + std::to_string(frame.confidence)
+                    + ", activity=" + std::to_string(frame.activity)
+                    + ", transient=" + std::to_string(
+                        frame.transientReliability));
+        require(frame.confidence >= 0.05f && frame.confidence <= 0.75f,
+                "Harmonic Analyzer single-note confidence is unreasonable: "
+                    + std::to_string(frame.confidence));
+    }
+
+    for (const auto midiNote : { 60, 66, 69 })
+    {
+        for (const auto cents : { -30.0, 30.0 })
+        {
+            HarmonicAnalyzer detuned;
+            detuned.prepare(48000.0);
+            const auto frequency = midiFrequency(midiNote)
+                                 * std::exp2(cents / 1200.0);
+            for (auto sample = 0; sample < 96000; ++sample)
+            {
+                const auto phase = 2.0 * 3.14159265358979323846
+                                 * frequency * sample / 48000.0;
+                const auto signal = 0.14f * static_cast<float>(
+                    std::sin(phase) + 0.28 * std::sin(2.0 * phase + 0.17));
+                static_cast<void>(detuned.processSample(signal, -signal));
+            }
+            const auto& frame = detuned.getFrame();
+            const auto expected = static_cast<std::size_t>(midiNote % 12);
+            auto strongestWrong = 0.0f;
+            for (std::size_t index = 0; index < frame.pitchClassWeights.size(); ++index)
+                if (index != expected)
+                    strongestWrong = std::max(strongestWrong,
+                                              frame.pitchClassWeights[index]);
+            require(frame.pitchClassWeights[expected]
+                        >= 1.25f * std::max(strongestWrong, 1.0e-6f),
+                    "Harmonic Analyzer loses MIDI "
+                        + std::to_string(midiNote)
+                        + " at " + std::to_string(cents)
+                        + " cents: expected="
+                        + std::to_string(frame.pitchClassWeights[expected])
+                        + ", wrong=" + std::to_string(strongestWrong));
+        }
+    }
+
+    const auto centred = analyseSyntheticChord(
+        48000.0, { 60, 64, 67, 0 }, 3);
+    for (const auto placement : {
+             AnalyzerStereoPlacement::leftOnly,
+             AnalyzerStereoPlacement::rightOnly,
+             AnalyzerStereoPlacement::antiPhase
+         })
+    {
+        const auto placed = analyseSyntheticChord(
+            48000.0, { 60, 64, 67, 0 }, 3, placement);
+        require(chromaCosine(centred.pitchClassWeights,
+                             placed.pitchClassWeights) >= 0.98f,
+                "Harmonic Analyzer depends on stereo placement or polarity");
+        require(std::abs(centred.confidence - placed.confidence) <= 0.08f,
+                "Harmonic Analyzer confidence depends on stereo placement");
+    }
+
+    std::array<HarmonicAnalysisFrame, 4> rateFrames {};
+    constexpr std::array<double, 4> sampleRates {
+        44100.0, 48000.0, 88200.0, 96000.0
+    };
+    for (std::size_t index = 0; index < sampleRates.size(); ++index)
+        rateFrames[index] = analyseSyntheticChord(
+            sampleRates[index], { 57, 60, 64, 0 }, 3);
+    auto minimumRateCosine = 1.0f;
+    auto minimumRateConfidence = 1.0f;
+    auto maximumRateConfidence = 0.0f;
+    for (const auto& frame : rateFrames)
+    {
+        minimumRateCosine = std::min(
+            minimumRateCosine,
+            chromaCosine(rateFrames[1].pitchClassWeights,
+                         frame.pitchClassWeights));
+        minimumRateConfidence = std::min(minimumRateConfidence,
+                                         frame.confidence);
+        maximumRateConfidence = std::max(maximumRateConfidence,
+                                         frame.confidence);
+    }
+    require(minimumRateCosine >= 0.95f,
+            "Harmonic Analyzer chroma changes with sample rate");
+    require(maximumRateConfidence - minimumRateConfidence <= 0.10f,
+            "Harmonic Analyzer confidence changes with sample rate");
+
+    std::cout << "[METRIC] Harmonic Analyzer min winner ratio="
+              << minimumWinnerRatio
+              << ", single confidence=" << minimumSingleConfidence
+              << ".." << maximumSingleConfidence
+              << ", sample-rate cosine=" << minimumRateCosine << '\n';
+}
+
+void testHarmonicAnalyzerChordsRejectionAndDropout()
+{
+    auto minimumChordRecall = 3;
+    auto minimumChordConfidence = 1.0f;
+    auto minimumChordContrast = std::numeric_limits<float>::max();
+    for (const auto minor : { false, true })
+    {
+        for (auto root = 0; root < 12; ++root)
+        {
+            const auto third = root + (minor ? 3 : 4);
+            const auto fifth = root + 7;
+            const auto frame = analyseSyntheticChord(
+                48000.0, { 48 + root, 48 + third, 48 + fifth, 0 }, 3);
+            std::array<bool, 12> targets {};
+            targets[static_cast<std::size_t>(root % 12)] = true;
+            targets[static_cast<std::size_t>(third % 12)] = true;
+            targets[static_cast<std::size_t>(fifth % 12)] = true;
+
+            auto recall = 0;
+            auto targetSum = 0.0f;
+            auto offTargetSum = 0.0f;
+            for (std::size_t index = 0; index < targets.size(); ++index)
+            {
+                if (targets[index])
+                {
+                    targetSum += frame.pitchClassWeights[index];
+                    if (frame.pitchClassWeights[index] >= 0.35f)
+                        ++recall;
+                }
+                else
+                {
+                    offTargetSum += frame.pitchClassWeights[index];
+                }
+            }
+            const auto contrast = (targetSum / 3.0f)
+                                / std::max(offTargetSum / 9.0f, 1.0e-4f);
+            minimumChordRecall = std::min(minimumChordRecall, recall);
+            minimumChordConfidence = std::min(minimumChordConfidence,
+                                              frame.confidence);
+            minimumChordContrast = std::min(minimumChordContrast, contrast);
+            require(recall >= 2 && contrast >= 1.8f,
+                    "Harmonic Analyzer lost a major/minor chord");
+            require(frame.confidence >= 0.20f,
+                    "Harmonic Analyzer chord confidence is too low at root "
+                        + std::to_string(root)
+                        + (minor ? " minor: " : " major: ")
+                        + std::to_string(frame.confidence)
+                        + ", activity=" + std::to_string(frame.activity)
+                        + ", transient=" + std::to_string(
+                            frame.transientReliability));
+        }
+    }
+
+    constexpr std::array extendedChords {
+        std::array { 48, 50, 55, 0 },  // C sus2
+        std::array { 48, 53, 55, 0 },  // C sus4
+        std::array { 48, 52, 55, 58 }, // C7
+        std::array { 48, 52, 55, 59 }, // Cmaj7
+        std::array { 48, 51, 55, 58 }  // Cm7
+    };
+    for (const auto& notes : extendedChords)
+    {
+        const auto noteCount = notes[3] == 0 ? 3 : 4;
+        const auto frame = analyseSyntheticChord(
+            48000.0, notes, noteCount);
+        auto recalled = 0;
+        for (auto note = 0; note < noteCount; ++note)
+        {
+            const auto pitchClass = static_cast<std::size_t>(
+                notes[static_cast<std::size_t>(note)] % 12);
+            if (frame.pitchClassWeights[pitchClass] >= 0.25f)
+                ++recalled;
+        }
+        require(recalled >= noteCount - 1 && frame.confidence >= 0.15f,
+                "Harmonic Analyzer rejects sus/seventh MIDI "
+                    + std::to_string(notes[0]) + "/"
+                    + std::to_string(notes[1]) + "/"
+                    + std::to_string(notes[2]) + "/"
+                    + std::to_string(notes[3])
+                    + ": recall=" + std::to_string(recalled)
+                    + ", confidence=" + std::to_string(frame.confidence));
+    }
+
+    HarmonicAnalyzer noiseAnalyzer;
+    noiseAnalyzer.prepare(48000.0);
+    std::uint32_t noiseState = 0x592ac17du;
+    auto noiseMaximumConfidence = 0.0f;
+    for (auto sample = 0; sample < 144000; ++sample)
+    {
+        noiseState = noiseState * 1664525u + 1013904223u;
+        const auto left = 0.18f
+            * static_cast<float>(static_cast<std::int32_t>(noiseState))
+            / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+        noiseState = noiseState * 1664525u + 1013904223u;
+        const auto right = 0.18f
+            * static_cast<float>(static_cast<std::int32_t>(noiseState))
+            / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+        if (noiseAnalyzer.processSample(left, right) && sample > 48000)
+            noiseMaximumConfidence = std::max(
+                noiseMaximumConfidence,
+                noiseAnalyzer.getFrame().confidence);
+    }
+    require(noiseMaximumConfidence <= 0.18f,
+            "Harmonic Analyzer is confidently detecting white noise");
+
+    HarmonicAnalyzer kickAnalyzer;
+    kickAnalyzer.prepare(48000.0);
+    constexpr auto samplesPerBeat = 48000.0 * 60.0 / 190.0;
+    auto kickMaximumConfidence = 0.0f;
+    for (auto sample = 0; sample < 192000; ++sample)
+    {
+        const auto beatTime = std::fmod(
+            static_cast<double>(sample), samplesPerBeat) / 48000.0;
+        const auto envelope = beatTime < 0.19
+            ? std::exp(-beatTime * 25.0)
+            : 0.0;
+        const auto phase = 2.0 * 3.14159265358979323846
+            * (44.0 * beatTime + 55.0 * (1.0 - std::exp(-beatTime * 32.0)) / 32.0);
+        const auto kick = static_cast<float>(0.82 * envelope * std::sin(phase));
+        if (kickAnalyzer.processSample(kick, kick) && sample > 48000)
+            kickMaximumConfidence = std::max(
+                kickMaximumConfidence,
+                kickAnalyzer.getFrame().confidence);
+    }
+    require(kickMaximumConfidence <= 0.25f,
+            "Harmonic Analyzer mistakes a 190 BPM kick for harmony: "
+                + std::to_string(kickMaximumConfidence));
+
+    HarmonicAnalyzer dropout;
+    dropout.prepare(48000.0);
+    for (auto sample = 0; sample < 96000; ++sample)
+    {
+        const auto time = static_cast<double>(sample) / 48000.0;
+        const auto signal = 0.055f * static_cast<float>(
+            std::sin(2.0 * 3.14159265358979323846 * midiFrequency(60) * time)
+            + std::sin(2.0 * 3.14159265358979323846 * midiFrequency(64) * time)
+            + std::sin(2.0 * 3.14159265358979323846 * midiFrequency(67) * time));
+        static_cast<void>(dropout.processSample(signal, signal));
+    }
+    const auto activeConfidence = dropout.getFrame().confidence;
+    for (auto sample = 0; sample < 1920; ++sample)
+        static_cast<void>(dropout.processSample(0.0f, 0.0f));
+    const auto shortDropoutConfidence = dropout.getFrame().confidence;
+    for (auto sample = 1920; sample < 36000; ++sample)
+        static_cast<void>(dropout.processSample(0.0f, 0.0f));
+    const auto mediumDropoutConfidence = dropout.getFrame().confidence;
+    for (auto sample = 36000; sample < 72000; ++sample)
+        static_cast<void>(dropout.processSample(0.0f, 0.0f));
+    const auto silentFrame = dropout.getFrame();
+    const auto maximumSilentWeight = *std::max_element(
+        silentFrame.pitchClassWeights.begin(),
+        silentFrame.pitchClassWeights.end());
+    require(activeConfidence >= 0.20f
+                && shortDropoutConfidence >= activeConfidence * 0.65f
+                && mediumDropoutConfidence <= 0.08f
+                && silentFrame.confidence <= 0.01f
+                && maximumSilentWeight <= 1.0e-6f,
+            "Harmonic Analyzer confidence does not release in silence: active="
+                + std::to_string(activeConfidence)
+                + ", 40ms=" + std::to_string(shortDropoutConfidence)
+                + ", 750ms=" + std::to_string(mediumDropoutConfidence)
+                + ", silent=" + std::to_string(silentFrame.confidence)
+                + ", stale weight=" + std::to_string(maximumSilentWeight));
+
+    for (auto sample = 0; sample < 48000; ++sample)
+    {
+        const auto invalid = sample == 0
+            ? std::numeric_limits<float>::quiet_NaN()
+            : sample == 1 ? std::numeric_limits<float>::infinity()
+                          : 0.0f;
+        static_cast<void>(dropout.processSample(invalid, -invalid));
+    }
+    const auto recovered = dropout.getFrame();
+    require(std::isfinite(recovered.confidence)
+                && recovered.confidence >= 0.0f
+                && recovered.confidence <= 1.0f,
+            "Harmonic Analyzer did not recover from NaN/Inf");
+    for (const auto weight : recovered.pitchClassWeights)
+        require(std::isfinite(weight) && weight >= 0.0f && weight <= 1.0f,
+                "Harmonic Analyzer recovered with an invalid pitch weight");
+
+    std::cout << "[METRIC] Harmonic Analyzer chord recall="
+              << minimumChordRecall
+              << ", contrast=" << minimumChordContrast
+              << ", confidence>=" << minimumChordConfidence
+              << ", noise confidence=" << noiseMaximumConfidence
+              << ", kick confidence=" << kickMaximumConfidence << '\n';
+}
+
+void testHarmonicAnalyzerProgressionAndFdnIntegration()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto chordSamples = 72000;
+    HarmonicAnalyzer progression;
+    progression.prepare(sampleRate);
+    HarmonicAnalyzer::PitchClassWeights previousWeights {};
+    auto firstNewDominanceSample = -1;
+    auto maximumHopDelta = 0.0f;
+    for (auto sample = 0; sample < chordSamples * 2; ++sample)
+    {
+        const auto secondChord = sample >= chordSamples;
+        const std::array<int, 3> notes = secondChord
+            ? std::array<int, 3> { 66, 70, 73 } // F# major
+            : std::array<int, 3> { 60, 64, 67 }; // C major
+        const auto time = static_cast<double>(sample) / sampleRate;
+        auto left = 0.0f;
+        auto right = 0.0f;
+        for (std::size_t voice = 0; voice < notes.size(); ++voice)
+        {
+            const auto phase = 2.0 * 3.14159265358979323846
+                             * midiFrequency(notes[voice]) * time
+                             + 0.29 * static_cast<double>(voice);
+            const auto tone = static_cast<float>(
+                std::sin(phase) + 0.24 * std::sin(2.0 * phase + 0.21));
+            left += 0.035f * std::array { 1.0f, 0.72f, 0.43f }[voice] * tone;
+            right += 0.035f * std::array { 0.42f, 0.74f, 1.0f }[voice] * tone;
+        }
+
+        if (!progression.processSample(left, right))
+            continue;
+
+        const auto& frame = progression.getFrame();
+        for (std::size_t pitchClass = 0;
+             sample > static_cast<int>(sampleRate * 0.5)
+                 && pitchClass < frame.pitchClassWeights.size();
+             ++pitchClass)
+        {
+            maximumHopDelta = std::max(
+                maximumHopDelta,
+                std::abs(frame.pitchClassWeights[pitchClass]
+                         - previousWeights[pitchClass]));
+        }
+        previousWeights = frame.pitchClassWeights;
+        if (secondChord && firstNewDominanceSample < 0)
+        {
+            const auto oldChord = frame.pitchClassWeights[0]
+                                + frame.pitchClassWeights[4]
+                                + frame.pitchClassWeights[7];
+            const auto newChord = frame.pitchClassWeights[6]
+                                + frame.pitchClassWeights[10]
+                                + frame.pitchClassWeights[1];
+            if (newChord > oldChord)
+                firstNewDominanceSample = sample;
+        }
+    }
+
+    const auto acquisitionSeconds = firstNewDominanceSample >= chordSamples
+        ? static_cast<double>(firstNewDominanceSample - chordSamples) / sampleRate
+        : std::numeric_limits<double>::infinity();
+    const auto& settledFrame = progression.getFrame();
+    require(acquisitionSeconds <= 0.40,
+            "Harmonic Analyzer follows a chord change too slowly");
+    require(settledFrame.pitchClassWeights[6] >= 0.70f
+                && settledFrame.pitchClassWeights[10] >= 0.35f
+                && settledFrame.pitchClassWeights[1] >= 0.35f
+                && settledFrame.confidence >= 0.50f,
+            "Harmonic Analyzer did not settle on the new chord");
+    require(maximumHopDelta <= 0.45f,
+            "Harmonic Analyzer pitch map changes too abruptly");
+
+    constexpr auto sampleCount = 144000;
+    std::vector<float> sourceLeft(static_cast<std::size_t>(sampleCount), 0.0f);
+    std::vector<float> sourceRight(static_cast<std::size_t>(sampleCount), 0.0f);
+    for (auto sample = 0; sample < 96000; ++sample)
+    {
+        const auto time = static_cast<double>(sample) / sampleRate;
+        const auto release = sample < 93600
+            ? 1.0f
+            : static_cast<float>(96000 - sample) / 2400.0f;
+        const auto c = std::sin(2.0 * 3.14159265358979323846
+                              * midiFrequency(60) * time);
+        const auto e = std::sin(2.0 * 3.14159265358979323846
+                              * midiFrequency(64) * time + 0.31);
+        const auto g = std::sin(2.0 * 3.14159265358979323846
+                              * midiFrequency(67) * time + 0.57);
+        sourceLeft[static_cast<std::size_t>(sample)]
+            = release * static_cast<float>(0.045 * (c + 0.72 * e + 0.41 * g));
+        sourceRight[static_cast<std::size_t>(sample)]
+            = release * static_cast<float>(0.045 * (0.38 * c + 0.76 * e + g));
+    }
+
+    ReverbParameters activeParameters;
+    activeParameters.mix = 1.0f;
+    activeParameters.preDelayMs = 0.0f;
+    activeParameters.harmony = 1.0f;
+    activeParameters.autoHarmony = true;
+    auto bypassAutoParameters = activeParameters;
+    bypassAutoParameters.harmony = 0.0f;
+    auto bypassManualParameters = bypassAutoParameters;
+    bypassManualParameters.autoHarmony = false;
+
+    auto singleLeft = sourceLeft;
+    auto singleRight = sourceRight;
+    auto blockedLeft = sourceLeft;
+    auto blockedRight = sourceRight;
+    auto bypassAutoLeft = sourceLeft;
+    auto bypassAutoRight = sourceRight;
+    auto bypassManualLeft = sourceLeft;
+    auto bypassManualRight = sourceRight;
+    FDNReverb single;
+    FDNReverb blocked;
+    FDNReverb bypassAuto;
+    FDNReverb bypassManual;
+    single.setParameters(activeParameters);
+    blocked.setParameters(activeParameters);
+    bypassAuto.setParameters(bypassAutoParameters);
+    bypassManual.setParameters(bypassManualParameters);
+    single.prepare(sampleRate, 1);
+    blocked.prepare(sampleRate, 257);
+    bypassAuto.prepare(sampleRate, 127);
+    bypassManual.prepare(sampleRate, 127);
+
+    for (auto sample = 0; sample < sampleCount; ++sample)
+        single.processSample(singleLeft[static_cast<std::size_t>(sample)],
+                             singleRight[static_cast<std::size_t>(sample)]);
+    for (auto offset = 0; offset < sampleCount; offset += 257)
+    {
+        const auto blockSize = std::min(257, sampleCount - offset);
+        blocked.process(blockedLeft.data() + offset,
+                        blockedRight.data() + offset, blockSize);
+    }
+    bypassAuto.process(bypassAutoLeft.data(), bypassAutoRight.data(), sampleCount);
+    bypassManual.process(bypassManualLeft.data(), bypassManualRight.data(), sampleCount);
+
+    auto referenceEnergy = 0.0;
+    auto differenceEnergy = 0.0;
+    auto peak = 0.0f;
+    for (auto sample = 0; sample < sampleCount; ++sample)
+    {
+        const auto index = static_cast<std::size_t>(sample);
+        require(std::bit_cast<std::uint32_t>(singleLeft[index])
+                    == std::bit_cast<std::uint32_t>(blockedLeft[index])
+                    && std::bit_cast<std::uint32_t>(singleRight[index])
+                        == std::bit_cast<std::uint32_t>(blockedRight[index]),
+                "Auto Harmony depends on host block segmentation");
+        require(std::bit_cast<std::uint32_t>(bypassAutoLeft[index])
+                    == std::bit_cast<std::uint32_t>(bypassManualLeft[index])
+                    && std::bit_cast<std::uint32_t>(bypassAutoRight[index])
+                        == std::bit_cast<std::uint32_t>(bypassManualRight[index]),
+                "Auto Harmony changed the audio at zero Amount");
+        require(std::isfinite(singleLeft[index]) && std::isfinite(singleRight[index]),
+                "Auto Harmony FDN integration produced NaN/Inf");
+        const auto leftDifference = static_cast<double>(
+            singleLeft[index] - bypassAutoLeft[index]);
+        const auto rightDifference = static_cast<double>(
+            singleRight[index] - bypassAutoRight[index]);
+        referenceEnergy += static_cast<double>(bypassAutoLeft[index])
+                         * bypassAutoLeft[index]
+                         + static_cast<double>(bypassAutoRight[index])
+                         * bypassAutoRight[index];
+        differenceEnergy += leftDifference * leftDifference
+                          + rightDifference * rightDifference;
+        peak = std::max({ peak, std::abs(singleLeft[index]),
+                         std::abs(singleRight[index]) });
+    }
+    const auto normalisedDifference = std::sqrt(
+        differenceEnergy / std::max(referenceEnergy, 1.0e-20));
+    require(normalisedDifference >= 0.005 && normalisedDifference <= 0.50,
+            "Auto Harmony FDN contribution is inaudible or excessive");
+    require(peak < 4.0f, "Auto Harmony FDN integration exceeded its safety range");
+
+    std::cout << "[METRIC] Harmonic Analyzer chord acquisition="
+              << acquisitionSeconds * 1000.0 << " ms, max hop delta="
+              << maximumHopDelta << ", Auto FDN NRMS="
+              << normalisedDifference << '\n';
+}
+
+void testHarmonicTailIdentityStereoAndReset()
+{
+    constexpr auto sampleRate = 48000.0;
+    const auto cMajor = harmonyWeights({ 0, 4, 7 });
+    HarmonicTail bypass;
+    bypass.prepare(sampleRate, cMajor, 1.0f);
+
+    std::uint32_t noiseState = 0x71c3a5d9u;
+    for (auto sample = 0; sample < 24000; ++sample)
+    {
+        noiseState = noiseState * 1664525u + 1013904223u;
+        const auto left = 0.25f * static_cast<float>(static_cast<std::int32_t>(noiseState))
+                        / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+        noiseState = noiseState * 1664525u + 1013904223u;
+        const auto right = 0.25f * static_cast<float>(static_cast<std::int32_t>(noiseState))
+                         / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+        const auto output = bypass.process(left, right, 0.0f, 0.0f);
+        require(std::bit_cast<std::uint32_t>(output.left)
+                    == std::bit_cast<std::uint32_t>(left)
+                    && std::bit_cast<std::uint32_t>(output.right)
+                        == std::bit_cast<std::uint32_t>(right),
+                "Harmonic Tail zero amount is not bit-exact");
+    }
+
+    HarmonicTail first;
+    HarmonicTail repeat;
+    first.prepare(sampleRate, cMajor, 1.0f);
+    repeat.prepare(sampleRate, cMajor, 1.0f);
+    auto oppositeChannelPeak = 0.0f;
+    auto activePeak = 0.0f;
+    for (auto sample = 0; sample < 96000; ++sample)
+    {
+        const auto input = 0.12f * std::sin(
+            static_cast<float>(2.0 * 3.14159265358979323846
+                               * midiFrequency(60) * sample / sampleRate));
+        const auto output = first.process(input, 0.0f, 1.0f, 0.0f);
+        const auto repeated = repeat.process(input, 0.0f, 1.0f, 0.0f);
+        require(std::bit_cast<std::uint32_t>(output.left)
+                    == std::bit_cast<std::uint32_t>(repeated.left)
+                    && std::bit_cast<std::uint32_t>(output.right)
+                        == std::bit_cast<std::uint32_t>(repeated.right),
+                "Harmonic Tail render is not deterministic");
+        require(std::isfinite(output.left) && std::isfinite(output.right),
+                "Harmonic Tail produced NaN/Inf");
+        oppositeChannelPeak = std::max(oppositeChannelPeak, std::abs(output.right));
+        activePeak = std::max(activePeak, std::abs(output.left));
+    }
+    require(oppositeChannelPeak == 0.0f,
+            "Harmonic Tail cross-fed a hard-left signal into the right channel");
+    require(activePeak < 4.0f, "Harmonic Tail exceeded its safety range");
+
+    // The modal bank uses a tighter safety clamp than the FDN projection.
+    // Enabling an infinitesimal amount must not substitute that clamp for the
+    // unprocessed wet base and create an abrupt level step.
+    const auto loudBypass = bypass.process(5.0f, -5.0f, 0.0f, 0.0f);
+    const auto barelyActive = bypass.process(5.0f, -5.0f, 1.0e-4f, 0.0f);
+    require(std::bit_cast<std::uint32_t>(loudBypass.left)
+                == std::bit_cast<std::uint32_t>(5.0f)
+                && std::bit_cast<std::uint32_t>(loudBypass.right)
+                    == std::bit_cast<std::uint32_t>(-5.0f),
+            "Harmonic Tail loud bypass changed the wet base");
+    require(std::abs(barelyActive.left - loudBypass.left) < 1.0e-5f
+                && std::abs(barelyActive.right - loudBypass.right) < 1.0e-5f,
+            "Harmonic Tail jumps when Amount leaves zero");
+
+    for (auto sample = 0; sample < 4096; ++sample)
+    {
+        const auto dirty = 0.31f * std::sin(
+            static_cast<float>(2.0 * 3.14159265358979323846
+                               * midiFrequency(61) * sample / sampleRate));
+        static_cast<void>(first.process(dirty, 0.23f * dirty, 1.0f, 0.0f));
+    }
+    first.reset();
+    repeat.reset();
+    for (auto sample = 0; sample < 12000; ++sample)
+    {
+        const auto input = sample == 0 ? 0.5f : 0.0f;
+        const auto output = first.process(input, -0.37f * input, 1.0f, 0.0f);
+        const auto repeated = repeat.process(input, -0.37f * input, 1.0f, 0.0f);
+        require(std::bit_cast<std::uint32_t>(output.left)
+                    == std::bit_cast<std::uint32_t>(repeated.left)
+                    && std::bit_cast<std::uint32_t>(output.right)
+                        == std::bit_cast<std::uint32_t>(repeated.right),
+                "Harmonic Tail reset is not deterministic");
+    }
+
+    const auto invalid = first.process(std::numeric_limits<float>::quiet_NaN(),
+                                       std::numeric_limits<float>::infinity(),
+                                       1.0f, 0.0f);
+    require(std::isfinite(invalid.left) && std::isfinite(invalid.right),
+            "Harmonic Tail did not recover from NaN/Inf");
+}
+
+void testHarmonicTailPitchFocusAndSampleRates()
+{
+    constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
+    constexpr std::array<int, 3> selectedNotes { 48, 60, 72 }; // C3/C4/C5
+    constexpr std::array<int, 3> rejectedNotes { 54, 66, 78 }; // F#3/F#4/F#5
+    const auto cOnly = harmonyWeights({ 0 });
+    std::array<double, sampleRates.size()> contrastsDb {};
+    std::array<double, sampleRates.size()> selectedLevelsDb {};
+
+    const auto effectEnergy = [&] (double sampleRate, int midiNote)
+    {
+        HarmonicTail tail;
+        tail.prepare(sampleRate, cOnly, 1.0f);
+        const auto totalSamples = static_cast<int>(sampleRate * 2.0);
+        const auto analysisStart = static_cast<int>(sampleRate);
+        const auto frequency = midiFrequency(midiNote);
+        auto inputEnergy = 0.0;
+        auto deltaEnergy = 0.0;
+        auto peak = 0.0f;
+        for (auto sample = 0; sample < totalSamples; ++sample)
+        {
+            const auto input = 0.10f * static_cast<float>(
+                std::sin(2.0 * 3.14159265358979323846
+                         * frequency * static_cast<double>(sample) / sampleRate));
+            const auto output = tail.process(input, input, 1.0f, 0.0f);
+            require(std::isfinite(output.left) && std::isfinite(output.right),
+                    "Harmonic Tail pitch test produced NaN/Inf");
+            peak = std::max({ peak, std::abs(output.left), std::abs(output.right) });
+            if (sample >= analysisStart)
+            {
+                const auto delta = static_cast<double>(output.left - input);
+                inputEnergy += static_cast<double>(input) * input;
+                deltaEnergy += delta * delta;
+            }
+        }
+        require(peak < 4.0f, "Harmonic Tail pitch test exceeded its safety range");
+        return std::pair { deltaEnergy, inputEnergy };
+    };
+
+    for (std::size_t rateIndex = 0; rateIndex < sampleRates.size(); ++rateIndex)
+    {
+        auto selectedEffect = 0.0;
+        auto selectedInput = 0.0;
+        auto rejectedEffect = 0.0;
+        auto rejectedInput = 0.0;
+        for (const auto note : selectedNotes)
+        {
+            const auto [effect, input] = effectEnergy(sampleRates[rateIndex], note);
+            selectedEffect += effect;
+            selectedInput += input;
+        }
+        for (const auto note : rejectedNotes)
+        {
+            const auto [effect, input] = effectEnergy(sampleRates[rateIndex], note);
+            rejectedEffect += effect;
+            rejectedInput += input;
+        }
+
+        selectedLevelsDb[rateIndex] = 10.0 * std::log10(
+            std::max(selectedEffect / selectedInput, 1.0e-20));
+        const auto rejectedLevelDb = 10.0 * std::log10(
+            std::max(rejectedEffect / rejectedInput, 1.0e-20));
+        contrastsDb[rateIndex] = selectedLevelsDb[rateIndex] - rejectedLevelDb;
+        require(selectedLevelsDb[rateIndex] >= -18.0,
+                "Harmonic Tail selected pitch is too weak");
+        require(contrastsDb[rateIndex] >= 18.0,
+                "Harmonic Tail pitch-class focus is too broad");
+    }
+
+    const auto [minimumContrast, maximumContrast] = std::minmax_element(
+        contrastsDb.begin(), contrastsDb.end());
+    const auto [minimumSelected, maximumSelected] = std::minmax_element(
+        selectedLevelsDb.begin(), selectedLevelsDb.end());
+    require(*maximumContrast - *minimumContrast <= 4.0,
+            "Harmonic Tail pitch contrast changes excessively with sample rate");
+    require(*maximumSelected - *minimumSelected <= 1.0,
+            "Harmonic Tail selected-pitch gain changes with sample rate");
+
+    const auto [subEffect, subInput] = effectEnergy(48000.0, 33); // A1, 55 Hz
+    const auto subEffectDb = 10.0 * std::log10(std::max(subEffect / subInput, 1.0e-20));
+    require(subEffectDb <= -25.0,
+            "Harmonic Tail adds excessive sub-bass energy");
+
+    HarmonicTail dense;
+    HarmonicTail::PitchClassWeights chromaticField {};
+    chromaticField.fill(1.0f);
+    dense.prepare(48000.0, chromaticField, 1.0f);
+    std::uint32_t denseNoiseState = 0x93e7b51du;
+    auto denseInputEnergy = 0.0;
+    auto denseEffectEnergy = 0.0;
+    auto densePeak = 0.0f;
+    for (auto sample = 0; sample < 96000; ++sample)
+    {
+        denseNoiseState = denseNoiseState * 1664525u + 1013904223u;
+        const auto input = 0.12f
+            * static_cast<float>(static_cast<std::int32_t>(denseNoiseState))
+            / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+        const auto output = dense.process(input, -0.71f * input, 1.0f, 0.0f);
+        require(std::isfinite(output.left) && std::isfinite(output.right),
+                "Harmonic Tail dense map produced NaN/Inf");
+        densePeak = std::max({ densePeak, std::abs(output.left),
+                               std::abs(output.right) });
+        if (sample >= 48000)
+        {
+            const auto delta = static_cast<double>(output.left - input);
+            denseInputEnergy += static_cast<double>(input) * input;
+            denseEffectEnergy += delta * delta;
+        }
+    }
+    const auto denseEffectRatio = std::sqrt(
+        denseEffectEnergy / std::max(denseInputEnergy, 1.0e-20));
+    require(densePeak < 4.0f && denseEffectRatio < 0.75,
+            "Harmonic Tail dense-map normalisation is excessive");
+
+    std::cout << "[METRIC] Harmonic Tail selected level dB="
+              << selectedLevelsDb[1]
+              << ", pitch contrast dB=" << contrastsDb[1]
+              << ", sub effect dB=" << subEffectDb
+              << ", dense-map NRMS=" << denseEffectRatio << '\n';
+}
+
+void testHarmonicTailAutomationFreezeAndStability()
+{
+    constexpr auto sampleRate = 48000.0;
+    const auto cMajor = harmonyWeights({ 0, 4, 7 });
+    const auto fSharpMajor = harmonyWeights({ 1, 6, 10 });
+    HarmonicTail held;
+    HarmonicTail control;
+    held.prepare(sampleRate, cMajor, 1.0f);
+    control.prepare(sampleRate, cMajor, 1.0f);
+
+    for (auto sample = 0; sample < 48000; ++sample)
+    {
+        const auto input = 0.08f * std::sin(
+            static_cast<float>(2.0 * 3.14159265358979323846
+                               * midiFrequency(60) * sample / sampleRate));
+        static_cast<void>(held.process(input, -0.31f * input, 1.0f, 0.0f));
+        static_cast<void>(control.process(input, -0.31f * input, 1.0f, 0.0f));
+    }
+
+    held.setPitchClassWeights(fSharpMajor, 1.0f);
+    for (auto sample = 0; sample < 48000; ++sample)
+    {
+        const auto input = 0.08f * std::sin(
+            static_cast<float>(2.0 * 3.14159265358979323846
+                               * midiFrequency(60) * sample / sampleRate));
+        const auto frozen = held.process(input, -0.31f * input, 1.0f, 1.0f);
+        const auto reference = control.process(input, -0.31f * input, 1.0f, 1.0f);
+        require(std::bit_cast<std::uint32_t>(frozen.left)
+                    == std::bit_cast<std::uint32_t>(reference.left)
+                    && std::bit_cast<std::uint32_t>(frozen.right)
+                        == std::bit_cast<std::uint32_t>(reference.right),
+                "Harmonic Tail changed its harmonic field during Freeze");
+    }
+
+    auto firstUnfrozenDelta = 0.0f;
+    auto peak = 0.0f;
+    auto lateReferenceEnergy = 0.0;
+    auto lateDifferenceEnergy = 0.0;
+    for (auto sample = 0; sample < 192000; ++sample)
+    {
+        const auto envelope = sample < 144000 ? 1.0f : 0.0f;
+        const auto input = envelope * 0.08f * std::sin(
+            static_cast<float>(2.0 * 3.14159265358979323846
+                               * midiFrequency(60) * sample / sampleRate));
+        const auto changed = held.process(input, -0.31f * input, 1.0f, 0.0f);
+        const auto reference = control.process(input, -0.31f * input, 1.0f, 0.0f);
+        if (sample == 0)
+            firstUnfrozenDelta = std::max(std::abs(changed.left - reference.left),
+                                          std::abs(changed.right - reference.right));
+        require(std::isfinite(changed.left) && std::isfinite(changed.right),
+                "Harmonic Tail automation produced NaN/Inf");
+        peak = std::max({ peak, std::abs(changed.left), std::abs(changed.right) });
+        if (sample >= 24000 && sample < 120000)
+        {
+            const auto leftDifference = static_cast<double>(changed.left
+                                                            - reference.left);
+            const auto rightDifference = static_cast<double>(changed.right
+                                                             - reference.right);
+            lateReferenceEnergy += static_cast<double>(reference.left)
+                                 * reference.left
+                                 + static_cast<double>(reference.right)
+                                 * reference.right;
+            lateDifferenceEnergy += leftDifference * leftDifference
+                                  + rightDifference * rightDifference;
+        }
+    }
+    require(firstUnfrozenDelta <= 0.005f,
+            "Harmonic Tail harmonic-field morph starts with a discontinuity");
+    require(std::sqrt(lateDifferenceEnergy
+                      / std::max(lateReferenceEnergy, 1.0e-20)) >= 0.02,
+            "Harmonic Tail did not apply the new map after Freeze");
+    require(peak < 4.0f, "Harmonic Tail automation exceeded its safety range");
+
+    // Excite the resonators while the pitch map fades completely away, leave
+    // them inactive, then restore the map over silence. No energy from the old
+    // chord may reappear when confidence returns.
+    HarmonicTail dropout;
+    dropout.prepare(sampleRate, cMajor, 1.0f);
+    for (auto sample = 0; sample < 48000; ++sample)
+    {
+        const auto input = 0.75f * std::sin(
+            static_cast<float>(2.0 * 3.14159265358979323846
+                               * midiFrequency(60) * sample / sampleRate));
+        static_cast<void>(dropout.process(input, input, 1.0f, 0.0f));
+    }
+    dropout.setPitchClassWeights({}, 1.0f);
+    for (auto sample = 0; sample < 216000; ++sample)
+    {
+        const auto input = 0.75f * std::sin(
+            static_cast<float>(2.0 * 3.14159265358979323846
+                               * midiFrequency(60) * sample / sampleRate));
+        static_cast<void>(dropout.process(input, input, 1.0f, 0.0f));
+    }
+    for (auto sample = 0; sample < 12000; ++sample)
+        static_cast<void>(dropout.process(0.0f, 0.0f, 1.0f, 0.0f));
+
+    dropout.setPitchClassWeights(cMajor, 1.0f);
+    auto reactivationPeak = 0.0f;
+    for (auto sample = 0; sample < 24000; ++sample)
+    {
+        const auto output = dropout.process(0.0f, 0.0f, 1.0f, 0.0f);
+        reactivationPeak = std::max({ reactivationPeak,
+                                      std::abs(output.left),
+                                      std::abs(output.right) });
+    }
+    require(reactivationPeak <= 1.0e-8f,
+            "Harmonic Tail revived a stale chord after confidence dropout");
+
+    for (const auto rate : { 44100.0, 48000.0, 88200.0, 96000.0 })
+    {
+        HarmonicTail tail;
+        tail.prepare(rate, cMajor, 1.0f);
+        const auto samples = static_cast<int>(rate * 2.0);
+        auto ratePeak = 0.0f;
+        auto earlySilenceEnergy = 0.0;
+        auto lateSilenceEnergy = 0.0;
+        for (auto sample = 0; sample < samples; ++sample)
+        {
+            const auto input = sample < static_cast<int>(rate * 0.5)
+                ? 0.06f * std::sin(static_cast<float>(
+                    2.0 * 3.14159265358979323846
+                    * midiFrequency(60) * sample / rate))
+                : 0.0f;
+            const auto output = tail.process(input, -0.27f * input, 1.0f, 0.0f);
+            require(std::isfinite(output.left) && std::isfinite(output.right),
+                    "Harmonic Tail sample-rate stress produced NaN/Inf");
+            ratePeak = std::max({ ratePeak, std::abs(output.left),
+                                 std::abs(output.right) });
+            const auto outputEnergy = static_cast<double>(output.left)
+                                    * output.left
+                                    + static_cast<double>(output.right)
+                                    * output.right;
+            if (sample >= static_cast<int>(rate * 0.5)
+                && sample < static_cast<int>(rate * 0.75))
+                earlySilenceEnergy += outputEnergy;
+            if (sample >= static_cast<int>(rate * 1.75))
+                lateSilenceEnergy += outputEnergy;
+        }
+        require(ratePeak < 4.0f,
+                "Harmonic Tail sample-rate stress exceeded its safety range");
+        require(lateSilenceEnergy <= earlySilenceEnergy * 0.01 + 1.0e-20,
+                "Harmonic Tail modal energy did not decay");
+    }
+}
+
+void testHarmonicTailFdnIntegrationAndBlockInvariance()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto sampleCount = 96000;
+    ReverbParameters parameters;
+    parameters.mode = ReverbMode::defaultMode;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 5.0f;
+    parameters.size = 1.12f;
+    parameters.preDelayMs = 17.0f;
+    parameters.lowCutHz = 55.0f;
+    parameters.highDampingHz = 8500.0f;
+    parameters.evolution = 0.45f;
+    parameters.width = 1.15f;
+    parameters.harmony = 1.0f;
+    parameters.harmonyPitchClasses = harmonyWeights({ 0, 4, 7 });
+    parameters.harmonyConfidence = 1.0f;
+
+    std::vector<float> sourceLeft(sampleCount, 0.0f);
+    std::vector<float> sourceRight(sampleCount, 0.0f);
+    constexpr auto excitationSamples = 30000;
+    for (auto sample = 0; sample < excitationSamples; ++sample)
+    {
+        const auto release = sample < excitationSamples - 2400
+            ? 1.0f
+            : static_cast<float>(excitationSamples - sample) / 2400.0f;
+        const auto c = std::sin(2.0 * 3.14159265358979323846
+                              * midiFrequency(60) * sample / sampleRate);
+        const auto e = std::sin(2.0 * 3.14159265358979323846
+                              * midiFrequency(64) * sample / sampleRate);
+        const auto g = std::sin(2.0 * 3.14159265358979323846
+                              * midiFrequency(67) * sample / sampleRate);
+        sourceLeft[static_cast<std::size_t>(sample)]
+            = release * static_cast<float>(0.035 * (c + 0.72 * e + 0.38 * g));
+        sourceRight[static_cast<std::size_t>(sample)]
+            = release * static_cast<float>(0.035 * (0.36 * c + 0.74 * e + g));
+    }
+
+    auto singleLeft = sourceLeft;
+    auto singleRight = sourceRight;
+    auto blockLeft = sourceLeft;
+    auto blockRight = sourceRight;
+    auto bypassLeft = sourceLeft;
+    auto bypassRight = sourceRight;
+    auto neutralLeft = sourceLeft;
+    auto neutralRight = sourceRight;
+
+    FDNReverb single;
+    FDNReverb blocked;
+    FDNReverb bypass;
+    FDNReverb neutral;
+    single.setParameters(parameters);
+    blocked.setParameters(parameters);
+    single.prepare(sampleRate, 1);
+    blocked.prepare(sampleRate, 127);
+
+    auto bypassParameters = parameters;
+    bypassParameters.harmony = 0.0f;
+    bypass.setParameters(bypassParameters);
+    bypass.prepare(sampleRate, 512);
+
+    auto neutralParameters = bypassParameters;
+    neutralParameters.harmonyPitchClasses = {};
+    neutralParameters.harmonyConfidence = 0.0f;
+    neutral.setParameters(neutralParameters);
+    neutral.prepare(sampleRate, 512);
+
+    for (auto sample = 0; sample < sampleCount; ++sample)
+        single.process(singleLeft.data() + sample, singleRight.data() + sample, 1);
+    for (auto offset = 0; offset < sampleCount; offset += 127)
+    {
+        const auto blockSize = std::min(127, sampleCount - offset);
+        blocked.process(blockLeft.data() + offset, blockRight.data() + offset, blockSize);
+    }
+    bypass.process(bypassLeft.data(), bypassRight.data(), sampleCount);
+    neutral.process(neutralLeft.data(), neutralRight.data(), sampleCount);
+
+    auto referenceEnergy = 0.0;
+    auto differenceEnergy = 0.0;
+    auto peak = 0.0f;
+    for (auto sample = 0; sample < sampleCount; ++sample)
+    {
+        const auto index = static_cast<std::size_t>(sample);
+        require(std::abs(singleLeft[index] - blockLeft[index]) <= 1.0e-7f
+                    && std::abs(singleRight[index] - blockRight[index]) <= 1.0e-7f,
+                "Harmonic Tail depends on process block segmentation");
+        require(std::bit_cast<std::uint32_t>(bypassLeft[index])
+                    == std::bit_cast<std::uint32_t>(neutralLeft[index])
+                    && std::bit_cast<std::uint32_t>(bypassRight[index])
+                        == std::bit_cast<std::uint32_t>(neutralRight[index]),
+                "Harmonic Tail changed the FDN at zero amount");
+        require(std::isfinite(singleLeft[index]) && std::isfinite(singleRight[index]),
+                "Harmonic Tail FDN integration produced NaN/Inf");
+
+        const auto leftDifference = static_cast<double>(singleLeft[index]
+                                                        - bypassLeft[index]);
+        const auto rightDifference = static_cast<double>(singleRight[index]
+                                                         - bypassRight[index]);
+        referenceEnergy += static_cast<double>(bypassLeft[index]) * bypassLeft[index]
+                         + static_cast<double>(bypassRight[index]) * bypassRight[index];
+        differenceEnergy += leftDifference * leftDifference
+                          + rightDifference * rightDifference;
+        peak = std::max({ peak, std::abs(singleLeft[index]),
+                         std::abs(singleRight[index]) });
+    }
+
+    require(referenceEnergy > 1.0e-10,
+            "Harmonic Tail FDN reference render is silent");
+    const auto normalisedDifference = std::sqrt(differenceEnergy / referenceEnergy);
+    require(normalisedDifference >= 0.005 && normalisedDifference <= 0.50,
+            "Harmonic Tail FDN contribution is inaudible or excessive");
+    require(peak < 4.0f, "Harmonic Tail FDN integration exceeded its safety range");
+
+    // Freeze must latch the current harmonic map on the exact control edge,
+    // independently of the main FDN's click-free 50 ms Freeze gain ramp.
+    FDNReverb frozenReference;
+    FDNReverb frozenMapChange;
+    frozenReference.setParameters(parameters);
+    frozenMapChange.setParameters(parameters);
+    frozenReference.prepare(sampleRate, 127);
+    frozenMapChange.prepare(sampleRate, 127);
+    for (auto sample = 0; sample < 48000; ++sample)
+    {
+        auto referenceLeft = sourceLeft[static_cast<std::size_t>(sample)];
+        auto referenceRight = sourceRight[static_cast<std::size_t>(sample)];
+        auto changedLeft = referenceLeft;
+        auto changedRight = referenceRight;
+        frozenReference.processSample(referenceLeft, referenceRight);
+        frozenMapChange.processSample(changedLeft, changedRight);
+    }
+
+    auto frozenParameters = parameters;
+    frozenParameters.freeze = true;
+    frozenReference.setParameters(frozenParameters);
+    frozenParameters.harmonyPitchClasses = harmonyWeights({ 1, 6, 10 });
+    frozenMapChange.setParameters(frozenParameters);
+    for (auto sample = 0; sample < 48000; ++sample)
+    {
+        auto referenceLeft = 0.0f;
+        auto referenceRight = 0.0f;
+        auto changedLeft = 0.0f;
+        auto changedRight = 0.0f;
+        frozenReference.processSample(referenceLeft, referenceRight);
+        frozenMapChange.processSample(changedLeft, changedRight);
+        require(std::bit_cast<std::uint32_t>(referenceLeft)
+                    == std::bit_cast<std::uint32_t>(changedLeft)
+                    && std::bit_cast<std::uint32_t>(referenceRight)
+                        == std::bit_cast<std::uint32_t>(changedRight),
+                "Harmonic map leaked through the FDN Freeze ramp");
+    }
+
+    for (const auto rate : { 44100.0, 48000.0, 88200.0, 96000.0 })
+    {
+        auto stressParameters = parameters;
+        stressParameters.mode = ReverbMode::drift;
+        stressParameters.decaySeconds = 30.0f;
+        stressParameters.size = 2.0f;
+        stressParameters.evolution = 1.0f;
+        stressParameters.highDampingHz = 20000.0f;
+        FDNReverb stress;
+        stress.setParameters(stressParameters);
+        stress.prepare(rate, 257);
+        std::uint32_t noiseState = 0x43a91f2du;
+        auto stressPeak = 0.0f;
+        const auto samples = static_cast<int>(rate * 3.0);
+        for (auto sample = 0; sample < samples; ++sample)
+        {
+            if (sample == static_cast<int>(rate))
+            {
+                stressParameters.freeze = true;
+                stress.setParameters(stressParameters);
+            }
+            if (sample == static_cast<int>(rate * 2.0))
+            {
+                stressParameters.harmonyPitchClasses = harmonyWeights({ 1, 6, 10 });
+                stress.setParameters(stressParameters);
+            }
+            noiseState = noiseState * 1664525u + 1013904223u;
+            const auto noise = static_cast<float>(static_cast<std::int32_t>(noiseState))
+                             / static_cast<float>(
+                                 std::numeric_limits<std::int32_t>::max());
+            auto left = sample < static_cast<int>(rate * 0.35)
+                ? (sample == 0 ? 0.8f : 0.012f * noise)
+                : 0.0f;
+            auto right = sample < static_cast<int>(rate * 0.35)
+                ? (sample == 0 ? -0.3f : -0.009f * noise)
+                : 0.0f;
+            stress.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Harmonic Tail FDN stress produced NaN/Inf");
+            stressPeak = std::max({ stressPeak, std::abs(left), std::abs(right) });
+        }
+        require(stressPeak < 4.0f,
+                "Harmonic Tail FDN stress exceeded its safety range");
+    }
+
+    std::cout << "[METRIC] Harmonic Tail FDN NRMS="
+              << normalisedDifference << ", peak=" << peak << '\n';
+}
+
 void testNoAllocationsInProcess()
 {
     FDNReverb reverb;
     reverb.prepare(48000.0, 512);
+    HarmonicTail harmonicTail;
+    auto harmonicWeights = harmonyWeights({ 0, 4, 7 });
+    harmonicTail.prepare(48000.0, harmonicWeights, 1.0f);
     ReverbParameters parameters;
+    parameters.harmony = 1.0f;
+    parameters.harmonyPitchClasses = harmonicWeights;
+    parameters.harmonyConfidence = 1.0f;
+    parameters.autoHarmony = true;
     constexpr std::array modes {
         ReverbMode::defaultMode,
         ReverbMode::bloom,
@@ -3501,11 +5043,18 @@ void testNoAllocationsInProcess()
             parameters.evolution = 1.0f - parameters.evolution;
             parameters.ducking = 1.0f - parameters.ducking;
             parameters.freeze = !parameters.freeze;
+            harmonicWeights = modeIndex % 2 == 0
+                ? harmonyWeights({ 0, 4, 7 })
+                : harmonyWeights({ 1, 6, 10 });
+            parameters.harmonyPitchClasses = harmonicWeights;
             reverb.setParameters(parameters);
+            harmonicTail.setPitchClassWeights(harmonicWeights, 1.0f);
         }
         auto left = sample == 0 ? 1.0f : 0.0f;
         auto right = 0.0f;
         reverb.processSample(left, right);
+        static_cast<void>(harmonicTail.process(left, right, 1.0f,
+                                               parameters.freeze ? 1.0f : 0.0f));
     }
     countAllocations.store(false, std::memory_order_relaxed);
 
@@ -3684,10 +5233,49 @@ void writeLittleEndian32(std::ofstream& stream, std::uint32_t value)
     stream.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
 }
 
+void writeStereoFloatWav(const std::string& path,
+                         const StereoRender& render,
+                         int sampleRate)
+{
+    require(render.left.size() == render.right.size(),
+            "Stereo WAV channels have different lengths");
+    require(sampleRate > 0, "Stereo WAV sample rate is invalid");
+
+    constexpr std::uint16_t channels = 2;
+    std::vector<float> interleaved(render.left.size() * channels);
+    for (std::size_t sample = 0; sample < render.left.size(); ++sample)
+    {
+        interleaved[sample * channels] = render.left[sample];
+        interleaved[sample * channels + 1] = render.right[sample];
+    }
+
+    std::ofstream stream(path, std::ios::binary);
+    require(stream.good(), "Could not open WAV output: " + path);
+
+    constexpr std::uint32_t bytesPerSample = sizeof(float);
+    const auto sampleRateValue = static_cast<std::uint32_t>(sampleRate);
+    const auto dataBytes = static_cast<std::uint32_t>(interleaved.size() * bytesPerSample);
+    stream.write("RIFF", 4);
+    writeLittleEndian32(stream, 36u + dataBytes);
+    stream.write("WAVE", 4);
+    stream.write("fmt ", 4);
+    writeLittleEndian32(stream, 16u);
+    writeLittleEndian16(stream, 3u);
+    writeLittleEndian16(stream, channels);
+    writeLittleEndian32(stream, sampleRateValue);
+    writeLittleEndian32(stream, sampleRateValue * channels * bytesPerSample);
+    writeLittleEndian16(stream, static_cast<std::uint16_t>(channels * bytesPerSample));
+    writeLittleEndian16(stream, 32u);
+    stream.write("data", 4);
+    writeLittleEndian32(stream, dataBytes);
+    stream.write(reinterpret_cast<const char*>(interleaved.data()),
+                 static_cast<std::streamsize>(dataBytes));
+    require(stream.good(), "Failed while writing WAV output: " + path);
+}
+
 void renderImpulseResponse(const std::string& path, ReverbMode mode)
 {
     constexpr auto sampleRate = 48000;
-    constexpr auto channels = 2;
     constexpr auto seconds = 10;
     constexpr auto sampleCount = sampleRate * seconds;
 
@@ -3706,42 +5294,236 @@ void renderImpulseResponse(const std::string& path, ReverbMode mode)
     reverb.setParameters(parameters);
     reverb.prepare(sampleRate, 512);
 
-    std::vector<float> interleaved(static_cast<std::size_t>(sampleCount * channels));
+    StereoRender render {
+        std::vector<float>(sampleCount, 0.0f),
+        std::vector<float>(sampleCount, 0.0f)
+    };
     for (auto sample = 0; sample < sampleCount; ++sample)
     {
         auto left = sample == 0 ? 1.0f : 0.0f;
         auto right = 0.0f;
         reverb.processSample(left, right);
-        interleaved[static_cast<std::size_t>(sample * channels)] = left;
-        interleaved[static_cast<std::size_t>(sample * channels + 1)] = right;
+        render.left[static_cast<std::size_t>(sample)] = left;
+        render.right[static_cast<std::size_t>(sample)] = right;
     }
 
-    std::ofstream stream(path, std::ios::binary);
-    require(stream.good(), "Could not open impulse render output: " + path);
+    writeStereoFloatWav(path, render, sampleRate);
+}
 
-    constexpr auto bytesPerSample = sizeof(float);
-    const auto dataBytes = static_cast<std::uint32_t>(interleaved.size() * bytesPerSample);
-    stream.write("RIFF", 4);
-    writeLittleEndian32(stream, 36u + dataBytes);
-    stream.write("WAVE", 4);
-    stream.write("fmt ", 4);
-    writeLittleEndian32(stream, 16u);
-    writeLittleEndian16(stream, 3u);
-    writeLittleEndian16(stream, channels);
-    writeLittleEndian32(stream, sampleRate);
-    writeLittleEndian32(stream, sampleRate * channels * bytesPerSample);
-    writeLittleEndian16(stream, channels * bytesPerSample);
-    writeLittleEndian16(stream, 32u);
-    stream.write("data", 4);
-    writeLittleEndian32(stream, dataBytes);
-    stream.write(reinterpret_cast<const char*>(interleaved.data()),
-                 static_cast<std::streamsize>(dataBytes));
-    require(stream.good(), "Failed while writing impulse render: " + path);
+void renderHarmonyAb(const std::string& scene, const std::string& prefix)
+{
+    constexpr auto sampleRate = 48000;
+    constexpr auto twoPi = 6.28318530717958647692;
+    constexpr auto padChordSeconds = 2.0;
+    constexpr std::array<std::array<int, 3>, 4> padNotes {{
+        { 57, 60, 64 }, // A minor
+        { 53, 57, 60 }, // F major
+        { 60, 64, 67 }, // C major
+        { 55, 59, 62 }  // G major
+    }};
+
+    const std::array padFields {
+        harmonyWeights({ 9, 0, 4 }),
+        harmonyWeights({ 5, 9, 0 }),
+        harmonyWeights({ 0, 4, 7 }),
+        harmonyWeights({ 7, 11, 2 })
+    };
+    const auto vocalField = harmonyWeights({ 7, 10, 2 }); // G minor
+    const auto kickBassField = harmonyWeights({ 9, 0, 4 }); // A minor
+
+    const auto isPad = scene == "pad";
+    const auto isVocal = scene == "vocal";
+    const auto isKickBass = scene == "kickbass190";
+    require(isPad || isVocal || isKickBass,
+            "Unknown Harmony A/B scene: " + scene);
+
+    const auto contentSeconds = isPad ? padChordSeconds * padNotes.size()
+                              : isVocal ? 4.0
+                                        : 16.0 * 60.0 / 190.0;
+    const auto totalSeconds = contentSeconds + 4.0;
+    const auto sampleCount = static_cast<int>(std::ceil(totalSeconds * sampleRate));
+
+    ReverbParameters baseParameters;
+    baseParameters.mode = isPad ? ReverbMode::defaultMode : ReverbMode::drift;
+    baseParameters.mix = 1.0f;
+    baseParameters.decaySeconds = isPad ? 6.5f : 5.5f;
+    baseParameters.size = 1.18f;
+    baseParameters.preDelayMs = 18.0f;
+    baseParameters.lowCutHz = isKickBass ? 35.0f : 70.0f;
+    baseParameters.highDampingHz = 9500.0f;
+    baseParameters.evolution = 0.48f;
+    baseParameters.width = 1.20f;
+    baseParameters.ducking = 0.0f;
+    baseParameters.harmonyPitchClasses = isPad ? padFields.front()
+                                               : isVocal ? vocalField
+                                                         : kickBassField;
+    baseParameters.harmonyConfidence = 1.0f;
+
+    auto offParameters = baseParameters;
+    offParameters.harmony = 0.0f;
+    auto onParameters = baseParameters;
+    onParameters.harmony = 1.0f;
+
+    FDNReverb off;
+    FDNReverb on;
+    off.setParameters(offParameters);
+    on.setParameters(onParameters);
+    off.prepare(sampleRate, 512);
+    on.prepare(sampleRate, 512);
+
+    StereoRender offRender {
+        std::vector<float>(static_cast<std::size_t>(sampleCount), 0.0f),
+        std::vector<float>(static_cast<std::size_t>(sampleCount), 0.0f)
+    };
+    StereoRender onRender {
+        std::vector<float>(static_cast<std::size_t>(sampleCount), 0.0f),
+        std::vector<float>(static_cast<std::size_t>(sampleCount), 0.0f)
+    };
+    const DriftVocalSource vocal;
+    auto activePadChord = std::size_t { 0 };
+    auto differenceEnergy = 0.0;
+    auto referenceEnergy = 0.0;
+
+    for (auto sample = 0; sample < sampleCount; ++sample)
+    {
+        const auto time = static_cast<double>(sample) / sampleRate;
+        auto dryLeft = 0.0f;
+        auto dryRight = 0.0f;
+
+        if (isPad && time < contentSeconds)
+        {
+            const auto chord = std::min<std::size_t>(
+                static_cast<std::size_t>(time / padChordSeconds),
+                padNotes.size() - 1);
+            if (chord != activePadChord)
+            {
+                activePadChord = chord;
+                offParameters.harmonyPitchClasses = padFields[chord];
+                onParameters.harmonyPitchClasses = padFields[chord];
+                off.setParameters(offParameters);
+                on.setParameters(onParameters);
+            }
+
+            const auto chordTime = time - static_cast<double>(chord) * padChordSeconds;
+            constexpr auto gateSeconds = 1.25;
+            if (chordTime < gateSeconds)
+            {
+                const auto attack = std::min(1.0, chordTime / 0.08);
+                const auto release = chordTime < gateSeconds - 0.30
+                    ? 1.0
+                    : (gateSeconds - chordTime) / 0.30;
+                const auto envelope = attack * std::clamp(release, 0.0, 1.0);
+                for (std::size_t note = 0; note < padNotes[chord].size(); ++note)
+                {
+                    const auto frequency = midiFrequency(padNotes[chord][note]);
+                    const auto phase = twoPi * frequency * chordTime
+                                     + 0.21 * static_cast<double>(note);
+                    const auto tone = std::sin(phase)
+                                    + 0.16 * std::sin(2.0 * phase + 0.37);
+                    const auto leftGain = std::array { 1.0, 0.70, 0.42 }[note];
+                    const auto rightGain = std::array { 0.44, 0.72, 1.0 }[note];
+                    dryLeft += static_cast<float>(0.045 * envelope * leftGain * tone);
+                    dryRight += static_cast<float>(0.045 * envelope * rightGain * tone);
+                }
+            }
+        }
+        else if (isVocal)
+        {
+            const auto voice = vocal.sample(sample, static_cast<int>(contentSeconds * sampleRate),
+                                            sampleRate);
+            dryLeft = voice;
+            dryRight = 0.91f * voice;
+        }
+        else if (isKickBass && time < contentSeconds)
+        {
+            const auto source = kickBass190Sample(sample, sampleRate);
+            dryLeft = source;
+            dryRight = source;
+        }
+
+        auto offLeft = dryLeft;
+        auto offRight = dryRight;
+        auto onLeft = dryLeft;
+        auto onRight = dryRight;
+        off.processSample(offLeft, offRight);
+        on.processSample(onLeft, onRight);
+
+        constexpr auto dryMonitorGain = 0.30f;
+        constexpr auto wetMonitorGain = 0.92f;
+        const auto monitoredOffLeft = dryMonitorGain * dryLeft + wetMonitorGain * offLeft;
+        const auto monitoredOffRight = dryMonitorGain * dryRight + wetMonitorGain * offRight;
+        const auto monitoredOnLeft = dryMonitorGain * dryLeft + wetMonitorGain * onLeft;
+        const auto monitoredOnRight = dryMonitorGain * dryRight + wetMonitorGain * onRight;
+        require(std::isfinite(monitoredOffLeft) && std::isfinite(monitoredOffRight)
+                    && std::isfinite(monitoredOnLeft) && std::isfinite(monitoredOnRight),
+                "Harmony A/B render produced NaN/Inf");
+
+        const auto index = static_cast<std::size_t>(sample);
+        offRender.left[index] = monitoredOffLeft;
+        offRender.right[index] = monitoredOffRight;
+        onRender.left[index] = monitoredOnLeft;
+        onRender.right[index] = monitoredOnRight;
+        const auto differenceLeft = static_cast<double>(monitoredOnLeft
+                                                        - monitoredOffLeft);
+        const auto differenceRight = static_cast<double>(monitoredOnRight
+                                                         - monitoredOffRight);
+        differenceEnergy += differenceLeft * differenceLeft
+                          + differenceRight * differenceRight;
+        referenceEnergy += static_cast<double>(monitoredOffLeft) * monitoredOffLeft
+                         + static_cast<double>(monitoredOffRight) * monitoredOffRight;
+    }
+
+    auto commonPeak = 0.0f;
+    for (const auto* render : { &offRender, &onRender })
+        for (std::size_t sample = 0; sample < render->left.size(); ++sample)
+            commonPeak = std::max({ commonPeak,
+                                    std::abs(render->left[sample]),
+                                    std::abs(render->right[sample]) });
+    require(commonPeak > 1.0e-6f, "Harmony A/B render is silent");
+    constexpr auto targetPeak = 0.8912509381f; // -1 dBFS
+    const auto commonGain = targetPeak / commonPeak;
+    for (auto* render : { &offRender, &onRender })
+    {
+        for (auto& sample : render->left)
+            sample *= commonGain;
+        for (auto& sample : render->right)
+            sample *= commonGain;
+    }
+
+    const auto offPath = prefix + "-" + scene + "-off.wav";
+    const auto onPath = prefix + "-" + scene + "-on.wav";
+    writeStereoFloatWav(offPath, offRender, sampleRate);
+    writeStereoFloatWav(onPath, onRender, sampleRate);
+
+    const auto normalisedDifference = std::sqrt(
+        differenceEnergy / std::max(referenceEnergy, 1.0e-20));
+    require(normalisedDifference >= 0.02 && normalisedDifference <= 0.50,
+            "Harmony A/B render is identical or excessively different");
+    std::cout << "[METRIC] Harmony A/B " << scene
+              << ": NRMS=" << normalisedDifference
+              << ", common source peak=" << commonPeak
+              << ", common gain=" << commonGain << '\n'
+              << "[PASS] wrote " << offPath << '\n'
+              << "[PASS] wrote " << onPath << '\n';
 }
 } // namespace
 
 int main(int argc, char** argv)
 {
+    if (argc == 4 && std::strcmp(argv[1], "--render-harmony-ab") == 0)
+    {
+        try
+        {
+            renderHarmonyAb(argv[2], argv[3]);
+            return 0;
+        }
+        catch (const std::exception& error)
+        {
+            std::cerr << "[FAIL] Harmony A/B render: " << error.what() << '\n';
+            return 1;
+        }
+    }
+
     struct NamedTest
     {
         const char* name;
@@ -3790,6 +5572,26 @@ int main(int argc, char** argv)
                     testPerceptualDuckingKickBass190NoPumping },
         NamedTest { "Perceptual Ducking Freeze isolation",
                     testPerceptualDuckingFreezeIsolation },
+        NamedTest { "Harmonic Analyzer pitch, stereo and sample rates",
+                    testHarmonicAnalyzerPitchStereoAndSampleRates },
+        NamedTest { "Harmonic Analyzer 190 BPM source confidence regression",
+                    testHarmonicAnalyzerKickBassConfidenceRegression },
+        NamedTest { "Harmonic Analyzer open voicing retention regression",
+                    testHarmonicAnalyzerOpenVoicingRegression },
+        NamedTest { "Harmonic Analyzer confident-wrong source regression",
+                    testHarmonicAnalyzerConfidentWrongRegression },
+        NamedTest { "Harmonic Analyzer chords, rejection and dropout",
+                    testHarmonicAnalyzerChordsRejectionAndDropout },
+        NamedTest { "Harmonic Analyzer progression and FDN integration",
+                    testHarmonicAnalyzerProgressionAndFdnIntegration },
+        NamedTest { "Harmonic Tail identity, stereo and reset",
+                    testHarmonicTailIdentityStereoAndReset },
+        NamedTest { "Harmonic Tail pitch focus and sample rates",
+                    testHarmonicTailPitchFocusAndSampleRates },
+        NamedTest { "Harmonic Tail automation, Freeze and stability",
+                    testHarmonicTailAutomationFreezeAndStability },
+        NamedTest { "Harmonic Tail FDN integration and block invariance",
+                    testHarmonicTailFdnIntegrationAndBlockInvariance },
         NamedTest { "deterministic Character/Evolution fingerprints",
                     testDeterministicRenderFingerprints },
         NamedTest { "no allocations in process", testNoAllocationsInProcess }
@@ -3797,11 +5599,17 @@ int main(int argc, char** argv)
 
     const auto wantsDuckingTestsOnly = argc == 2
         && std::strcmp(argv[1], "--test-ducking") == 0;
+    const auto wantsHarmonyTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-harmony") == 0;
     auto failures = 0;
     for (const auto& test : tests)
     {
         if (wantsDuckingTestsOnly
             && std::strstr(test.name, "Ducking") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
+        if (wantsHarmonyTestsOnly
+            && std::strstr(test.name, "Harmonic") == nullptr
             && std::strcmp(test.name, "no allocations in process") != 0)
             continue;
         try

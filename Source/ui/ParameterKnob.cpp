@@ -137,7 +137,7 @@ void ParameterKnob::resized()
         return;
     }
 
-    const auto scale = juce::jmin(static_cast<float>(bounds.getWidth()) / 120.0f,
+    const auto scale = juce::jmin(static_cast<float>(bounds.getWidth()) / 106.0f,
                                  static_cast<float>(bounds.getHeight()) / 126.0f);
     const auto dialSize = juce::roundToInt(80.0f * scale);
     const auto nameTop = bounds.getY() + dialSize + juce::roundToInt(scale);

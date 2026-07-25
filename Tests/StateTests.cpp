@@ -121,14 +121,14 @@ juce::ValueTree findParameterState(const juce::ValueTree& state, const juce::Str
 void testUnifiedHostContract()
 {
     AmanitaOceanAudioProcessor processor;
-    constexpr std::array<const char*, 11> expectedIds {
+    constexpr std::array<const char*, 12> expectedIds {
         "algorithm", "mix", "decay", "size", "preDelay", "lowCut",
-        "highDamping", "evolution", "width", "focus", "freeze"
+        "highDamping", "evolution", "width", "focus", "freeze", "harmony"
     };
 
     const auto& parameters = processor.getParameters();
     require(parameters.size() == static_cast<int>(expectedIds.size()),
-            "Host must expose exactly eleven parameters");
+            "Host must expose exactly twelve parameters");
 
     auto choiceCount = 0;
     for (std::size_t index = 0; index < expectedIds.size(); ++index)
@@ -195,6 +195,18 @@ void testUnifiedHostContract()
     require(std::abs(focus->get() - 100.0f) <= 1.0e-6f,
             "Focus does not default to 100 percent");
     require(focus->getLabel() == "%", "Focus unit label changed");
+
+    auto* harmony = dynamic_cast<juce::AudioParameterFloat*>(
+        findParameterById(processor, "harmony"));
+    require(harmony != nullptr, "Harmony is not a float parameter");
+    const auto& harmonyRange = harmony->getNormalisableRange();
+    require(harmony->getName(128) == "Harmony", "Harmony UI label changed");
+    require(std::abs(harmonyRange.start) <= 1.0e-6f
+                && std::abs(harmonyRange.end - 100.0f) <= 1.0e-6f,
+            "Harmony range must be 0..100 percent");
+    require(std::abs(harmony->get()) <= 1.0e-6f,
+            "Harmony does not default to zero percent");
+    require(harmony->getLabel() == "%", "Harmony unit label changed");
 
     const auto requireContinuousTravel = [&](const char* parameterId,
                                              float expectedMinimum,
@@ -300,6 +312,7 @@ void testCurrentStateRoundTrip()
         parameterById(source, "evolution").setValueNotifyingHost(savedEvolutionHostValue);
         parameterById(source, "mix").setValueNotifyingHost(0.731f);
         parameterById(source, "focus").setValueNotifyingHost(0.58f);
+        parameterById(source, "harmony").setValueNotifyingHost(0.42f);
 
         juce::MemoryBlock data;
         source.getStateInformation(data);
@@ -318,6 +331,11 @@ void testCurrentStateRoundTrip()
         require(std::abs(static_cast<float>(savedEvolution.getProperty("value"))
                          - savedEvolutionRawValue) < 0.001f,
                 "Saved Evolution value is wrong");
+        const auto savedHarmony = findParameterState(savedState, "harmony");
+        require(savedHarmony.isValid(), "Saved state has no Harmony node");
+        require(std::abs(static_cast<float>(savedHarmony.getProperty("value"))
+                         - 42.0f) < 0.001f,
+                "Saved Harmony value is wrong");
         for (const auto* removedId : removedIds)
             require(!findParameterState(savedState, removedId).isValid(),
                     std::string("Saved state still contains removed parameter: ")
@@ -337,6 +355,8 @@ void testCurrentStateRoundTrip()
                 "Non-Algorithm state did not survive save/load");
         require(std::abs(parameterById(restored, "focus").getValue() - 0.58f) < 0.001f,
                 "Focus did not survive save/load");
+        require(std::abs(parameterById(restored, "harmony").getValue() - 0.42f) < 0.001f,
+                "Harmony did not survive save/load");
     }
 }
 
@@ -833,11 +853,11 @@ void testCustomEditorLayoutAndAttachments()
                 "Inactive Character text is not sufficiently de-emphasised");
     }
 
-    constexpr std::array<const char*, 15> interactiveIds {
+    constexpr std::array<const char*, 16> interactiveIds {
         "character-selector", "character-default", "character-bloom", "character-drift",
         "character-veil",
         "evolution", "preDelay", "size", "decay", "lowCut", "highDamping",
-        "width", "focus", "mix", "freeze"
+        "harmony", "width", "focus", "mix", "freeze"
     };
     constexpr std::array<std::array<int, 2>, 3> editorSizes {{
         { AmanitaOceanAudioProcessorEditor::minimumWidth,
@@ -882,6 +902,23 @@ void testCustomEditorLayoutAndAttachments()
                 "Evolution name must be below the hero dial");
         require(valueBounds.getY() >= nameBounds.getBottom() - 1,
                 "Evolution value must be below its name");
+
+        constexpr std::array<const char*, 9> lowerRowIds {
+            "preDelay", "size", "decay", "lowCut", "highDamping",
+            "harmony", "width", "focus", "mix"
+        };
+        auto previousRight = -1;
+        for (const auto* id : lowerRowIds)
+        {
+            auto* control = findDescendantById(
+                *editor, juce::String("knob-") + id);
+            require(control != nullptr, std::string("Lower-row control is missing: ") + id);
+            const auto controlBounds = editor->getLocalArea(
+                control, control->getLocalBounds());
+            require(controlBounds.getX() >= previousRight,
+                    std::string("Lower-row controls overlap at: ") + id);
+            previousRight = controlBounds.getRight();
+        }
     }
 
     auto* evolutionSlider = dynamic_cast<juce::Slider*>(
@@ -915,6 +952,16 @@ void testCustomEditorLayoutAndAttachments()
     focusSlider->setValue(37.5, juce::sendNotificationSync);
     require(std::abs(parameterById(processor, "focus").getValue() - 0.375f) <= 0.001f,
             "Custom Focus slider did not update the host parameter");
+
+    auto* harmonySlider = dynamic_cast<juce::Slider*>(
+        findDescendantById(*editor, "harmony"));
+    require(harmonySlider != nullptr, "Harmony slider was not found");
+    parameterById(processor, "harmony").setValueNotifyingHost(0.64f);
+    require(std::abs(harmonySlider->getValue() - 64.0) <= 0.11,
+            "Host Harmony did not update the custom slider");
+    harmonySlider->setValue(37.5, juce::sendNotificationSync);
+    require(std::abs(parameterById(processor, "harmony").getValue() - 0.375f) <= 0.001f,
+            "Custom Harmony slider did not update the host parameter");
 
     auto* lowCutSlider = dynamic_cast<juce::Slider*>(
         findDescendantById(*editor, "lowCut"));
@@ -1223,6 +1270,119 @@ void testFocusParameterReachesDsp()
                 && std::sqrt(duckingDifferenceEnergy / bypassEnergy) >= 0.05,
             "Non-zero host Focus parameter has no meaningful DSP effect");
 }
+
+[[nodiscard]] std::vector<float> renderAutoHarmony(bool throughProcessor,
+                                                   float harmony)
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto sampleCount = 144000;
+    constexpr auto blockSize = 127;
+
+    AmanitaOceanAudioProcessor processor;
+    amanita::dsp::FDNReverb direct;
+    if (throughProcessor)
+    {
+        parameterById(processor, "mix").setValueNotifyingHost(1.0f);
+        parameterById(processor, "preDelay").setValueNotifyingHost(0.0f);
+        parameterById(processor, "focus").setValueNotifyingHost(0.0f);
+        parameterById(processor, "harmony").setValueNotifyingHost(harmony);
+        processor.prepareToPlay(sampleRate, blockSize);
+    }
+    else
+    {
+        amanita::dsp::ReverbParameters parameters;
+        parameters.mix = 1.0f;
+        parameters.preDelayMs = 0.0f;
+        parameters.harmony = harmony;
+        parameters.autoHarmony = true;
+        direct.setParameters(parameters);
+        direct.prepare(sampleRate, blockSize);
+    }
+
+    std::vector<float> render(static_cast<std::size_t>(sampleCount * 2), 0.0f);
+    juce::AudioBuffer<float> buffer(2, blockSize);
+    juce::MidiBuffer midi;
+    for (auto offset = 0; offset < sampleCount; offset += blockSize)
+    {
+        const auto samplesThisBlock = std::min(blockSize, sampleCount - offset);
+        buffer.setSize(2, samplesThisBlock, false, false, true);
+        for (auto sample = 0; sample < samplesThisBlock; ++sample)
+        {
+            const auto absoluteSample = offset + sample;
+            const auto time = static_cast<double>(absoluteSample) / sampleRate;
+            const auto envelope = absoluteSample < 93600
+                ? 1.0
+                : absoluteSample < 96000
+                    ? static_cast<double>(96000 - absoluteSample) / 2400.0
+                    : 0.0;
+            const auto c = std::sin(2.0 * juce::MathConstants<double>::pi
+                                    * 261.625565 * time);
+            const auto e = std::sin(2.0 * juce::MathConstants<double>::pi
+                                    * 329.627557 * time + 0.31);
+            const auto g = std::sin(2.0 * juce::MathConstants<double>::pi
+                                    * 391.995436 * time + 0.57);
+            const auto left = static_cast<float>(
+                0.045 * envelope * (c + 0.72 * e + 0.41 * g));
+            const auto right = static_cast<float>(
+                0.045 * envelope * (0.38 * c + 0.76 * e + g));
+            buffer.setSample(0, sample, left);
+            buffer.setSample(1, sample, right);
+        }
+
+        if (throughProcessor)
+            processor.processBlock(buffer, midi);
+        else
+            direct.process(buffer.getWritePointer(0), buffer.getWritePointer(1),
+                           samplesThisBlock);
+
+        for (auto sample = 0; sample < samplesThisBlock; ++sample)
+        {
+            const auto index = static_cast<std::size_t>((offset + sample) * 2);
+            render[index] = buffer.getSample(0, sample);
+            render[index + 1] = buffer.getSample(1, sample);
+        }
+    }
+    return render;
+}
+
+void testHarmonyParameterReachesAutoDsp()
+{
+    const auto processorRender = renderAutoHarmony(true, 1.0f);
+    const auto directRender = renderAutoHarmony(false, 1.0f);
+    const auto bypassRender = renderAutoHarmony(true, 0.0f);
+    require(processorRender.size() == directRender.size()
+                && processorRender.size() == bypassRender.size(),
+            "Harmony routing render has the wrong size");
+
+    auto maximumDifference = 0.0f;
+    auto peak = 0.0f;
+    auto referenceEnergy = 0.0;
+    auto effectEnergy = 0.0;
+    for (std::size_t sample = 0; sample < processorRender.size(); ++sample)
+    {
+        require(std::isfinite(processorRender[sample]),
+                "Auto Harmony routing produced NaN/Inf");
+        maximumDifference = std::max(
+            maximumDifference,
+            std::abs(processorRender[sample] - directRender[sample]));
+        peak = std::max(peak, std::abs(processorRender[sample]));
+        const auto reference = static_cast<double>(bypassRender[sample]);
+        const auto difference = static_cast<double>(
+            processorRender[sample] - bypassRender[sample]);
+        referenceEnergy += reference * reference;
+        effectEnergy += difference * difference;
+    }
+
+    const auto normalisedEffect = std::sqrt(
+        effectEnergy / std::max(referenceEnergy, 1.0e-20));
+    require(maximumDifference <= 2.0e-7f,
+            "Host Harmony parameter does not reach the expected Auto DSP path");
+    require(normalisedEffect >= 0.005 && normalisedEffect <= 0.50,
+            "Host Harmony parameter is inaudible or excessive");
+    require(peak < 4.0f, "Auto Harmony routing exceeded the safety range");
+    std::cout << "[METRIC] Host Auto Harmony NRMS=" << normalisedEffect
+              << ", peak=" << peak << '\n';
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -1237,6 +1397,7 @@ int main(int argc, char** argv)
         testDeepCurrentBackgroundRenderer();
         testUnifiedAlgorithmReachesDsp();
         testFocusParameterReachesDsp();
+        testHarmonyParameterReachesAutoDsp();
         if (argc >= 3 && std::strcmp(argv[1], "--render-ui") == 0)
         {
             const auto characterIndex = argc >= 4 ? std::atoi(argv[3]) : 0;
@@ -1269,12 +1430,12 @@ int main(int argc, char** argv)
             const auto requestedFrames = argc >= 4 ? std::atoi(argv[3]) : 180;
             benchmarkBackgroundRenderer(requestedWidth, requestedFrames);
         }
-        std::cout << "[PASS] Unified Algorithm/Evolution/Focus state/UI/DSP routing\n";
+        std::cout << "[PASS] Unified Algorithm/Evolution/Focus/Harmony state/UI/DSP routing\n";
         return 0;
     }
     catch (const std::exception& error)
     {
-        std::cerr << "[FAIL] Unified Algorithm/Evolution/Focus state/UI/DSP routing: "
+        std::cerr << "[FAIL] Unified Algorithm/Evolution/Focus/Harmony state/UI/DSP routing: "
                   << error.what() << '\n';
         return 1;
     }

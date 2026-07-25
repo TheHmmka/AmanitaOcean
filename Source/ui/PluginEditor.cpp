@@ -71,6 +71,8 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
       decayKnob_(processorToUse.getParameterState(), "decay", "Decay", secondsValue),
       lowCutKnob_(processorToUse.getParameterState(), "lowCut", "Low Cut", hertzValue),
       dampingKnob_(processorToUse.getParameterState(), "highDamping", "Damping", hertzValue),
+      harmonyKnob_(processorToUse.getParameterState(), "harmony", "Harmony",
+                   decimalPercentValue),
       widthKnob_(processorToUse.getParameterState(), "width", "Width", decimalPercentValue),
       focusKnob_(processorToUse.getParameterState(), "focus", "Focus",
                  decimalPercentValue),
@@ -92,10 +94,10 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
         updateCharacterVisuals(index);
     };
 
-    for (auto* component : std::array<juce::Component*, 10> {
+    for (auto* component : std::array<juce::Component*, 11> {
              &characterSelector_, &evolutionKnob_, &preDelayKnob_, &sizeKnob_,
-             &decayKnob_, &lowCutKnob_, &dampingKnob_, &widthKnob_, &focusKnob_,
-             &mixKnob_
+             &decayKnob_, &lowCutKnob_, &dampingKnob_, &harmonyKnob_,
+             &widthKnob_, &focusKnob_, &mixKnob_
          })
         addAndMakeVisible(*component);
 
@@ -109,7 +111,7 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
     freezeButton_.setTooltip("Freeze the current tail");
     freezeButton_.setClickingTogglesState(true);
     freezeButton_.setWantsKeyboardFocus(true);
-    freezeButton_.setExplicitFocusOrder(14);
+    freezeButton_.setExplicitFocusOrder(15);
     addAndMakeVisible(freezeButton_);
     freezeAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         processor_.getParameterState(), "freeze", freezeButton_);
@@ -121,9 +123,10 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
     decayKnob_.setFocusOrder(8);
     lowCutKnob_.setFocusOrder(9);
     dampingKnob_.setFocusOrder(10);
-    widthKnob_.setFocusOrder(11);
-    focusKnob_.setFocusOrder(12);
-    mixKnob_.setFocusOrder(13);
+    harmonyKnob_.setFocusOrder(11);
+    widthKnob_.setFocusOrder(12);
+    focusKnob_.setFocusOrder(13);
+    mixKnob_.setFocusOrder(14);
 
     deepCurrent_.reset(visualCharacter_,
                        static_cast<float>(evolutionKnob_.getSlider().getValue() * 0.01),
@@ -181,8 +184,10 @@ void AmanitaOceanAudioProcessorEditor::paint(juce::Graphics& graphics)
     graphics.setColour(amanita::ui::OceanLookAndFeel::hairline().withAlpha(0.75f));
     graphics.fillRect(scaledBounds(32.0f, 61.0f, 896.0f, 1.0f));
     graphics.fillRect(scaledBounds(32.0f, 437.0f, 896.0f, 1.0f));
-    graphics.fillRect(scaledBounds(368.0f, 460.0f, 1.0f, 105.0f));
-    graphics.fillRect(scaledBounds(592.0f, 460.0f, 1.0f, 105.0f));
+    graphics.fillRect(scaledBounds(32.0f + 896.0f / 3.0f,
+                                   460.0f, 1.0f, 105.0f));
+    graphics.fillRect(scaledBounds(32.0f + 2.0f * 896.0f / 3.0f,
+                                   460.0f, 1.0f, 105.0f));
 
     graphics.setColour(amanita::ui::OceanLookAndFeel::secondaryText().withAlpha(0.78f));
     graphics.setFont(uiFont(10.0f * scale, juce::Font::bold, 0.12f));
@@ -208,14 +213,19 @@ void AmanitaOceanAudioProcessorEditor::resized()
     freezeButton_.setBounds(scaledBounds(928.0f - freezeWidth, 20.0f,
                                          freezeWidth, freezeHeight));
 
-    constexpr std::array<float, 8> cellX { 32.0f, 144.0f, 256.0f, 368.0f,
-                                           480.0f, 592.0f, 704.0f, 816.0f };
-    const std::array<amanita::ui::ParameterKnob*, 8> knobs {
+    constexpr auto rowLeft = 32.0f;
+    constexpr auto rowWidth = 896.0f;
+    constexpr auto cellWidth = rowWidth / 9.0f;
+    const std::array<amanita::ui::ParameterKnob*, 9> knobs {
         &preDelayKnob_, &sizeKnob_, &decayKnob_, &lowCutKnob_,
-        &dampingKnob_, &widthKnob_, &focusKnob_, &mixKnob_
+        &dampingKnob_, &harmonyKnob_, &widthKnob_, &focusKnob_, &mixKnob_
     };
     for (std::size_t index = 0; index < knobs.size(); ++index)
-        knobs[index]->setBounds(scaledBounds(cellX[index] + 2.0f, 452.0f, 108.0f, 126.0f));
+    {
+        const auto x = rowLeft + static_cast<float>(index) * cellWidth;
+        knobs[index]->setBounds(scaledBounds(x + 2.0f, 452.0f,
+                                             cellWidth - 4.0f, 126.0f));
+    }
 }
 
 void AmanitaOceanAudioProcessorEditor::timerCallback()
