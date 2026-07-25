@@ -276,23 +276,6 @@ void OceanLookAndFeel::drawRotarySlider(juce::Graphics& graphics,
     graphics.drawEllipse(dial.reduced((isHero ? 5.0f : 3.5f) * controlScale),
                          0.8f * controlScale);
 
-    const auto pointerInnerRadius = dial.getWidth() * 0.08f;
-    const auto pointerOuterRadius = dial.getWidth() * (isHero ? 0.32f : 0.34f);
-    const auto direction = juce::Point<float> { std::sin(angle), -std::cos(angle) };
-    const auto pointerStart = centre + direction * pointerInnerRadius;
-    const auto pointerEnd = centre + direction * pointerOuterRadius;
-    graphics.setColour(accent.withAlpha(0.92f));
-    graphics.drawLine({ pointerStart, pointerEnd },
-                      (isHero ? 2.0f : 1.6f) * controlScale);
-    graphics.fillEllipse(juce::Rectangle<float>((isHero ? 4.2f : 3.2f) * controlScale,
-                                                (isHero ? 4.2f : 3.2f) * controlScale)
-                             .withCentre(pointerEnd));
-
-    graphics.setColour(primaryText().withAlpha(0.12f));
-    graphics.fillEllipse(juce::Rectangle<float>((isHero ? 4.0f : 3.0f) * controlScale,
-                                                (isHero ? 4.0f : 3.0f) * controlScale)
-                             .withCentre(centre));
-
 }
 
 void OceanLookAndFeel::drawButtonBackground(juce::Graphics& graphics,
