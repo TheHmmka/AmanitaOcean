@@ -25,6 +25,7 @@ Ambient и Downtempo. Текущая версия `0.19.0` — проверяе�
   дробных delay lines;
 - RT60-derived gain каждой feedback-линии;
 - Low Cut и High Damping внутри feedback loop;
+- независимый фиксированный `3 Hz` DC Guard, который остаётся в loop при Freeze;
 - stereo excitation/decoding и M/S Width;
 - one-knob Focus с perceptual dry/wet masking-анализом, пассивными
   спектральными pockets, transient-aware слоем и адаптивной stereo geometry;
@@ -65,7 +66,8 @@ stereo input
     -> smoothed Character morph
     -> two orthogonal excitation vectors
     -> 8 Evolution-modulated fractional delay lines (+ Bloom slow per-line drift)
-    -> low-cut + high-frequency damping + RT60 gain
+    -> low-cut + high-frequency damping
+    -> Freeze morph to fixed 3 Hz DC-guarded delay path + RT60 gain
     -> Drift: Evolution morph of two linear passive spectral feedback kernels
     -> orthonormal H8 feedback matrix
     -> two orthogonal stereo output projections
@@ -101,7 +103,12 @@ g_i = exp(log(0.001) * delaySeconds_i / decaySeconds)
 Матрица ортонормальна, loop-фильтры пассивны, а feedback gain всегда меньше
 единицы. Во Freeze damping плавно обходится, входное возбуждение стремится точно
 к нулю, а gain ограничен значением `0.9995` или более консервативным `0.9985`
-для Bloom.
+для Bloom. Отдельный однополюсный DC Guard постоянно отслеживает сырые выходы
+восьми delay-линий. Обычный feedback использует пользовательский Low Cut,
+а Freeze morph переходит не к полностью необработанным линиям, а к их
+защищённой `3 Hz` high-pass версии. Поэтому нулевая частота не может накопиться
+даже при долгом Freeze, при этом в обычном режиме Guard не образует второй
+каскад с Low Cut и не меняет сабовое движение Character.
 
 ### Default
 
@@ -613,6 +620,8 @@ Harmony A/B renderer создаёт пары `*-off.wav` / `*-on.wav` с одн�
 - impulse response и отсутствие NaN/Inf;
 - 44.1, 48, 88.2 и 96 kHz;
 - decay и долговременную устойчивость Freeze;
+- подавление постоянной составляющей независимым DC Guard во Freeze на
+  `44.1/48/88.2/96 kHz`;
 - восстановление после NaN/Inf на входе;
 - резкие изменения всех параметров;
 - плавные morph между четырьмя Character без сброса хвоста;

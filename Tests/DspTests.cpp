@@ -1239,6 +1239,84 @@ void testFeedbackFreezeAndBadInputs()
     }
 }
 
+void testIndependentDcGuardDuringFreeze()
+{
+    constexpr std::array<double, 4> sampleRates {
+        44100.0, 48000.0, 88200.0, 96000.0
+    };
+
+    for (const auto sampleRate : sampleRates)
+    {
+        ReverbParameters parameters;
+        parameters.mix = 1.0f;
+        parameters.decaySeconds = 30.0f;
+        parameters.size = 1.0f;
+        parameters.preDelayMs = 0.0f;
+        parameters.lowCutHz = 20.0f;
+        parameters.highDampingHz = 20000.0f;
+        parameters.evolution = 0.0f;
+        parameters.width = 1.0f;
+
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 256);
+
+        const auto excitationSamples = static_cast<int>(sampleRate * 2.0);
+        auto excitationEnergy = 0.0;
+        for (auto sample = 0; sample < excitationSamples; ++sample)
+        {
+            auto left = 0.16f;
+            auto right = -0.11f;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "DC Guard excitation produced NaN/Inf");
+            if (sample >= static_cast<int>(sampleRate * 1.5))
+                excitationEnergy += static_cast<double>(left) * left
+                                  + static_cast<double>(right) * right;
+        }
+
+        parameters.freeze = true;
+        reverb.setParameters(parameters);
+        const auto frozenSamples = static_cast<int>(sampleRate * 4.0);
+        auto lateSumLeft = 0.0;
+        auto lateSumRight = 0.0;
+        auto lateCount = 0;
+        auto peak = 0.0f;
+        for (auto sample = 0; sample < frozenSamples; ++sample)
+        {
+            auto left = 0.0f;
+            auto right = 0.0f;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "DC Guard Freeze produced NaN/Inf");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+            if (sample >= static_cast<int>(sampleRate * 3.0))
+            {
+                lateSumLeft += left;
+                lateSumRight += right;
+                ++lateCount;
+            }
+        }
+
+        const auto lateMeanLeft = lateSumLeft / lateCount;
+        const auto lateMeanRight = lateSumRight / lateCount;
+        const auto lateDc = std::hypot(lateMeanLeft, lateMeanRight);
+        const auto inputDc = std::hypot(0.16, -0.11);
+        const auto attenuationDb = 20.0 * std::log10(
+            (lateDc + 1.0e-15) / inputDc);
+
+        std::cout << "[METRIC] DC Guard " << sampleRate
+                  << " Hz: frozen late=" << lateDc
+                  << ", attenuation=" << attenuationDb << " dB\n";
+        require(excitationEnergy > 1.0e-8,
+                "DC Guard test excitation became silent");
+        require(attenuationDb <= -55.0,
+                "DC Guard does not remove frozen DC sufficiently");
+        require(peak < 4.0f,
+                "DC Guard Freeze exceeded the safety range");
+    }
+}
+
 void testParameterJumpsAndBlockSegmentation()
 {
     constexpr auto sampleRate = 48000.0;
@@ -5707,6 +5785,8 @@ int main(int argc, char** argv)
                     testDecayNormalisedExcitation },
         NamedTest { "impulse decay and finite output", testImpulseDecayAndFiniteOutput },
         NamedTest { "feedback freeze and bad inputs", testFeedbackFreezeAndBadInputs },
+        NamedTest { "independent DC Guard during Freeze",
+                    testIndependentDcGuardDuringFreeze },
         NamedTest { "parameter jumps and block segmentation", testParameterJumpsAndBlockSegmentation },
         NamedTest { "Bloom sample rates and stability", testBloomSampleRatesAndStability },
         NamedTest { "Bloom block invariance and mode switching",
@@ -5764,6 +5844,8 @@ int main(int argc, char** argv)
         && std::strcmp(argv[1], "--test-harmony") == 0;
     const auto wantsDecayTestsOnly = argc == 2
         && std::strcmp(argv[1], "--test-decay-normalisation") == 0;
+    const auto wantsDcGuardTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-dc-guard") == 0;
     auto failures = 0;
     for (const auto& test : tests)
     {
@@ -5777,6 +5859,10 @@ int main(int argc, char** argv)
             continue;
         if (wantsDecayTestsOnly
             && std::strstr(test.name, "Decay-normalised") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
+        if (wantsDcGuardTestsOnly
+            && std::strstr(test.name, "DC Guard") == nullptr
             && std::strcmp(test.name, "no allocations in process") != 0)
             continue;
         try

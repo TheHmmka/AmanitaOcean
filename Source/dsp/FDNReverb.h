@@ -134,6 +134,7 @@ private:
     std::array<float, numDelayLines> nominalDelaySamples_ {};
     std::array<float, numDelayLines> lowCutStates_ {};
     std::array<float, numDelayLines> dampingStates_ {};
+    std::array<float, numDelayLines> dcGuardLowPassStates_ {};
     std::array<float, numDelayLines> lfoPhases_ {};
     std::array<float, numDelayLines> lfoIncrements_ {};
     std::array<LinearSmoother, numDelayLines> feedbackGains_;
@@ -161,5 +162,6 @@ private:
     LinearSmoother harmony_;
     LinearSmoother freeze_;
     LinearSmoother decayInjectionGain_;
+    float dcGuardCoefficient_ = 0.0f;
 };
 } // namespace amanita::dsp

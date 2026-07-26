@@ -16,6 +16,7 @@ constexpr float freezeFeedback = 0.9995f;
 constexpr float bloomFreezeFeedback = 0.9985f;
 constexpr float maximumPreDelaySeconds = 0.25f;
 constexpr float maximumDelayMotionSeconds = 0.00065f;
+constexpr float dcGuardFrequencyHz = 3.0f;
 constexpr float decayNormalisationReferenceSeconds = 5.0f;
 constexpr float minimumDecayInjectionGain = 0.55f;
 constexpr float maximumDecayInjectionGain = 1.35f;
@@ -273,6 +274,7 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
 {
     (void) maximumBlockSize;
     sampleRate_ = std::isfinite(sampleRate) && sampleRate > 1000.0 ? sampleRate : 48000.0;
+    dcGuardCoefficient_ = onePoleCoefficient(dcGuardFrequencyHz, sampleRate_);
 
     for (std::size_t index = 0; index < numDelayLines; ++index)
     {
@@ -386,6 +388,7 @@ void FDNReverb::reset() noexcept
 
     lowCutStates_.fill(0.0f);
     dampingStates_.fill(0.0f);
+    dcGuardLowPassStates_.fill(0.0f);
     lfoPhases_ = initialLfoPhases;
 }
 
@@ -622,6 +625,15 @@ void FDNReverb::processSample(float& left, float& right) noexcept
         if (lfoPhases_[index] >= 1.0f)
             lfoPhases_[index] -= 1.0f;
 
+        // The user Low Cut already protects the normal feedback path. Track a
+        // separate 3 Hz guard on the raw delay output so Freeze can morph to a
+        // spectrally open signal without ever morphing all the way to DC.
+        dcGuardLowPassStates_[index] = flushDenormal(
+            dcGuardCoefficient_ * dcGuardLowPassStates_[index]
+            + (1.0f - dcGuardCoefficient_) * delayed[index]);
+        const auto dcGuardedDelayed = sanitise(
+            delayed[index] - dcGuardLowPassStates_[index]);
+
         lowCutStates_[index] = flushDenormal(
             lowCutCoefficient * lowCutStates_[index]
             + (1.0f - lowCutCoefficient) * delayed[index]);
@@ -632,7 +644,8 @@ void FDNReverb::processSample(float& left, float& right) noexcept
             + (1.0f - dampingCoefficient) * highPassed);
 
         const auto filtered = sanitise(dampingStates_[index]);
-        const auto freezeMorphed = filtered + freeze * (delayed[index] - filtered);
+        const auto freezeMorphed = filtered
+                                 + freeze * (dcGuardedDelayed - filtered);
         const auto normalGain = feedbackGains_[index].next();
         auto freezeGain = freezeFeedback
                         + bloomAmount * (bloomFreezeFeedback - freezeFeedback);
