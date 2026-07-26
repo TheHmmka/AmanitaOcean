@@ -16,6 +16,9 @@ constexpr float freezeFeedback = 0.9995f;
 constexpr float bloomFreezeFeedback = 0.9985f;
 constexpr float maximumPreDelaySeconds = 0.25f;
 constexpr float maximumDelayMotionSeconds = 0.00065f;
+constexpr float decayNormalisationReferenceSeconds = 5.0f;
+constexpr float minimumDecayInjectionGain = 0.55f;
+constexpr float maximumDecayInjectionGain = 1.35f;
 
 constexpr float defaultMinimumMotionSeconds = 0.000025f;
 constexpr float bloomMinimumMotionSeconds = 0.000030f;
@@ -343,6 +346,10 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
         const auto gain = std::exp(logMinus60dB * delaySeconds / parameters_.decaySeconds);
         feedbackGains_[index].prepare(sampleRate_, 0.25, std::min(gain, 0.999f));
     }
+    decayInjectionGain_.prepare(
+        sampleRate_, 0.25,
+        calculateDecayNormalisedInjectionGain(parameters_.decaySeconds,
+                                              parameters_.size));
 
     prepared_ = true;
     reset();
@@ -475,6 +482,9 @@ void FDNReverb::updateTargets() noexcept
         const auto gain = std::exp(logMinus60dB * delaySeconds / parameters_.decaySeconds);
         feedbackGains_[index].setTarget(std::min(gain, 0.999f));
     }
+    decayInjectionGain_.setTarget(
+        calculateDecayNormalisedInjectionGain(parameters_.decaySeconds,
+                                              parameters_.size));
 }
 
 float FDNReverb::diffuseInput(float sample, std::array<AllPass, 4>& stages) noexcept
@@ -483,6 +493,45 @@ float FDNReverb::diffuseInput(float sample, std::array<AllPass, 4>& stages) noex
     for (auto& stage : stages)
         output = stage.process(output);
     return sanitise(output);
+}
+
+float FDNReverb::calculateDecayNormalisedInjectionGain(float decaySeconds,
+                                                       float size) const noexcept
+{
+    if (std::abs(decaySeconds - decayNormalisationReferenceSeconds)
+        <= std::numeric_limits<float>::epsilon()
+             * decayNormalisationReferenceSeconds)
+        return 1.0f;
+
+    auto meanGainSquared = 0.0f;
+    auto referenceMeanGainSquared = 0.0f;
+    for (const auto delaySamples : nominalDelaySamples_)
+    {
+        const auto delaySeconds = delaySamples * size / static_cast<float>(sampleRate_);
+        const auto gain = std::min(
+            std::exp(logMinus60dB * delaySeconds / decaySeconds), 0.999f);
+        const auto referenceGain = std::min(
+            std::exp(logMinus60dB * delaySeconds
+                     / decayNormalisationReferenceSeconds),
+            0.999f);
+        meanGainSquared += gain * gain;
+        referenceMeanGainSquared += referenceGain * referenceGain;
+    }
+
+    meanGainSquared /= static_cast<float>(numDelayLines);
+    referenceMeanGainSquared /= static_cast<float>(numDelayLines);
+    const auto loss = std::max(1.0e-6f, 1.0f - meanGainSquared);
+    const auto referenceLoss = std::max(
+        1.0e-6f, 1.0f - referenceMeanGainSquared);
+
+    // A scalar keeps the orthogonal stereo injection vectors intact. Full
+    // sqrt(loss) energy normalisation over-corrects the perceived level of this
+    // already diffused, frequency-dependent network, so the measured
+    // fourth-root law balances sustained Wet RMS while retaining the natural
+    // difference between short and long impulse envelopes.
+    const auto gain = std::sqrt(std::sqrt(loss / referenceLoss));
+    return std::clamp(gain, minimumDecayInjectionGain,
+                      maximumDecayInjectionGain);
 }
 
 void FDNReverb::process(float* left, float* right, int numSamples) noexcept
@@ -599,7 +648,7 @@ void FDNReverb::processSample(float& left, float& right) noexcept
                            driftAmount > 0.0f);
     applyFeedbackMatrix(feedback);
 
-    const auto inputGain = 1.0f - freeze;
+    const auto inputGain = (1.0f - freeze) * decayInjectionGain_.next();
     for (std::size_t index = 0; index < numDelayLines; ++index)
     {
         const auto injection = inverseSqrtEight

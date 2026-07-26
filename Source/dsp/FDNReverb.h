@@ -120,6 +120,9 @@ private:
 
     void updateTargets() noexcept;
     [[nodiscard]] float diffuseInput(float sample, std::array<AllPass, 4>& stages) noexcept;
+    [[nodiscard]] float calculateDecayNormalisedInjectionGain(
+        float decaySeconds,
+        float size) const noexcept;
     [[nodiscard]] static float sanitise(float sample, float limit = 8.0f) noexcept;
     [[nodiscard]] static float flushDenormal(float sample) noexcept;
 
@@ -157,5 +160,6 @@ private:
     LinearSmoother width_;
     LinearSmoother harmony_;
     LinearSmoother freeze_;
+    LinearSmoother decayInjectionGain_;
 };
 } // namespace amanita::dsp

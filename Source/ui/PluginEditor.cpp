@@ -8,6 +8,23 @@
 
 namespace
 {
+// Match the calm 4 px vertical rhythm used by Amanita Analog Filter while
+// retaining Ocean's own hierarchy: selector first, character caption below.
+namespace layout
+{
+constexpr float titleY = 18.0f;
+constexpr float subtitleY = 44.0f;
+constexpr float headerRuleY = 80.0f;
+constexpr float characterSelectorY = 104.0f;
+constexpr float characterSelectorHeight = 40.0f;
+constexpr float characterCaptionY = 152.0f;
+constexpr float evolutionY = 184.0f;
+constexpr float evolutionHeight = 268.0f;
+constexpr float footerRuleY = 484.0f;
+constexpr float lowerRowY = 500.0f;
+constexpr float lowerDividerY = 508.0f;
+} // namespace layout
+
 [[nodiscard]] juce::Font uiFont(float height,
                                 int style = juce::Font::plain,
                                 float kerning = 0.0f)
@@ -195,7 +212,7 @@ void AmanitaOceanAudioProcessorEditor::paint(juce::Graphics& graphics)
 
     if (! shaderReady)
     {
-        const auto heroField = scaledBounds(32.0f, 126.0f, 896.0f, 300.0f).toFloat();
+        const auto heroField = scaledBounds(32.0f, 126.0f, 896.0f, 346.0f).toFloat();
         drawBathymetricField(graphics, heroField, deepCurrent_.getEvolution());
     }
 
@@ -210,26 +227,28 @@ void AmanitaOceanAudioProcessorEditor::paint(juce::Graphics& graphics)
     title.append("AMANITA ", titleFont,
                  amanita::ui::OceanLookAndFeel::primaryText());
     title.append("OCEAN", titleFont, currentAccent_);
-    title.draw(graphics, scaledBounds(32.0f, 18.0f, 300.0f, 25.0f).toFloat());
+    title.draw(graphics,
+               scaledBounds(32.0f, layout::titleY, 300.0f, 24.0f).toFloat());
 
     graphics.setColour(amanita::ui::OceanLookAndFeel::secondaryText().withAlpha(0.82f));
     graphics.setFont(uiFont(9.5f * scale, juce::Font::plain, 0.075f));
     graphics.drawText("EVOLVING SPACE REVERB  /  v" JucePlugin_VersionString,
-                      scaledBounds(33.0f, 42.0f, 320.0f, 16.0f),
+                      scaledBounds(33.0f, layout::subtitleY, 320.0f, 16.0f),
                       juce::Justification::centredLeft, false);
 
     graphics.setColour(amanita::ui::OceanLookAndFeel::hairline().withAlpha(0.75f));
-    graphics.fillRect(scaledBounds(32.0f, 61.0f, 896.0f, 1.0f));
-    graphics.fillRect(scaledBounds(32.0f, 437.0f, 896.0f, 1.0f));
+    graphics.fillRect(scaledBounds(32.0f, layout::headerRuleY, 896.0f, 1.0f));
+    graphics.fillRect(scaledBounds(32.0f, layout::footerRuleY, 896.0f, 1.0f));
     graphics.fillRect(scaledBounds(32.0f + 896.0f / 3.0f,
-                                   460.0f, 1.0f, 105.0f));
+                                   layout::lowerDividerY, 1.0f, 105.0f));
     graphics.fillRect(scaledBounds(32.0f + 2.0f * 896.0f / 3.0f,
-                                   460.0f, 1.0f, 105.0f));
+                                   layout::lowerDividerY, 1.0f, 105.0f));
 
     graphics.setColour(amanita::ui::OceanLookAndFeel::secondaryText().withAlpha(0.78f));
     graphics.setFont(uiFont(10.0f * scale, juce::Font::bold, 0.12f));
     graphics.drawText(descriptionForCharacter(visualCharacter_).toUpperCase(),
-                      scaledBounds(320.0f, 120.0f, 320.0f, 18.0f),
+                      scaledBounds(320.0f, layout::characterCaptionY,
+                                   320.0f, 16.0f),
                       juce::Justification::centred, false);
 
     graphics.setColour(amanita::ui::OceanLookAndFeel::hairline().withAlpha(0.55f));
@@ -245,8 +264,12 @@ void AmanitaOceanAudioProcessorEditor::resized()
         shaderBackground_->triggerRepaint();
     backgroundDirty_ = false;
 
-    characterSelector_.setBounds(scaledBounds(184.0f, 72.0f, 592.0f, 44.0f));
-    evolutionKnob_.setBounds(scaledBounds(360.0f, 154.0f, 240.0f, 268.0f));
+    characterSelector_.setBounds(
+        scaledBounds(184.0f, layout::characterSelectorY,
+                     592.0f, layout::characterSelectorHeight));
+    evolutionKnob_.setBounds(
+        scaledBounds(360.0f, layout::evolutionY,
+                     240.0f, layout::evolutionHeight));
     constexpr auto freezeHeight = 34.0f;
     const auto freezeWidth = fittedToggleWidth(freezeButton_.getButtonText(),
                                                freezeHeight, 72.0f, 120.0f);
@@ -263,7 +286,7 @@ void AmanitaOceanAudioProcessorEditor::resized()
     for (std::size_t index = 0; index < knobs.size(); ++index)
     {
         const auto x = rowLeft + static_cast<float>(index) * cellWidth;
-        knobs[index]->setBounds(scaledBounds(x + 2.0f, 452.0f,
+        knobs[index]->setBounds(scaledBounds(x + 2.0f, layout::lowerRowY,
                                              cellWidth - 4.0f, 126.0f));
     }
 }

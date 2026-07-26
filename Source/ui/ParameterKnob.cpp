@@ -79,8 +79,21 @@ ParameterKnob::ParameterKnob(juce::AudioProcessorValueTreeState& state,
                           juce::Colour::fromRGB(17, 29, 32));
     valueLabel_.setColour(juce::Label::outlineWhenEditingColourId,
                           juce::Colour::fromRGB(226, 192, 131));
+    valueLabel_.getProperties().set("suppressFocusOutline", true);
     valueLabel_.setEditable(true, false, false);
     valueLabel_.setWantsKeyboardFocus(true);
+    valueLabel_.onEditorHide = [this]
+    {
+        // Label/host focus restoration happens after this callback. Defer the
+        // transfer until the TextEditor is fully gone so Bitwig cannot return
+        // focus to the value label on the same event.
+        const auto safeThis = juce::Component::SafePointer<ParameterKnob>(this);
+        juce::MessageManager::callAsync([safeThis]
+        {
+            if (safeThis != nullptr && safeThis->slider_.isShowing())
+                safeThis->slider_.grabKeyboardFocus();
+        });
+    };
     addAndMakeVisible(valueLabel_);
 
     slider_.onValueChange = [this]
@@ -109,7 +122,10 @@ ParameterKnob::ParameterKnob(juce::AudioProcessorValueTreeState& state,
     updateDisplayedValue();
 }
 
-ParameterKnob::~ParameterKnob() = default;
+ParameterKnob::~ParameterKnob()
+{
+    valueLabel_.onEditorHide = nullptr;
+}
 
 void ParameterKnob::resized()
 {

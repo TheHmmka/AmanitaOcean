@@ -655,7 +655,7 @@ void testDeepCurrentBackgroundRenderer()
                 "Deep Current 30 FPS sequence contains an isolated visual spike");
 
     constexpr std::array<int, 4> horizontalEdges { 0, width / 3, width * 2 / 3, width };
-    constexpr std::array<int, 4> verticalEdges { 0, 126, 438, height };
+    constexpr std::array<int, 4> verticalEdges { 0, 144, 484, height };
     auto minimumLongMean = 1.0;
     auto minimumLongStrongCoverage = 1.0;
     auto minimumShortMean = 1.0;
@@ -711,13 +711,13 @@ void testDeepCurrentBackgroundRenderer()
     constexpr std::array<std::array<int, 4>, 3> sizes {{
         { AmanitaOceanAudioProcessorEditor::minimumWidth,
           AmanitaOceanAudioProcessorEditor::minimumHeight,
-          800, 500 },
+          804, 536 },
         { AmanitaOceanAudioProcessorEditor::defaultWidth,
           AmanitaOceanAudioProcessorEditor::defaultHeight,
-          960, 600 },
+          960, 640 },
         { AmanitaOceanAudioProcessorEditor::maximumWidth,
           AmanitaOceanAudioProcessorEditor::maximumHeight,
-          1200, 750 }
+          1125, 750 }
     }};
     constexpr auto resizeTime = 7.25;
     constexpr auto resizeEvolution = 0.71f;
@@ -873,7 +873,7 @@ void testCustomEditorLayoutAndAttachments()
                 && constrainer->getMaximumHeight()
                     == AmanitaOceanAudioProcessorEditor::maximumHeight,
             "Custom editor resize limits are wrong");
-    require(std::abs(constrainer->getFixedAspectRatio() - 1.6) <= 1.0e-9,
+    require(std::abs(constrainer->getFixedAspectRatio() - 1.5) <= 1.0e-9,
             "Custom editor aspect ratio is wrong");
 
     constexpr std::array<const char*, 4> characterButtonIds {
@@ -949,6 +949,26 @@ void testCustomEditorLayoutAndAttachments()
         require(valueBounds.getY() >= nameBounds.getBottom() - 1,
                 "Evolution value must be below its name");
 
+        if (size[0] == AmanitaOceanAudioProcessorEditor::defaultWidth)
+        {
+            auto* characterSelector = findDescendantById(*editor, "character-selector");
+            auto* evolutionControl = findDescendantById(*editor, "knob-evolution");
+            require(characterSelector != nullptr && evolutionControl != nullptr,
+                    "Top composition controls were not found");
+
+            const auto characterBounds = editor->getLocalArea(
+                characterSelector, characterSelector->getLocalBounds());
+            const auto evolutionBounds = editor->getLocalArea(
+                evolutionControl, evolutionControl->getLocalBounds());
+            require(characterBounds == juce::Rectangle<int>(184, 104, 592, 40),
+                    "Character selector no longer follows the 4 px top grid");
+            require(evolutionBounds == juce::Rectangle<int>(360, 184, 240, 268),
+                    "Evolution hero no longer follows the 4 px top grid");
+            require(valueBounds.getBottom() == 452
+                        && 484 - valueBounds.getBottom() == 32,
+                    "Evolution value no longer matches the Analog Filter footer gap");
+        }
+
         constexpr std::array<const char*, 9> lowerRowIds {
             "preDelay", "size", "decay", "lowCut", "highDamping",
             "harmony", "width", "focus", "mix"
@@ -980,6 +1000,11 @@ void testCustomEditorLayoutAndAttachments()
     auto* mixValueLabel = dynamic_cast<juce::Label*>(
         findDescendantById(*editor, "mix-value"));
     require(mixValueLabel != nullptr, "Editable Mix value label was not found");
+    require(static_cast<bool>(mixValueLabel->onEditorHide),
+            "Editable value has no post-edit focus release");
+    require(static_cast<bool>(mixValueLabel->getProperties().getWithDefault(
+                juce::Identifier("suppressFocusOutline"), false)),
+            "Editable value still allows a retained focus outline");
     GestureProbe gestureProbe;
     processor.addListener(&gestureProbe);
     mixValueLabel->setText("42.5 %", juce::sendNotificationSync);

@@ -20,11 +20,11 @@ class AmanitaOceanAudioProcessorEditor final : public juce::AudioProcessorEditor
 {
 public:
     static constexpr int defaultWidth = 960;
-    static constexpr int defaultHeight = 600;
-    static constexpr int minimumWidth = 800;
-    static constexpr int minimumHeight = 500;
+    static constexpr int defaultHeight = 640;
+    static constexpr int minimumWidth = 804;
+    static constexpr int minimumHeight = 536;
     static constexpr int maximumWidth = 1440;
-    static constexpr int maximumHeight = 900;
+    static constexpr int maximumHeight = 960;
 
     explicit AmanitaOceanAudioProcessorEditor(AmanitaOceanAudioProcessor& processorToUse);
     ~AmanitaOceanAudioProcessorEditor() override;

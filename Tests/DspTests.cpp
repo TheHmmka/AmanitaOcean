@@ -1062,6 +1062,75 @@ void testMinimumSizeSampleRatesAndStability()
     }
 }
 
+void testDecayNormalisedExcitation()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto measurementSeconds = 4.0;
+    constexpr std::array<float, 4> decaySeconds { 5.0f, 10.0f, 20.0f, 30.0f };
+    std::array<double, decaySeconds.size()> wetRms {};
+
+    for (std::size_t decayIndex = 0; decayIndex < decaySeconds.size(); ++decayIndex)
+    {
+        ReverbParameters parameters;
+        parameters.mix = 1.0f;
+        parameters.decaySeconds = decaySeconds[decayIndex];
+        parameters.size = 1.0f;
+        parameters.preDelayMs = 0.0f;
+        parameters.lowCutHz = 20.0f;
+        parameters.highDampingHz = 20000.0f;
+        parameters.evolution = 0.0f;
+        parameters.width = 1.0f;
+        parameters.ducking = 0.0f;
+        parameters.harmony = 0.0f;
+
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 512);
+
+        const auto warmupSamples = static_cast<int>(
+            std::ceil(sampleRate * static_cast<double>(decaySeconds[decayIndex]) * 1.5));
+        const auto measurementSamples = static_cast<int>(sampleRate * measurementSeconds);
+        const auto totalSamples = warmupSamples + measurementSamples;
+        std::uint32_t leftNoise = 0x12345678u;
+        std::uint32_t rightNoise = 0x9abcdef0u;
+        auto outputEnergy = 0.0;
+        auto peak = 0.0f;
+
+        for (auto sample = 0; sample < totalSamples; ++sample)
+        {
+            leftNoise = 1664525u * leftNoise + 1013904223u;
+            rightNoise = 22695477u * rightNoise + 1u;
+            auto left = (static_cast<float>(leftNoise >> 8) / 8388607.5f - 1.0f) * 0.05f;
+            auto right = (static_cast<float>(rightNoise >> 8) / 8388607.5f - 1.0f) * 0.05f;
+            reverb.processSample(left, right);
+
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Decay-normalised excitation produced NaN/Inf");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+            if (sample >= warmupSamples)
+                outputEnergy += static_cast<double>(left) * left
+                              + static_cast<double>(right) * right;
+        }
+
+        wetRms[decayIndex] = std::sqrt(
+            outputEnergy / (2.0 * static_cast<double>(measurementSamples)));
+        require(wetRms[decayIndex] > 1.0e-6,
+                "Decay-normalised excitation measurement is silent");
+        require(peak < 4.0f,
+                "Decay-normalised excitation exceeded the safety range");
+    }
+
+    const auto [minimum, maximum] = std::minmax_element(wetRms.begin(), wetRms.end());
+    const auto spreadDb = 20.0 * std::log10(*maximum / *minimum);
+    std::cout << "[METRIC] Decay excitation wet RMS: 5/10/20/30 s="
+              << wetRms[0] << '/' << wetRms[1] << '/'
+              << wetRms[2] << '/' << wetRms[3]
+              << ", spread=" << spreadDb << " dB\n";
+
+    require(spreadDb < 1.0,
+            "Decay changes sustained wet loudness excessively");
+}
+
 void testImpulseDecayAndFiniteOutput()
 {
     constexpr auto sampleRate = 48000.0;
@@ -5634,6 +5703,8 @@ int main(int argc, char** argv)
         NamedTest { "delay geometry and sample rates", testDelayGeometryAndSampleRates },
         NamedTest { "minimum Size sample rates and stability",
                     testMinimumSizeSampleRatesAndStability },
+        NamedTest { "Decay-normalised excitation",
+                    testDecayNormalisedExcitation },
         NamedTest { "impulse decay and finite output", testImpulseDecayAndFiniteOutput },
         NamedTest { "feedback freeze and bad inputs", testFeedbackFreezeAndBadInputs },
         NamedTest { "parameter jumps and block segmentation", testParameterJumpsAndBlockSegmentation },
@@ -5691,6 +5762,8 @@ int main(int argc, char** argv)
         && std::strcmp(argv[1], "--test-ducking") == 0;
     const auto wantsHarmonyTestsOnly = argc == 2
         && std::strcmp(argv[1], "--test-harmony") == 0;
+    const auto wantsDecayTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-decay-normalisation") == 0;
     auto failures = 0;
     for (const auto& test : tests)
     {
@@ -5700,6 +5773,10 @@ int main(int argc, char** argv)
             continue;
         if (wantsHarmonyTestsOnly
             && std::strstr(test.name, "Harmonic") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
+        if (wantsDecayTestsOnly
+            && std::strstr(test.name, "Decay-normalised") == nullptr
             && std::strcmp(test.name, "no allocations in process") != 0)
             continue;
         try

@@ -9,6 +9,7 @@ namespace
 {
 constexpr auto heroProperty = "hero";
 constexpr auto characterSegmentProperty = "characterSegment";
+constexpr auto suppressFocusOutlineProperty = "suppressFocusOutline";
 
 [[nodiscard]] bool propertyIsEnabled(const juce::Component& component, const char* property)
 {
@@ -433,7 +434,9 @@ void OceanLookAndFeel::drawLabel(juce::Graphics& graphics, juce::Label& label)
         graphics.drawRoundedRectangle(label.getLocalBounds().toFloat().reduced(0.5f), 5.0f, 1.0f);
     }
 
-    if (label.hasKeyboardFocus(false) && !label.isBeingEdited())
+    if (label.hasKeyboardFocus(false)
+        && !label.isBeingEdited()
+        && !propertyIsEnabled(label, suppressFocusOutlineProperty))
     {
         graphics.setColour(focusColour().interpolatedWith(accentColour_, 0.55f)
                                .withAlpha(0.78f));
