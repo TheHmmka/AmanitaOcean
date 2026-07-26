@@ -976,6 +976,92 @@ void testDelayGeometryAndSampleRates()
             "Impulse onset changes by more than 1 ms across sample rates");
 }
 
+void testMinimumSizeSampleRatesAndStability()
+{
+    constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
+    constexpr std::array modes {
+        ReverbMode::defaultMode,
+        ReverbMode::bloom,
+        ReverbMode::drift,
+        ReverbMode::veil
+    };
+
+    for (const auto mode : modes)
+    {
+        std::array<double, sampleRates.size()> onsetSeconds {};
+        for (std::size_t rateIndex = 0; rateIndex < sampleRates.size(); ++rateIndex)
+        {
+            const auto sampleRate = sampleRates[rateIndex];
+            ReverbParameters parameters;
+            parameters.mode = mode;
+            parameters.mix = 1.0f;
+            parameters.decaySeconds = 3.0f;
+            parameters.size = 0.15f;
+            parameters.preDelayMs = 0.0f;
+            parameters.lowCutHz = 20.0f;
+            parameters.highDampingHz = 20000.0f;
+            parameters.evolution = 1.0f;
+            parameters.width = 1.0f;
+            parameters.ducking = 0.0f;
+            parameters.harmony = 0.0f;
+
+            const auto sampleCount = static_cast<int>(sampleRate * 0.25);
+            const auto render = renderImpulse(parameters, sampleRate, sampleCount);
+            auto firstWetSample = -1;
+            auto peak = 0.0f;
+            auto energy = 0.0;
+            for (auto sample = 0; sample < sampleCount; ++sample)
+            {
+                const auto index = static_cast<std::size_t>(sample);
+                const auto left = render.left[index];
+                const auto right = render.right[index];
+                require(std::isfinite(left) && std::isfinite(right),
+                        "Minimum Size produced NaN/Inf");
+                const auto magnitude = std::max(std::abs(left), std::abs(right));
+                if (firstWetSample < 0 && magnitude > 1.0e-8f)
+                    firstWetSample = sample;
+                peak = std::max(peak, magnitude);
+                energy += static_cast<double>(left) * left
+                        + static_cast<double>(right) * right;
+            }
+
+            require(firstWetSample >= 0, "Minimum Size impulse response is silent");
+            onsetSeconds[rateIndex] = firstWetSample / sampleRate;
+            require(onsetSeconds[rateIndex] >= 0.0025
+                        && onsetSeconds[rateIndex] <= 0.0065,
+                    "Minimum Size onset left the safe near-immediate range");
+            require(energy > 1.0e-7, "Minimum Size tail has no energy");
+            require(peak < 4.0f, "Minimum Size exceeded the safety range");
+        }
+
+        const auto [minimum, maximum] = std::minmax_element(
+            onsetSeconds.begin(), onsetSeconds.end());
+        require(*maximum - *minimum < 0.0005,
+                "Minimum Size onset changes across sample rates");
+    }
+
+    ReverbParameters belowMinimum;
+    belowMinimum.mix = 1.0f;
+    belowMinimum.decaySeconds = 3.0f;
+    belowMinimum.size = 0.0f;
+    belowMinimum.preDelayMs = 0.0f;
+    belowMinimum.lowCutHz = 20.0f;
+    belowMinimum.highDampingHz = 20000.0f;
+    belowMinimum.evolution = 1.0f;
+    auto atMinimum = belowMinimum;
+    atMinimum.size = 0.15f;
+    const auto clampedRender = renderImpulse(belowMinimum, 48000.0, 12000);
+    const auto minimumRender = renderImpulse(atMinimum, 48000.0, 12000);
+    for (std::size_t sample = 0; sample < clampedRender.left.size(); ++sample)
+    {
+        require(std::bit_cast<std::uint32_t>(clampedRender.left[sample])
+                    == std::bit_cast<std::uint32_t>(minimumRender.left[sample])
+                    && std::bit_cast<std::uint32_t>(clampedRender.right[sample])
+                        == std::bit_cast<std::uint32_t>(minimumRender.right[sample]),
+                "Size values below the safe floor are not clamped deterministically");
+    }
+}
+
 void testImpulseDecayAndFiniteOutput()
 {
     constexpr auto sampleRate = 48000.0;
@@ -1091,6 +1177,7 @@ void testParameterJumpsAndBlockSegmentation()
     ReverbParameters parameters;
     parameters.mix = 0.25f;
     parameters.decaySeconds = 2.0f;
+    parameters.size = 0.15f;
     parameters.preDelayMs = 0.0f;
     parameters.evolution = 0.0f;
 
@@ -5042,6 +5129,7 @@ void testNoAllocationsInProcess()
             parameters.mode = modes[modeIndex];
             parameters.evolution = 1.0f - parameters.evolution;
             parameters.ducking = 1.0f - parameters.ducking;
+            parameters.size = parameters.size > 0.15f ? 0.15f : 2.0f;
             parameters.freeze = !parameters.freeze;
             harmonicWeights = modeIndex % 2 == 0
                 ? harmonyWeights({ 0, 4, 7 })
@@ -5544,6 +5632,8 @@ int main(int argc, char** argv)
         NamedTest { "Veil impulse softening and energy",
                     testVeilImpulseSofteningAndEnergy },
         NamedTest { "delay geometry and sample rates", testDelayGeometryAndSampleRates },
+        NamedTest { "minimum Size sample rates and stability",
+                    testMinimumSizeSampleRatesAndStability },
         NamedTest { "impulse decay and finite output", testImpulseDecayAndFiniteOutput },
         NamedTest { "feedback freeze and bad inputs", testFeedbackFreezeAndBadInputs },
         NamedTest { "parameter jumps and block segmentation", testParameterJumpsAndBlockSegmentation },

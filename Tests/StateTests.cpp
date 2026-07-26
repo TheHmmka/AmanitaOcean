@@ -208,6 +208,20 @@ void testUnifiedHostContract()
             "Harmony does not default to zero percent");
     require(harmony->getLabel() == "%", "Harmony unit label changed");
 
+    auto* size = dynamic_cast<juce::AudioParameterFloat*>(
+        findParameterById(processor, "size"));
+    require(size != nullptr, "Size is not a float parameter");
+    const auto& sizeRange = size->getNormalisableRange();
+    require(size->getName(128) == "Size", "Size UI label changed");
+    require(std::abs(sizeRange.start) <= 1.0e-6f
+                && std::abs(sizeRange.end - 200.0f) <= 1.0e-6f,
+            "Size range must be 0..200 percent");
+    require(std::abs(sizeRange.interval - 0.1f) <= 1.0e-6f,
+            "Size host interval must remain 0.1 percent");
+    require(std::abs(size->get() - 100.0f) <= 1.0e-6f,
+            "Size does not default to 100 percent");
+    require(size->getLabel() == "%", "Size unit label changed");
+
     const auto requireContinuousTravel = [&](const char* parameterId,
                                              float expectedMinimum,
                                              float expectedMaximum,
@@ -1123,7 +1137,8 @@ void benchmarkBackgroundRenderer(int requestedWidth, int requestedFrames)
 
 std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
                                    float evolution,
-                                   float focus = 0.0f)
+                                   float focus = 0.0f,
+                                   float sizePercent = 100.0f)
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto sampleCount = 24000;
@@ -1135,6 +1150,7 @@ std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
     parameterById(processor, "preDelay").setValueNotifyingHost(0.0f);
     parameterById(processor, "evolution").setValueNotifyingHost(evolution);
     parameterById(processor, "focus").setValueNotifyingHost(focus);
+    parameterById(processor, "size").setValueNotifyingHost(sizePercent / 200.0f);
     processor.prepareToPlay(sampleRate, blockSize);
 
     std::vector<float> result(static_cast<std::size_t>(sampleCount * 2), 0.0f);
@@ -1162,7 +1178,8 @@ std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
 
 std::vector<float> renderDsp(const AlgorithmCase& algorithmCase,
                              float evolution,
-                             float focus = 0.0f)
+                             float focus = 0.0f,
+                             float sizeScale = 1.0f)
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto sampleCount = 24000;
@@ -1174,6 +1191,7 @@ std::vector<float> renderDsp(const AlgorithmCase& algorithmCase,
     parameters.preDelayMs = 0.0f;
     parameters.evolution = evolution;
     parameters.ducking = focus;
+    parameters.size = sizeScale;
 
     amanita::dsp::FDNReverb reverb;
     reverb.setParameters(parameters);
@@ -1234,6 +1252,49 @@ void testUnifiedAlgorithmReachesDsp()
                         + std::to_string(maximumDifference * 1.0e9f) + "e-9 at interleaved sample="
                         + std::to_string(maximumDifferenceSample));
         }
+    }
+}
+
+void testSizeParameterReachesDsp()
+{
+    struct SizeCase
+    {
+        float percent;
+        float scale;
+    };
+
+    constexpr std::array sizeCases {
+        SizeCase { 0.0f,   0.15f },
+        SizeCase { 25.0f,  0.2875f },
+        SizeCase { 50.0f,  0.5f },
+        SizeCase { 100.0f, 1.0f },
+        SizeCase { 200.0f, 2.0f }
+    };
+
+    const auto& algorithmCase = algorithmCases.front();
+    for (const auto& sizeCase : sizeCases)
+    {
+        const auto processorRender = renderProcessor(
+            algorithmCase, 0.35f, 0.0f, sizeCase.percent);
+        const auto directRender = renderDsp(
+            algorithmCase, 0.35f, 0.0f, sizeCase.scale);
+        require(processorRender.size() == directRender.size(),
+                "Size routing render has the wrong size");
+
+        auto maximumDifference = 0.0f;
+        for (std::size_t sample = 0; sample < processorRender.size(); ++sample)
+        {
+            require(std::isfinite(processorRender[sample]),
+                    "Size routing produced NaN/Inf");
+            maximumDifference = std::max(
+                maximumDifference,
+                std::abs(processorRender[sample] - directRender[sample]));
+        }
+
+        require(maximumDifference <= 2.0e-7f,
+                "Host Size percent does not reach the expected DSP scale at "
+                    + std::to_string(sizeCase.percent) + "%: maximum difference="
+                    + std::to_string(maximumDifference));
     }
 }
 
@@ -1396,6 +1457,7 @@ int main(int argc, char** argv)
         testCustomEditorLayoutAndAttachments();
         testDeepCurrentBackgroundRenderer();
         testUnifiedAlgorithmReachesDsp();
+        testSizeParameterReachesDsp();
         testFocusParameterReachesDsp();
         testHarmonyParameterReachesAutoDsp();
         if (argc >= 3 && std::strcmp(argv[1], "--render-ui") == 0)

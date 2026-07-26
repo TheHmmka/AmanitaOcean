@@ -14,7 +14,6 @@ constexpr float inverseSqrtEight = 0.35355339059327376220f;
 constexpr float logMinus60dB = -6.90775527898213705205f;
 constexpr float freezeFeedback = 0.9995f;
 constexpr float bloomFreezeFeedback = 0.9985f;
-constexpr float maximumSize = 2.0f;
 constexpr float maximumPreDelaySeconds = 0.25f;
 constexpr float maximumDelayMotionSeconds = 0.00065f;
 
@@ -278,7 +277,7 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
             static_cast<double>(basePrimeSamples48k[index]) * sampleRate_ / 48000.0));
         nominalDelaySamples_[index] = static_cast<float>(nearestOddPrime(scaled));
 
-        const auto maximumDelay = nominalDelaySamples_[index] * maximumSize
+        const auto maximumDelay = nominalDelaySamples_[index] * maximumSizeScale
                                 + static_cast<float>(sampleRate_
                                                      * (maximumDelayMotionSeconds
                                                         + BloomCharacter::maximumDriftSeconds))
@@ -402,7 +401,8 @@ void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
     parameters_.mix = clampFinite(newParameters.mix, 0.0f, 1.0f, parameters_.mix);
     parameters_.decaySeconds = clampFinite(newParameters.decaySeconds, 0.2f, 30.0f,
                                             parameters_.decaySeconds);
-    parameters_.size = clampFinite(newParameters.size, 0.5f, maximumSize, parameters_.size);
+    parameters_.size = clampFinite(newParameters.size, minimumSizeScale,
+                                   maximumSizeScale, parameters_.size);
     parameters_.preDelayMs = clampFinite(newParameters.preDelayMs, 0.0f, 250.0f,
                                           parameters_.preDelayMs);
     parameters_.lowCutHz = clampFinite(newParameters.lowCutHz, 20.0f, 1000.0f,

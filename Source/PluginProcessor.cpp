@@ -3,6 +3,7 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
+#include <algorithm>
 #include <cmath>
 
 namespace
@@ -19,6 +20,25 @@ constexpr auto widthId = "width";
 constexpr auto focusId = "focus";
 constexpr auto freezeId = "freeze";
 constexpr auto harmonyId = "harmony";
+constexpr float legacyMinimumSizePercent = 50.0f;
+
+[[nodiscard]] float sizeScaleFromPercent(float percent) noexcept
+{
+    const auto safePercent = std::isfinite(percent)
+        ? std::clamp(percent, 0.0f, 200.0f)
+        : 100.0f;
+
+    if (safePercent >= legacyMinimumSizePercent)
+        return safePercent * 0.01f;
+
+    const auto normalizedCompactRange = safePercent / legacyMinimumSizePercent;
+    constexpr auto minimum = amanita::dsp::FDNReverb::minimumSizeScale;
+    // This compact-range curve reaches 0.5 with the same slope as the legacy
+    // branch, so automation crosses 50% without a speed kink.
+    return minimum
+         + (0.5f - 2.0f * minimum) * normalizedCompactRange
+         + minimum * normalizedCompactRange * normalizedCompactRange;
+}
 
 [[nodiscard]] juce::NormalisableRange<float> skewedRange(float minimum,
                                                           float maximum,
@@ -236,7 +256,7 @@ AmanitaOceanAudioProcessor::createParameterLayout()
         FloatAttributes().withLabel("s").withStringFromValueFunction(decayText)));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { sizeId, 1 }, "Size",
-        juce::NormalisableRange<float> { 50.0f, 200.0f, 0.1f }, 100.0f,
+        juce::NormalisableRange<float> { 0.0f, 200.0f, 0.1f }, 100.0f,
         FloatAttributes().withLabel("%")));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { preDelayId, 1 }, "Pre-delay",
@@ -300,7 +320,8 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
     }
     parameters.mix = mixParameter_->load(std::memory_order_relaxed) * 0.01f;
     parameters.decaySeconds = decayParameter_->load(std::memory_order_relaxed);
-    parameters.size = sizeParameter_->load(std::memory_order_relaxed) * 0.01f;
+    parameters.size = sizeScaleFromPercent(
+        sizeParameter_->load(std::memory_order_relaxed));
     parameters.preDelayMs = preDelayParameter_->load(std::memory_order_relaxed);
     parameters.lowCutHz = lowCutParameter_->load(std::memory_order_relaxed);
     parameters.highDampingHz = highDampingParameter_->load(std::memory_order_relaxed);

@@ -44,6 +44,10 @@ class FDNReverb
 {
 public:
     static constexpr std::size_t numDelayLines = 8;
+    // Keeps the shortest line above 4.34 ms, so Decay=30 s remains below the
+    // normal 0.999 feedback ceiling at every supported sample rate.
+    static constexpr float minimumSizeScale = 0.15f;
+    static constexpr float maximumSizeScale = 2.0f;
 
     void prepare(double sampleRate, int maximumBlockSize);
     void reset() noexcept;
