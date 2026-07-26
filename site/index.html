@@ -7,13 +7,13 @@
   <meta name="color-scheme" content="dark">
 
   <title>Amanita Ocean — Evolving Space Reverb</title>
-  <meta name="description" content="Amanita Ocean is an algorithmic reverb with four living characters, harmonic gravity, stereo-aware focus and an evolving eight-line FDN tail.">
+  <meta name="description" content="Amanita Ocean is an algorithmic reverb with four living characters, harmonic gravity, stereo-aware focus, balanced long decays and an optional mono-safe stereo field.">
   <meta name="keywords" content="algorithmic reverb, VST3 reverb, AU reverb, CLAP plugin, ambient reverb, psytrance reverb, music production">
   <link rel="canonical" href="https://ocean.amanita.music/">
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="Amanita Ocean — Evolving Space Reverb">
-  <meta property="og:description" content="A reverb whose tail keeps becoming. Four living characters, Harmonic Gravity and stereo-aware Focus.">
+  <meta property="og:description" content="A reverb whose tail keeps becoming. Four living characters, Harmonic Gravity, stereo-aware Focus and a new Mono Safe field.">
   <meta property="og:url" content="https://ocean.amanita.music/">
   <meta property="og:image" content="https://ocean.amanita.music/assets/amanita-ocean-social.png">
   <meta property="og:image:width" content="1729">
@@ -37,7 +37,7 @@
     "image": "https://ocean.amanita.music/assets/amanita-ocean-social.png",
     "applicationCategory": "MultimediaApplication",
     "applicationSubCategory": "Audio effect plug-in",
-    "softwareVersion": "0.19.0",
+    "softwareVersion": "0.20.0",
     "operatingSystem": "macOS, Windows, Linux",
     "description": "An algorithmic reverb with four evolving characters, harmonic gravity and stereo-aware masking relief.",
     "featureList": [
@@ -45,6 +45,9 @@
       "Evolution character macro",
       "Harmonic Gravity",
       "Stereo-aware Focus",
+      "Decay energy compensation",
+      "Mono Safe stereo field with a 145 Hz Sub Anchor",
+      "Independent 3 Hz DC Guard during Freeze",
       "Freeze",
       "VST3, Audio Unit and CLAP formats"
     ]
@@ -66,16 +69,17 @@
       </a>
 
       <nav class="site-nav" aria-label="Primary navigation">
+        <a href="#new-in-020">New in 0.20</a>
         <a href="#characters">Characters</a>
         <a href="#macros">Motion</a>
         <a href="#controls">Controls</a>
-        <a href="#architecture">Under the surface</a>
+        <a href="#architecture">Architecture</a>
         <a href="#downloads">Download</a>
       </nav>
 
-      <a class="header-version" href="#downloads" aria-label="Download Amanita Ocean 0.19.0">
+      <a class="header-version" href="#downloads" aria-label="Download Amanita Ocean 0.20.0">
         <span class="status-dot" aria-hidden="true"></span>
-        v0.19.0
+        v0.20.0
       </a>
     </div>
   </header>
@@ -98,7 +102,7 @@
               Enter the ocean
               <span aria-hidden="true">↓</span>
             </a>
-            <a class="button button--quiet" href="#downloads">Download v0.19.0</a>
+            <a class="button button--quiet" href="#downloads">Download v0.20.0</a>
           </div>
 
           <p class="format-line">
@@ -112,10 +116,10 @@
           <div class="product-halo" aria-hidden="true"></div>
           <figure class="plugin-frame">
             <img
-              src="assets/amanita-ocean-plugin.png?v=default-0190-alpha20"
+              src="assets/amanita-ocean-plugin.png?v=default-0200-mono-safe"
               alt="Amanita Ocean plug-in interface showing the Default character"
               width="2880"
-              height="1800"
+              height="1920"
               fetchpriority="high"
             >
             <figcaption>
@@ -130,6 +134,98 @@
         <span>Algorithmic depth</span>
         <span class="hero__line"></span>
         <span>8-line FDN</span>
+      </div>
+    </section>
+
+    <section class="section release-highlights" id="new-in-020">
+      <div class="page-width">
+        <div class="section-heading release-highlights__heading" data-reveal>
+          <p class="eyebrow">New in 0.20</p>
+          <h2>Longer, safer,<br><em>better translated.</em></h2>
+          <p>
+            Ocean 0.20 refines what happens when a tail becomes enormous.
+            Decay now changes time without crowding the mix, Freeze remains
+            protected at the edge of stability, and a second stereo voicing
+            lets the space survive beyond the studio sweet spot.
+          </p>
+        </div>
+
+        <div class="release-grid">
+          <article class="release-card release-card--stereo surface" data-reveal>
+            <div class="release-card__copy">
+              <div class="release-card__meta">
+                <span>01</span>
+                <b>Mono Safe</b>
+              </div>
+              <h3>Wide by choice.<br>Present in mono.</h3>
+              <p>
+                Mono Safe is a second complete stereo voicing. Leave it off for
+                Ocean’s original open orthogonal field, or turn it on for an
+                equal-power shared-sign decoder where every FDN line survives
+                mono summing.
+              </p>
+              <ul class="release-points">
+                <li>Original open field remains the default</li>
+                <li>30&nbsp;ms click-free, automatable morph</li>
+                <li>Project state is saved with the voicing</li>
+              </ul>
+            </div>
+
+            <div class="stereo-translation" aria-hidden="true">
+              <span class="stereo-translation__ring stereo-translation__ring--outer"></span>
+              <span class="stereo-translation__ring stereo-translation__ring--inner"></span>
+              <span class="stereo-translation__axis"></span>
+              <i class="stereo-translation__point stereo-translation__point--one"></i>
+              <i class="stereo-translation__point stereo-translation__point--two"></i>
+              <i class="stereo-translation__point stereo-translation__point--three"></i>
+              <i class="stereo-translation__point stereo-translation__point--four"></i>
+              <b class="stereo-translation__left">L</b>
+              <b class="stereo-translation__right">R</b>
+              <small>145 Hz Sub Anchor</small>
+            </div>
+
+            <p class="release-card__precision">
+              A gentle Sub Anchor gathers only the lowest Side energy toward
+              the centre. The upper tail stays spacious and alive.
+            </p>
+          </article>
+
+          <article class="release-card release-card--decay surface" data-reveal>
+            <div class="release-card__meta">
+              <span>02</span>
+              <b>Decay energy</b>
+            </div>
+            <h3>Time grows.<br>Level stays composed.</h3>
+            <p>
+              Energy-compensated excitation follows the feedback loss of the
+              network. Extending Decay now lengthens the tail without making
+              sustained reverberation noticeably louder or denser.
+            </p>
+            <div class="decay-readout" aria-hidden="true">
+              <div><strong>5</strong><span>sec</span></div>
+              <i></i>
+              <div><strong>30</strong><span>sec</span></div>
+              <small>less than 1 dB measured level spread</small>
+            </div>
+          </article>
+
+          <article class="release-card release-card--guard surface" data-reveal>
+            <div class="release-card__meta">
+              <span>03</span>
+              <b>DC Guard</b>
+            </div>
+            <h3>Freeze the world.<br>Not the offset.</h3>
+            <p>
+              An independent 3&nbsp;Hz high-pass remains in the feedback path
+              while Freeze opens past the audible damping filters. Inaudible DC
+              cannot accumulate inside a very long held tail.
+            </p>
+            <div class="guard-seal" aria-hidden="true">
+              <span>3 Hz</span>
+              <small>always protected in Freeze</small>
+            </div>
+          </article>
+        </div>
       </div>
     </section>
 
@@ -177,9 +273,9 @@
               class="mode-tab"
               type="button"
               role="tab"
-              id="mode-tab-drift"
+              id="character-tab-drift"
               aria-selected="false"
-              aria-controls="mode-panel-drift"
+              aria-controls="character-panel-drift"
               tabindex="-1"
               data-character="2"
             >
@@ -273,9 +369,9 @@
 
             <article
               class="mode-panel"
-              id="mode-panel-drift"
+              id="character-panel-drift"
               role="tabpanel"
-              aria-labelledby="mode-tab-drift"
+              aria-labelledby="character-tab-drift"
               data-character-panel="2"
               hidden
             >
@@ -499,7 +595,7 @@
           <article class="control-card" data-reveal>
             <span class="control-card__index">02</span>
             <h3>Decay</h3>
-            <p>Broadband RT60, calibrated across the useful Size range rather than a raw feedback gain.</p>
+            <p>Broadband RT60 with energy-compensated excitation, so longer tails do not become noticeably louder or denser.</p>
             <b>0.2–30 s</b>
           </article>
           <article class="control-card" data-reveal>
@@ -529,13 +625,13 @@
           <article class="control-card" data-reveal>
             <span class="control-card__index">07</span>
             <h3>Width</h3>
-            <p>Wet-only Mid/Side control: mono-compatible at the centre, expansive beyond natural stereo.</p>
+            <p>Wet-only Mid/Side control, paired with either the original open field or the optional Mono Safe voicing.</p>
             <b>0–200%</b>
           </article>
           <article class="control-card control-card--freeze" data-reveal>
             <span class="control-card__index">08</span>
             <h3>Freeze</h3>
-            <p>Fades the input away, preserves fractional-delay motion and holds the current harmonic map.</p>
+            <p>Fades the input away, preserves fractional-delay motion and keeps the held loop protected by an independent 3 Hz DC Guard.</p>
             <button class="freeze-demo" type="button" aria-pressed="false" data-ocean-freeze>
               <span aria-hidden="true"></span>
               Hold the living tail
@@ -580,15 +676,15 @@
           <div class="signal-node">
             <span>04</span>
             <b>Perception</b>
-            <small>Harmony · Focus · Width</small>
+            <small>Harmony · Focus · Stereo Field</small>
           </div>
         </div>
 
         <div class="technical-grid">
           <article data-reveal>
             <span>Feedback</span>
-            <h3>Orthonormal mixing</h3>
-            <p>Energy is redistributed across all eight delay lines without a privileged path.</p>
+            <h3>Balanced long decay</h3>
+            <p>Orthonormal mixing redistributes energy, while compensated excitation keeps sustained level composed as RT60 grows.</p>
           </article>
           <article data-reveal>
             <span>Time</span>
@@ -596,14 +692,14 @@
             <p>Ultra-slow interpolation creates life while runaway feedback, denormals and invalid values are contained.</p>
           </article>
           <article data-reveal>
-            <span>Tone</span>
-            <h3>Loop-domain damping</h3>
-            <p>Low cut and high damping act during every circulation, creating frequency-dependent decay.</p>
+            <span>Protection</span>
+            <h3>Independent DC Guard</h3>
+            <p>Low cut and damping shape every circulation; a separate 3 Hz guard remains active in the Freeze path.</p>
           </article>
           <article data-reveal>
             <span>Stereo</span>
-            <h3>Independent, coherent</h3>
-            <p>Decorrelated excitation and mode-aware motion expand the image without treating both channels as one envelope.</p>
+            <h3>Open or Mono Safe</h3>
+            <p>Choose the original expansive projection or a shared-sign field with a gentle 145 Hz Sub Anchor and no disappearing FDN lines.</p>
           </article>
         </div>
       </div>
@@ -630,7 +726,7 @@
                 <span class="status-dot" aria-hidden="true"></span>
                 <strong>Preview release</strong>
               </div>
-              <span>v0.19.0</span>
+              <span>v0.20.0</span>
             </div>
 
             <div class="platform-list">
@@ -640,9 +736,9 @@
                 <p>VST3 · Audio Unit · CLAP</p>
                 <a
                   class="download-button"
-                  href="downloads/0.19.0/Amanita-Ocean-0.19.0-macOS-arm64.zip"
+                  href="downloads/0.20.0/Amanita-Ocean-0.20.0-macOS-arm64.zip"
                   download
-                  aria-label="Download Amanita Ocean 0.19.0 for macOS Apple Silicon"
+                  aria-label="Download Amanita Ocean 0.20.0 for macOS Apple Silicon"
                 >
                   <span>Download</span>
                   <small>ZIP</small>
@@ -654,9 +750,9 @@
                 <p>VST3 · CLAP</p>
                 <a
                   class="download-button"
-                  href="downloads/0.19.0/Amanita-Ocean-0.19.0-Windows-x64.zip"
+                  href="downloads/0.20.0/Amanita-Ocean-0.20.0-Windows-x64.zip"
                   download
-                  aria-label="Download Amanita Ocean 0.19.0 for Windows x64"
+                  aria-label="Download Amanita Ocean 0.20.0 for Windows x64"
                 >
                   <span>Download</span>
                   <small>ZIP</small>
@@ -668,9 +764,9 @@
                 <p>VST3 · CLAP</p>
                 <a
                   class="download-button"
-                  href="downloads/0.19.0/Amanita-Ocean-0.19.0-Linux-x64.tar.gz"
+                  href="downloads/0.20.0/Amanita-Ocean-0.20.0-Linux-x64.tar.gz"
                   download
-                  aria-label="Download Amanita Ocean 0.19.0 for Linux x64"
+                  aria-label="Download Amanita Ocean 0.20.0 for Linux x64"
                 >
                   <span>Download</span>
                   <small>TAR.GZ</small>
@@ -680,7 +776,7 @@
 
             <div class="release-foot">
               <p>Preview binaries · macOS ad-hoc signed · Windows unsigned</p>
-              <a href="downloads/0.19.0/SHA256SUMS.txt">SHA-256 checksums</a>
+              <a href="downloads/0.20.0/SHA256SUMS.txt">SHA-256 checksums</a>
             </div>
           </div>
         </div>

@@ -34,7 +34,7 @@ downloads/
 js/
 ```
 
-Release archives live under a versioned path such as `downloads/0.19.0/`.
+Release archives live under a versioned path such as `downloads/0.20.0/`.
 Keep `SHA256SUMS.txt` beside the archives and never replace an already-published
 version in place; publish a new versioned directory instead.
 
@@ -57,4 +57,6 @@ utility, so it always reflects the current editor:
 ```
 
 The final arguments select Default, request a 1440-point editor width, and leave
-Freeze disabled. The renderer writes a Retina-resolution PNG.
+Freeze disabled. Mono Safe remains at its default Off state. The renderer writes
+a `2880 × 1920` Retina-resolution PNG; keep the matching intrinsic dimensions
+and a versioned cache-buster in `index.html`.
