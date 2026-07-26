@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en" data-character="default">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#06161a">
+  <meta name="color-scheme" content="dark">
+
+  <title>Amanita Ocean — Evolving Space Reverb</title>
+  <meta name="description" content="Amanita Ocean is an algorithmic reverb with four living characters, harmonic gravity, stereo-aware focus and an evolving eight-line FDN tail.">
+  <meta name="keywords" content="algorithmic reverb, VST3 reverb, AU reverb, CLAP plugin, ambient reverb, psytrance reverb, music production">
+  <link rel="canonical" href="https://ocean.amanita.music/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Amanita Ocean — Evolving Space Reverb">
+  <meta property="og:description" content="A reverb whose tail keeps becoming. Four living characters, Harmonic Gravity and stereo-aware Focus.">
+  <meta property="og:url" content="https://ocean.amanita.music/">
+  <meta property="og:image" content="https://ocean.amanita.music/assets/amanita-ocean-social.png">
+  <meta property="og:image:width" content="1729">
+  <meta property="og:image:height" content="910">
+  <meta property="og:image:alt" content="Amanita Ocean in a deep cyan and blue liquid field">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Amanita Ocean — Evolving Space Reverb">
+  <meta name="twitter:description" content="A reverb whose tail keeps becoming.">
+  <meta name="twitter:image" content="https://ocean.amanita.music/assets/amanita-ocean-social.png">
+
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Amanita Ocean",
+    "url": "https://ocean.amanita.music/",
+    "image": "https://ocean.amanita.music/assets/amanita-ocean-social.png",
+    "applicationCategory": "MultimediaApplication",
+    "applicationSubCategory": "Audio effect plug-in",
+    "softwareVersion": "0.19.0",
+    "operatingSystem": "macOS, Windows, Linux",
+    "description": "An algorithmic reverb with four evolving characters, harmonic gravity and stereo-aware masking relief.",
+    "featureList": [
+      "Default, Bloom, Drift and Veil reverb characters",
+      "Evolution character macro",
+      "Harmonic Gravity",
+      "Stereo-aware Focus",
+      "Freeze",
+      "VST3, Audio Unit and CLAP formats"
+    ]
+  }
+  </script>
+</head>
+
+<body>
+  <canvas id="ocean-canvas" aria-hidden="true"></canvas>
+  <div class="world-vignette" aria-hidden="true"></div>
+
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="wordmark" href="#top" aria-label="Amanita Ocean home">
+        <span>AMANITA</span>
+        <span class="wordmark__ocean">OCEAN</span>
+      </a>
+
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a href="#characters">Characters</a>
+        <a href="#macros">Motion</a>
+        <a href="#controls">Controls</a>
+        <a href="#architecture">Under the surface</a>
+        <a href="#downloads">Download</a>
+      </nav>
+
+      <a class="header-version" href="#downloads" aria-label="Download Amanita Ocean 0.19.0">
+        <span class="status-dot" aria-hidden="true"></span>
+        v0.19.0
+      </a>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section class="hero" id="top">
+      <div class="hero__glow" aria-hidden="true"></div>
+      <div class="page-width hero__inner">
+        <div class="hero__copy" data-reveal>
+          <p class="eyebrow">Evolving space reverb</p>
+          <h1>A reverb whose tail<br><em>keeps becoming.</em></h1>
+          <p class="hero__lead">
+            Amanita Ocean is an algorithmic reverb designed as a living space.
+            Its tail breathes, changes colour and makes room for the sound that
+            created it—without turning into an obvious chorus.
+          </p>
+
+          <div class="hero__actions">
+            <a class="button button--primary" href="#characters">
+              Enter the ocean
+              <span aria-hidden="true">↓</span>
+            </a>
+            <a class="button button--quiet" href="#downloads">Download v0.19.0</a>
+          </div>
+
+          <p class="format-line">
+            <span>VST3</span><span>AU</span><span>CLAP</span>
+            <i aria-hidden="true"></i>
+            <span>macOS</span><span>Windows</span><span>Linux</span>
+          </p>
+        </div>
+
+        <div class="hero__product" data-reveal>
+          <div class="product-halo" aria-hidden="true"></div>
+          <figure class="plugin-frame">
+            <img
+              src="assets/amanita-ocean-plugin.png?v=default-0190-alpha20"
+              alt="Amanita Ocean plug-in interface showing the Default character"
+              width="2880"
+              height="1800"
+              fetchpriority="high"
+            >
+            <figcaption>
+              <span>Current build</span>
+              <span>Default / 68% Evolution</span>
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <div class="hero__foot page-width" aria-hidden="true">
+        <span>Algorithmic depth</span>
+        <span class="hero__line"></span>
+        <span>8-line FDN</span>
+      </div>
+    </section>
+
+    <section class="section characters" id="characters">
+      <div class="page-width">
+        <div class="section-heading" data-reveal>
+          <p class="eyebrow">Four currents, one ocean</p>
+          <h2>Choose how the space <em>moves.</em></h2>
+          <p>
+            Every character reshapes the same stable reverb core. Switching
+            characters morphs over 200&nbsp;ms, so the existing tail is never reset.
+          </p>
+        </div>
+
+        <div class="character-lab surface" data-reveal>
+          <div class="mode-tabs" role="tablist" aria-label="Reverb character">
+            <button
+              class="mode-tab is-active"
+              type="button"
+              role="tab"
+              id="mode-tab-default"
+              aria-selected="true"
+              aria-controls="mode-panel-default"
+              data-character="0"
+            >
+              <span class="mode-tab__number">01</span>
+              <span class="mode-tab__name">Default</span>
+              <span class="mode-tab__descriptor">Pure / Open</span>
+            </button>
+            <button
+              class="mode-tab"
+              type="button"
+              role="tab"
+              id="mode-tab-bloom"
+              aria-selected="false"
+              aria-controls="mode-panel-bloom"
+              tabindex="-1"
+              data-character="1"
+            >
+              <span class="mode-tab__number">02</span>
+              <span class="mode-tab__name">Bloom</span>
+              <span class="mode-tab__descriptor">Rising / Diffusion</span>
+            </button>
+            <button
+              class="mode-tab"
+              type="button"
+              role="tab"
+              id="mode-tab-drift"
+              aria-selected="false"
+              aria-controls="mode-panel-drift"
+              tabindex="-1"
+              data-character="2"
+            >
+              <span class="mode-tab__number">03</span>
+              <span class="mode-tab__name">Drift</span>
+              <span class="mode-tab__descriptor">Spectral / Motion</span>
+            </button>
+            <button
+              class="mode-tab"
+              type="button"
+              role="tab"
+              id="mode-tab-veil"
+              aria-selected="false"
+              aria-controls="mode-panel-veil"
+              tabindex="-1"
+              data-character="3"
+            >
+              <span class="mode-tab__number">04</span>
+              <span class="mode-tab__name">Veil</span>
+              <span class="mode-tab__descriptor">Soft / Cloud</span>
+            </button>
+          </div>
+
+          <div class="mode-panels">
+            <article
+              class="mode-panel is-active"
+              id="mode-panel-default"
+              role="tabpanel"
+              aria-labelledby="mode-tab-default"
+              data-character-panel="0"
+            >
+              <div class="mode-panel__statement">
+                <p class="mode-kicker">The reference space</p>
+                <h3>Clear in front.<br>Alive behind.</h3>
+                <p>
+                  Default preserves the attack, then opens into a balanced,
+                  highly decorrelated field. Extremely slow fractional-delay
+                  motion keeps long decays alive without announcing itself as
+                  pitch modulation.
+                </p>
+              </div>
+              <dl class="mode-panel__facts">
+                <div>
+                  <dt>Core</dt>
+                  <dd>8-line orthonormal FDN</dd>
+                </div>
+                <div>
+                  <dt>Diffusion</dt>
+                  <dd>AP4 stereo field</dd>
+                </div>
+                <div>
+                  <dt>Motion</dt>
+                  <dd>0.025–0.650&nbsp;ms</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article
+              class="mode-panel"
+              id="mode-panel-bloom"
+              role="tabpanel"
+              aria-labelledby="mode-tab-bloom"
+              data-character-panel="1"
+              hidden
+            >
+              <div class="mode-panel__statement">
+                <p class="mode-kicker">Reflections that rise</p>
+                <h3>A tail that opens<br>like a flower.</h3>
+                <p>
+                  Later reflections arrive with more weight, creating a
+                  reverse-like swell before a second stereo diffusion field
+                  dissolves the shape. It is causal, continuous and free from
+                  grains or reversed buffers.
+                </p>
+              </div>
+              <dl class="mode-panel__facts">
+                <div>
+                  <dt>Swell</dt>
+                  <dd>Four rising reflection taps</dd>
+                </div>
+                <div>
+                  <dt>Diffusion</dt>
+                  <dd>Dual AP4 stereo fields</dd>
+                </div>
+                <div>
+                  <dt>Evolution</dt>
+                  <dd>8–100% rising layer</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article
+              class="mode-panel"
+              id="mode-panel-drift"
+              role="tabpanel"
+              aria-labelledby="mode-tab-drift"
+              data-character-panel="2"
+              hidden
+            >
+              <div class="mode-panel__statement">
+                <p class="mode-kicker">Movement inside the tail</p>
+                <h3>The spectrum<br>becomes the current.</h3>
+                <p>
+                  Drift moves spectral regions inside the feedback network,
+                  rather than chorusing the output. Left and right follow
+                  related but independent trajectories while common delay
+                  motion stays below 0.10&nbsp;ms to keep the low end anchored.
+                </p>
+              </div>
+              <dl class="mode-panel__facts">
+                <div>
+                  <dt>Motion</dt>
+                  <dd>Four orthogonal H8 axes</dd>
+                </div>
+                <div>
+                  <dt>Air path</dt>
+                  <dd>600&nbsp;Hz–18&nbsp;kHz</dd>
+                </div>
+                <div>
+                  <dt>Cycles</dt>
+                  <dd>5.5–73 seconds</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article
+              class="mode-panel"
+              id="mode-panel-veil"
+              role="tabpanel"
+              aria-labelledby="mode-tab-veil"
+              data-character-panel="3"
+              hidden
+            >
+              <div class="mode-panel__statement">
+                <p class="mode-kicker">Transients become atmosphere</p>
+                <h3>Lose the edge.<br>Keep the presence.</h3>
+                <p>
+                  Veil reshapes phase and group delay through an additional
+                  lossless AP6 excitation stage. Attacks enter the network as
+                  a dense, weightless cloud while sustained tone remains
+                  intact—without envelope pumping or granular windows.
+                </p>
+              </div>
+              <dl class="mode-panel__facts">
+                <div>
+                  <dt>Cloud</dt>
+                  <dd>Approximately 90&nbsp;ms</dd>
+                </div>
+                <div>
+                  <dt>Excitation</dt>
+                  <dd>Lossless AP6 per channel</dd>
+                </div>
+                <div>
+                  <dt>Evolution</dt>
+                  <dd>4–100% softening</dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section macros" id="macros">
+      <div class="page-width">
+        <div class="macro-feature macro-feature--evolution surface" data-reveal>
+          <div class="macro-feature__copy">
+            <p class="eyebrow">Evolution</p>
+            <h2>One gesture.<br><em>Four forms of motion.</em></h2>
+            <p>
+              Evolution is not a generic modulation amount. It knows the
+              selected character and moves the parameters that define its
+              identity—delay distribution, diffusion, spectral span, swell,
+              damping and stereo movement.
+            </p>
+
+            <ul class="character-map">
+              <li><b>Default</b><span>Fractional-delay movement</span></li>
+              <li><b>Bloom</b><span>Swell, diffusion and slow drift</span></li>
+              <li><b>Drift</b><span>Spectral span and kernel balance</span></li>
+              <li><b>Veil</b><span>Cloud density and AP6 amount</span></li>
+            </ul>
+          </div>
+
+          <div class="macro-control" aria-label="Interactive Evolution demonstration">
+            <div class="macro-control__orb" aria-hidden="true">
+              <span></span><i></i><b></b>
+            </div>
+            <div class="macro-control__readout">
+              <span>Evolution</span>
+              <output id="evolution-output" for="evolution-control">68%</output>
+            </div>
+            <input
+              id="evolution-control"
+              class="ocean-range"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="68"
+              aria-label="Evolution"
+              aria-describedby="evolution-output"
+              data-ocean-control="evolution"
+            >
+            <p>Move the control and watch the entire field respond.</p>
+          </div>
+        </div>
+
+        <div class="macro-pair">
+          <article class="macro-card macro-card--harmony surface" data-reveal>
+            <div class="macro-card__heading">
+              <p class="eyebrow">Harmony</p>
+              <h3>A halo drawn toward<br>the notes already present.</h3>
+              <p>
+                Harmonic Gravity listens to the dry signal, builds a
+                confidence-weighted pitch-class map and gently excites stable
+                resonant modes after the FDN. It does not retune the existing
+                tail or force the signal into a guessed key.
+              </p>
+            </div>
+
+            <ol class="signal-flow" aria-label="Harmonic Gravity signal flow">
+              <li>
+                <span>01</span>
+                <div><b>Listen</b><small>C2–B6 pitch-class analysis</small></div>
+              </li>
+              <li>
+                <span>02</span>
+                <div><b>Trust</b><small>Reject transient and overtone errors</small></div>
+              </li>
+              <li>
+                <span>03</span>
+                <div><b>Glow</b><small>36 stable stereo modes, C3–B5</small></div>
+              </li>
+            </ol>
+
+            <p class="precision-note">
+              At 0%, Harmony is an exact bypass. Uncertain or monophonic
+              material stays deliberately subtle; Freeze holds the current map.
+            </p>
+          </article>
+
+          <article class="macro-card macro-card--focus surface" data-reveal>
+            <div class="macro-card__heading">
+              <p class="eyebrow">Focus</p>
+              <h3>Clarity without making<br>the ocean collapse.</h3>
+              <p>
+                Focus is perceptual masking relief, not conventional full-band
+                ducking. It finds only the wet frequency regions that obscure
+                an active dry signal and opens temporary, cut-only pockets.
+              </p>
+            </div>
+
+            <div class="focus-map" aria-hidden="true">
+              <div class="focus-map__labels">
+                <span>160 Hz</span><span>630 Hz</span><span>2.2 kHz</span><span>6.5 kHz</span>
+              </div>
+              <div class="focus-map__bands">
+                <i style="--depth: 24%"></i>
+                <i style="--depth: 42%"></i>
+                <i style="--depth: 72%"></i>
+                <i style="--depth: 36%"></i>
+              </div>
+              <div class="focus-map__stereo">
+                <span>L</span><b></b><em>STEREO AWARE</em><b></b><span>R</span>
+              </div>
+            </div>
+
+            <div class="compact-control">
+              <div>
+                <label for="focus-control">Focus</label>
+                <output id="focus-output" for="focus-control">100%</output>
+              </div>
+              <input
+                id="focus-control"
+                class="ocean-range"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value="100"
+                aria-describedby="focus-output"
+                data-ocean-control="focus"
+              >
+            </div>
+
+            <p class="precision-note">
+              Four analysis bands, 40&nbsp;ms stereo-aware detection and up to
+              approximately 5.5&nbsp;dB of presence relief. A hard-left sound
+              does not suppress the right tail.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section controls" id="controls">
+      <div class="page-width">
+        <div class="section-heading section-heading--split" data-reveal>
+          <div>
+            <p class="eyebrow">The essential controls</p>
+            <h2>Simple on the surface.<br><em>Deep underneath.</em></h2>
+          </div>
+          <p>
+            Every control is smoothed inside the DSP. No memory allocation,
+            locking or system calls happen on the audio thread.
+          </p>
+        </div>
+
+        <div class="control-grid">
+          <article class="control-card" data-reveal>
+            <span class="control-card__index">01</span>
+            <h3>Mix</h3>
+            <p>Linear dry/wet balance from a completely dry signal to the full Ocean field.</p>
+            <b>0–100%</b>
+          </article>
+          <article class="control-card" data-reveal>
+            <span class="control-card__index">02</span>
+            <h3>Decay</h3>
+            <p>Broadband RT60, calibrated across the useful Size range rather than a raw feedback gain.</p>
+            <b>0.2–30 s</b>
+          </article>
+          <article class="control-card" data-reveal>
+            <span class="control-card__index">03</span>
+            <h3>Size</h3>
+            <p>Compress or expand all decorrelated delay lengths, from a compact resonant room to an impossible volume.</p>
+            <b>0–200%</b>
+          </article>
+          <article class="control-card" data-reveal>
+            <span class="control-card__index">04</span>
+            <h3>Pre-delay</h3>
+            <p>Places silence before the input diffusion field while leaving the internal reverb structure untouched.</p>
+            <b>0–250 ms</b>
+          </article>
+          <article class="control-card" data-reveal>
+            <span class="control-card__index">05</span>
+            <h3>Low Cut</h3>
+            <p>Shapes low-frequency energy inside the feedback loop so long tails remain deep without becoming heavy.</p>
+            <b>20–1000 Hz</b>
+          </article>
+          <article class="control-card" data-reveal>
+            <span class="control-card__index">06</span>
+            <h3>Damping</h3>
+            <p>Controls high-frequency loss on every circulation through the network, not only at the output.</p>
+            <b>1–20 kHz</b>
+          </article>
+          <article class="control-card" data-reveal>
+            <span class="control-card__index">07</span>
+            <h3>Width</h3>
+            <p>Wet-only Mid/Side control: mono-compatible at the centre, expansive beyond natural stereo.</p>
+            <b>0–200%</b>
+          </article>
+          <article class="control-card control-card--freeze" data-reveal>
+            <span class="control-card__index">08</span>
+            <h3>Freeze</h3>
+            <p>Fades the input away, preserves fractional-delay motion and holds the current harmonic map.</p>
+            <button class="freeze-demo" type="button" aria-pressed="false" data-ocean-freeze>
+              <span aria-hidden="true"></span>
+              Hold the living tail
+            </button>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section architecture" id="architecture">
+      <div class="page-width">
+        <div class="section-heading architecture__heading" data-reveal>
+          <p class="eyebrow">Under the surface</p>
+          <h2>Energy-stable by design.<br><em>Alive by intention.</em></h2>
+          <p>
+            Ocean begins with an eight-line Feedback Delay Network. Prime-scaled,
+            decorrelated lengths feed an orthonormal matrix, so density can grow
+            without the loop inventing energy. Character processing changes how
+            the space develops—not whether it remains stable.
+          </p>
+        </div>
+
+        <div class="signal-chain surface" data-reveal>
+          <div class="signal-node">
+            <span>01</span>
+            <b>Input</b>
+            <small>Pre-delay · AP diffusion</small>
+          </div>
+          <i aria-hidden="true"></i>
+          <div class="signal-node signal-node--core">
+            <span>02</span>
+            <b>FDN Core</b>
+            <small>8 lines · orthonormal feedback</small>
+          </div>
+          <i aria-hidden="true"></i>
+          <div class="signal-node">
+            <span>03</span>
+            <b>Character</b>
+            <small>Bloom · Drift · Veil</small>
+          </div>
+          <i aria-hidden="true"></i>
+          <div class="signal-node">
+            <span>04</span>
+            <b>Perception</b>
+            <small>Harmony · Focus · Width</small>
+          </div>
+        </div>
+
+        <div class="technical-grid">
+          <article data-reveal>
+            <span>Feedback</span>
+            <h3>Orthonormal mixing</h3>
+            <p>Energy is redistributed across all eight delay lines without a privileged path.</p>
+          </article>
+          <article data-reveal>
+            <span>Time</span>
+            <h3>Fractional movement</h3>
+            <p>Ultra-slow interpolation creates life while runaway feedback, denormals and invalid values are contained.</p>
+          </article>
+          <article data-reveal>
+            <span>Tone</span>
+            <h3>Loop-domain damping</h3>
+            <p>Low cut and high damping act during every circulation, creating frequency-dependent decay.</p>
+          </article>
+          <article data-reveal>
+            <span>Stereo</span>
+            <h3>Independent, coherent</h3>
+            <p>Decorrelated excitation and mode-aware motion expand the image without treating both channels as one envelope.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section formats" id="formats">
+      <div class="page-width">
+        <div class="formats__panel surface" data-reveal>
+          <div class="formats__copy">
+            <p class="eyebrow">Built to travel</p>
+            <h2>One ocean.<br><em>Every studio.</em></h2>
+            <p>
+              The DSP core is independent from the interface, unit-tested and
+              prepared for the sample rates used in modern production.
+            </p>
+            <div class="sample-rates" aria-label="Supported sample rates">
+              <span>44.1</span><span>48</span><span>88.2</span><span>96 kHz</span>
+            </div>
+          </div>
+
+          <div class="downloads" id="downloads">
+            <div class="release-meta">
+              <div>
+                <span class="status-dot" aria-hidden="true"></span>
+                <strong>Preview release</strong>
+              </div>
+              <span>v0.19.0</span>
+            </div>
+
+            <div class="platform-list">
+              <article>
+                <span>macOS</span>
+                <h3>Apple Silicon</h3>
+                <p>VST3 · Audio Unit · CLAP</p>
+                <a
+                  class="download-button"
+                  href="downloads/0.19.0/Amanita-Ocean-0.19.0-macOS-arm64.zip"
+                  download
+                  aria-label="Download Amanita Ocean 0.19.0 for macOS Apple Silicon"
+                >
+                  <span>Download</span>
+                  <small>ZIP</small>
+                </a>
+              </article>
+              <article>
+                <span>Windows</span>
+                <h3>x64</h3>
+                <p>VST3 · CLAP</p>
+                <a
+                  class="download-button"
+                  href="downloads/0.19.0/Amanita-Ocean-0.19.0-Windows-x64.zip"
+                  download
+                  aria-label="Download Amanita Ocean 0.19.0 for Windows x64"
+                >
+                  <span>Download</span>
+                  <small>ZIP</small>
+                </a>
+              </article>
+              <article>
+                <span>Linux</span>
+                <h3>x64</h3>
+                <p>VST3 · CLAP</p>
+                <a
+                  class="download-button"
+                  href="downloads/0.19.0/Amanita-Ocean-0.19.0-Linux-x64.tar.gz"
+                  download
+                  aria-label="Download Amanita Ocean 0.19.0 for Linux x64"
+                >
+                  <span>Download</span>
+                  <small>TAR.GZ</small>
+                </a>
+              </article>
+            </div>
+
+            <div class="release-foot">
+              <p>Preview binaries · macOS ad-hoc signed · Windows unsigned</p>
+              <a href="downloads/0.19.0/SHA256SUMS.txt">SHA-256 checksums</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="closing" data-reveal>
+          <p class="eyebrow">Amanita Ocean</p>
+          <h2>Let the sound leave a world behind.</h2>
+          <a class="button button--primary" href="#top">Return to the surface <span aria-hidden="true">↑</span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="page-width site-footer__inner">
+      <a class="wordmark wordmark--small" href="#top">
+        <span>AMANITA</span><span class="wordmark__ocean">OCEAN</span>
+      </a>
+      <p>© <span data-current-year>2026</span> Amanita. Evolving space reverb.</p>
+      <p>C++ · JUCE · CMake</p>
+    </div>
+  </footer>
+
+  <noscript>
+    <div class="noscript-note">
+      JavaScript is disabled. The complete product information remains available;
+      only the living Ocean background and interactive controls are paused.
+    </div>
+  </noscript>
+
+  <script src="js/ocean-background.js" defer></script>
+  <script src="js/site.js" defer></script>
+</body>
+</html>

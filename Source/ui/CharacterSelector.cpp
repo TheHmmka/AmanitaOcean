@@ -10,7 +10,7 @@ namespace
 constexpr auto parameterId = "algorithm";
 constexpr int radioGroupId = 0x414d;
 constexpr float selectedTextAlpha = 0.98f;
-constexpr float inactiveTextAlpha = 0.15f;
+constexpr float inactiveTextAlpha = 0.20f;
 
 constexpr std::array<const char*, CharacterSelector::characterCount> characterNames {
     "Default", "Bloom", "Drift", "Veil"

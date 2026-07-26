@@ -59,6 +59,28 @@ struct GestureProbe final : juce::AudioProcessorListener
     int endCount = 0;
 };
 
+struct HostDisplayProbe final : juce::AudioProcessorListener
+{
+    void audioProcessorParameterChanged(juce::AudioProcessor*, int, float) override {}
+
+    void audioProcessorChanged(juce::AudioProcessor*,
+                               const ChangeDetails& details) override
+    {
+        ++changeCount;
+        programChanged = programChanged || details.programChanged;
+        latencyChanged = latencyChanged || details.latencyChanged;
+        parameterInfoChanged = parameterInfoChanged || details.parameterInfoChanged;
+        nonParameterStateChanged
+            = nonParameterStateChanged || details.nonParameterStateChanged;
+    }
+
+    int changeCount = 0;
+    bool programChanged = false;
+    bool latencyChanged = false;
+    bool parameterInfoChanged = false;
+    bool nonParameterStateChanged = false;
+};
+
 void require(bool condition, const std::string& message)
 {
     if (!condition)
@@ -356,7 +378,16 @@ void testCurrentStateRoundTrip()
                         + removedId);
 
         AmanitaOceanAudioProcessor restored;
+        HostDisplayProbe hostDisplayProbe;
+        restored.addListener(&hostDisplayProbe);
         restored.setStateInformation(data.getData(), static_cast<int>(data.getSize()));
+        restored.removeListener(&hostDisplayProbe);
+        require(hostDisplayProbe.changeCount == 1 && hostDisplayProbe.programChanged,
+                "State load did not notify the host to refresh parameter values");
+        require(!hostDisplayProbe.latencyChanged
+                    && !hostDisplayProbe.parameterInfoChanged
+                    && !hostDisplayProbe.nonParameterStateChanged,
+                "State load requested unrelated host refreshes");
         const auto& restoredAlgorithm = algorithmParameter(restored);
         require(restoredAlgorithm.getIndex() == algorithmCase.rawIndex
                     && restoredAlgorithm.getCurrentChoiceName() == algorithmCase.name,
@@ -861,7 +892,8 @@ void testCustomEditorLayoutAndAttachments()
         const auto inactiveColour = button->findColour(juce::TextButton::textColourOffId);
         require(selectedColour.withAlpha(1.0f) == amanita::ui::characterAccent(index),
                 "Character text does not retain its own algorithm accent colour");
-        require(inactiveColour.getFloatAlpha() <= 0.17f
+        require(inactiveColour.getFloatAlpha() >= 0.19f
+                    && inactiveColour.getFloatAlpha() <= 0.21f
                     && selectedColour.getFloatAlpha()
                         >= inactiveColour.getFloatAlpha() + 0.75f,
                 "Inactive Character text is not sufficiently de-emphasised");

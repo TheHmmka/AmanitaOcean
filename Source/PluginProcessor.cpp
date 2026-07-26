@@ -224,6 +224,8 @@ void AmanitaOceanAudioProcessor::setStateInformation(const void* data, int sizeI
         return;
 
     state_.replaceState(restored);
+    updateHostDisplay(
+        juce::AudioProcessorListener::ChangeDetails {}.withProgramChanged(true));
 }
 
 juce::AudioProcessorValueTreeState& AmanitaOceanAudioProcessor::getParameterState() noexcept
