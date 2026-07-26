@@ -121,6 +121,25 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
          })
         addAndMakeVisible(*component);
 
+    monoSafeButton_.setComponentID("mono-safe");
+    monoSafeButton_.setAccessible(true);
+    monoSafeButton_.setButtonText("MONO SAFE");
+    monoSafeButton_.setName("Mono Safe Stereo");
+    monoSafeButton_.setTitle("Mono Safe Stereo");
+    monoSafeButton_.setDescription(
+        "Keep every reverb line present in mono and gently centre the sub tail");
+    monoSafeButton_.setHelpText(
+        "Enable the mono-safe stereo field and Sub Anchor.");
+    monoSafeButton_.setTooltip(
+        "Mono-safe stereo decoder and Sub Anchor");
+    monoSafeButton_.setClickingTogglesState(true);
+    monoSafeButton_.setWantsKeyboardFocus(true);
+    monoSafeButton_.setExplicitFocusOrder(15);
+    addAndMakeVisible(monoSafeButton_);
+    monoSafeAttachment_
+        = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+            processor_.getParameterState(), "monoSafe", monoSafeButton_);
+
     freezeButton_.setComponentID("freeze");
     freezeButton_.setAccessible(true);
     freezeButton_.setButtonText("FREEZE");
@@ -131,7 +150,7 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
     freezeButton_.setTooltip("Freeze the current tail");
     freezeButton_.setClickingTogglesState(true);
     freezeButton_.setWantsKeyboardFocus(true);
-    freezeButton_.setExplicitFocusOrder(15);
+    freezeButton_.setExplicitFocusOrder(16);
     addAndMakeVisible(freezeButton_);
     freezeAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         processor_.getParameterState(), "freeze", freezeButton_);
@@ -173,6 +192,7 @@ AmanitaOceanAudioProcessorEditor::~AmanitaOceanAudioProcessorEditor()
     stopTimer();
     if (shaderBackground_ != nullptr)
         shaderBackground_->detach();
+    monoSafeAttachment_.reset();
     freezeAttachment_.reset();
     setLookAndFeel(nullptr);
 }
@@ -273,8 +293,13 @@ void AmanitaOceanAudioProcessorEditor::resized()
     constexpr auto freezeHeight = 34.0f;
     const auto freezeWidth = fittedToggleWidth(freezeButton_.getButtonText(),
                                                freezeHeight, 72.0f, 120.0f);
-    freezeButton_.setBounds(scaledBounds(928.0f - freezeWidth, 20.0f,
+    const auto freezeX = 928.0f - freezeWidth;
+    freezeButton_.setBounds(scaledBounds(freezeX, 20.0f,
                                          freezeWidth, freezeHeight));
+    const auto monoSafeWidth = fittedToggleWidth(monoSafeButton_.getButtonText(),
+                                                 freezeHeight, 88.0f, 136.0f);
+    monoSafeButton_.setBounds(scaledBounds(freezeX - 8.0f - monoSafeWidth, 20.0f,
+                                           monoSafeWidth, freezeHeight));
 
     constexpr auto rowLeft = 32.0f;
     constexpr auto rowWidth = 896.0f;
@@ -347,6 +372,7 @@ void AmanitaOceanAudioProcessorEditor::timerCallback()
                  })
                 knob->repaint();
             freezeButton_.repaint();
+            monoSafeButton_.repaint();
         }
 
         // The shader integrates its own smoothed Freeze/mode transitions. A

@@ -20,6 +20,7 @@ constexpr auto widthId = "width";
 constexpr auto focusId = "focus";
 constexpr auto freezeId = "freeze";
 constexpr auto harmonyId = "harmony";
+constexpr auto monoSafeId = "monoSafe";
 constexpr float legacyMinimumSizePercent = 50.0f;
 
 [[nodiscard]] float sizeScaleFromPercent(float percent) noexcept
@@ -129,13 +130,15 @@ AmanitaOceanAudioProcessor::AmanitaOceanAudioProcessor()
     focusParameter_ = state_.getRawParameterValue(focusId);
     freezeParameter_ = state_.getRawParameterValue(freezeId);
     harmonyParameter_ = state_.getRawParameterValue(harmonyId);
+    monoSafeParameter_ = state_.getRawParameterValue(monoSafeId);
 
     jassert(characterParameter_ != nullptr && mixParameter_ != nullptr
             && decayParameter_ != nullptr && sizeParameter_ != nullptr
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
             && highDampingParameter_ != nullptr && evolutionParameter_ != nullptr
             && widthParameter_ != nullptr && focusParameter_ != nullptr
-            && freezeParameter_ != nullptr && harmonyParameter_ != nullptr);
+            && freezeParameter_ != nullptr && harmonyParameter_ != nullptr
+            && monoSafeParameter_ != nullptr);
 }
 
 void AmanitaOceanAudioProcessor::prepareToPlay(double sampleRate, int maximumExpectedSamplesPerBlock)
@@ -290,6 +293,8 @@ AmanitaOceanAudioProcessor::createParameterLayout()
         juce::ParameterID { harmonyId, 1 }, "Harmony",
         juce::NormalisableRange<float> { 0.0f, 100.0f, 0.1f }, 0.0f,
         FloatAttributes().withLabel("%")));
+    layout.add(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID { monoSafeId, 1 }, "Mono Safe", false));
 
     return layout;
 }
@@ -301,7 +306,8 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
             && preDelayParameter_ != nullptr && lowCutParameter_ != nullptr
             && highDampingParameter_ != nullptr && evolutionParameter_ != nullptr
             && widthParameter_ != nullptr && focusParameter_ != nullptr
-            && freezeParameter_ != nullptr && harmonyParameter_ != nullptr);
+            && freezeParameter_ != nullptr && harmonyParameter_ != nullptr
+            && monoSafeParameter_ != nullptr);
 
     amanita::dsp::ReverbParameters parameters;
     switch (static_cast<int>(std::lround(
@@ -333,6 +339,8 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
     parameters.harmony = harmonyParameter_->load(std::memory_order_relaxed) * 0.01f;
     parameters.autoHarmony = true;
     parameters.freeze = freezeParameter_->load(std::memory_order_relaxed) >= 0.5f;
+    parameters.monoSafeStereo
+        = monoSafeParameter_->load(std::memory_order_relaxed) >= 0.5f;
     return parameters;
 }
 

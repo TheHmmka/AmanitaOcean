@@ -56,6 +56,7 @@ private:
     std::atomic<float>* focusParameter_ = nullptr;
     std::atomic<float>* freezeParameter_ = nullptr;
     std::atomic<float>* harmonyParameter_ = nullptr;
+    std::atomic<float>* monoSafeParameter_ = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AmanitaOceanAudioProcessor)
 };

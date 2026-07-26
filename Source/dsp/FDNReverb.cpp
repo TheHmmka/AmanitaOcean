@@ -50,14 +50,6 @@ constexpr std::array<float, FDNReverb::numDelayLines> inputRightSigns {
     1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f
 };
 
-constexpr std::array<float, FDNReverb::numDelayLines> outputLeftSigns {
-    1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f
-};
-
-constexpr std::array<float, FDNReverb::numDelayLines> outputRightSigns {
-    1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f
-};
-
 [[nodiscard]] bool isPrime(int value) noexcept
 {
     if (value < 2)
@@ -322,6 +314,7 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
                               : parameters_.harmonyConfidence);
     veil_.prepare(sampleRate_);
     spatialDucker_.prepare(sampleRate_, parameters_.ducking);
+    stereoField_.prepare(sampleRate_);
     bloomAmount_.prepare(sampleRate_, 0.20,
                          parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
     driftAmount_.prepare(sampleRate_, 0.20,
@@ -338,6 +331,8 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
                                 onePoleCoefficient(parameters_.highDampingHz, sampleRate_));
     evolution_.prepare(sampleRate_, 0.15, parameters_.evolution);
     width_.prepare(sampleRate_, 0.05, parameters_.width);
+    monoSafeStereoAmount_.prepare(sampleRate_, 0.03,
+                                  parameters_.monoSafeStereo ? 1.0f : 0.0f);
     harmony_.prepare(sampleRate_, 0.15, parameters_.harmony);
     freeze_.prepare(sampleRate_, 0.05, parameters_.freeze ? 1.0f : 0.0f);
 
@@ -365,6 +360,8 @@ void FDNReverb::reset() noexcept
                          parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
     veilAmount_.prepare(sampleRate_, 0.20,
                         parameters_.mode == ReverbMode::veil ? 1.0f : 0.0f);
+    monoSafeStereoAmount_.prepare(sampleRate_, 0.03,
+                                  parameters_.monoSafeStereo ? 1.0f : 0.0f);
     for (auto& delay : delayLines_)
         delay.reset();
     for (auto& delay : preDelayLines_)
@@ -385,6 +382,7 @@ void FDNReverb::reset() noexcept
     harmonicTail_.reset();
     veil_.reset();
     spatialDucker_.reset();
+    stereoField_.reset();
 
     lowCutStates_.fill(0.0f);
     dampingStates_.fill(0.0f);
@@ -437,6 +435,7 @@ void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
                                                 parameters_.harmonyConfidence);
     parameters_.autoHarmony = newParameters.autoHarmony;
     parameters_.freeze = newParameters.freeze;
+    parameters_.monoSafeStereo = newParameters.monoSafeStereo;
 
     if (prepared_)
     {
@@ -463,6 +462,7 @@ void FDNReverb::updateTargets() noexcept
     dampingCoefficient_.setTarget(onePoleCoefficient(parameters_.highDampingHz, sampleRate_));
     evolution_.setTarget(parameters_.evolution);
     width_.setTarget(parameters_.width);
+    monoSafeStereoAmount_.setTarget(parameters_.monoSafeStereo ? 1.0f : 0.0f);
     harmony_.setTarget(parameters_.harmony);
     if (parameters_.autoHarmony)
     {
@@ -670,15 +670,15 @@ void FDNReverb::processSample(float& left, float& right) noexcept
         delayLines_[index].write(sanitise(feedback[index] + inputGain * injection, 4.0f));
     }
 
-    auto wetLeft = 0.0f;
-    auto wetRight = 0.0f;
-    for (std::size_t index = 0; index < numDelayLines; ++index)
-    {
-        wetLeft += outputLeftSigns[index] * delayed[index];
-        wetRight += outputRightSigns[index] * delayed[index];
-    }
-    wetLeft *= inverseSqrtEight;
-    wetRight *= inverseSqrtEight;
+    const auto monoSafeStereoAmount = monoSafeStereoAmount_.next();
+    const auto legacyDecodedWet = StereoField::decodeLegacy(delayed);
+    const auto monoSafeDecodedWet = StereoField::decode(delayed);
+    auto wetLeft = legacyDecodedWet.left
+                 + monoSafeStereoAmount
+                       * (monoSafeDecodedWet.left - legacyDecodedWet.left);
+    auto wetRight = legacyDecodedWet.right
+                  + monoSafeStereoAmount
+                        * (monoSafeDecodedWet.right - legacyDecodedWet.right);
 
     // Harmonic pitch targets latch at the exact Freeze edge. The main FDN uses
     // its 50 ms fade to avoid a gain click, but feeding that fade to the map
@@ -690,11 +690,20 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     wetLeft = harmonicWet.left;
     wetRight = harmonicWet.right;
 
+    // Both Width paths leave Mid mathematically intact. Mono Safe fades in the
+    // shared-sign decoder and its 145 Hz Sub Anchor; Off retains the original
+    // open projection without changing the feedback loop or Character engines.
     const auto width = width_.next();
-    const auto mid = 0.5f * (wetLeft + wetRight);
-    const auto side = 0.5f * (wetLeft - wetRight) * width;
-    wetLeft = mid + side;
-    wetRight = mid - side;
+    const auto legacyWidenedWet = StereoField::applyLegacyWidth(
+        wetLeft, wetRight, width);
+    const auto monoSafeWidenedWet = stereoField_.applyWidth(
+        wetLeft, wetRight, width);
+    wetLeft = legacyWidenedWet.left
+            + monoSafeStereoAmount
+                  * (monoSafeWidenedWet.left - legacyWidenedWet.left);
+    wetRight = legacyWidenedWet.right
+             + monoSafeStereoAmount
+                   * (monoSafeWidenedWet.right - legacyWidenedWet.right);
 
     const auto duckedWet = spatialDucker_.process(dryLeft, dryRight, wetLeft, wetRight);
     wetLeft = duckedWet.left;

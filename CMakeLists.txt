@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(AmanitaOcean VERSION 0.19.0 LANGUAGES C CXX)
+project(AmanitaOcean VERSION 0.20.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,6 +47,8 @@ add_library(AmanitaOceanDSP STATIC
     Source/dsp/HarmonicTail.h
     Source/dsp/SpatialDucker.cpp
     Source/dsp/SpatialDucker.h
+    Source/dsp/StereoField.cpp
+    Source/dsp/StereoField.h
     Source/dsp/VeilCharacter.cpp
     Source/dsp/VeilCharacter.h
 )

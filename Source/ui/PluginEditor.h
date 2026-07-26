@@ -59,7 +59,9 @@ private:
     amanita::ui::ParameterKnob widthKnob_;
     amanita::ui::ParameterKnob focusKnob_;
     amanita::ui::ParameterKnob mixKnob_;
+    juce::ToggleButton monoSafeButton_;
     juce::ToggleButton freezeButton_;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> monoSafeAttachment_;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> freezeAttachment_;
     juce::TooltipWindow tooltipWindow_ { this, 700 };
 

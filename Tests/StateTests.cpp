@@ -143,14 +143,15 @@ juce::ValueTree findParameterState(const juce::ValueTree& state, const juce::Str
 void testUnifiedHostContract()
 {
     AmanitaOceanAudioProcessor processor;
-    constexpr std::array<const char*, 12> expectedIds {
+    constexpr std::array<const char*, 13> expectedIds {
         "algorithm", "mix", "decay", "size", "preDelay", "lowCut",
-        "highDamping", "evolution", "width", "focus", "freeze", "harmony"
+        "highDamping", "evolution", "width", "focus", "freeze", "harmony",
+        "monoSafe"
     };
 
     const auto& parameters = processor.getParameters();
     require(parameters.size() == static_cast<int>(expectedIds.size()),
-            "Host must expose exactly twelve parameters");
+            "Host must expose exactly thirteen parameters");
 
     auto choiceCount = 0;
     for (std::size_t index = 0; index < expectedIds.size(); ++index)
@@ -229,6 +230,13 @@ void testUnifiedHostContract()
     require(std::abs(harmony->get()) <= 1.0e-6f,
             "Harmony does not default to zero percent");
     require(harmony->getLabel() == "%", "Harmony unit label changed");
+
+    auto* monoSafe = dynamic_cast<juce::AudioParameterBool*>(
+        findParameterById(processor, "monoSafe"));
+    require(monoSafe != nullptr, "Mono Safe is not a boolean parameter");
+    require(monoSafe->getName(128) == "Mono Safe",
+            "Mono Safe UI label changed");
+    require(!monoSafe->get(), "Mono Safe must default to Off");
 
     auto* size = dynamic_cast<juce::AudioParameterFloat*>(
         findParameterById(processor, "size"));
@@ -349,6 +357,7 @@ void testCurrentStateRoundTrip()
         parameterById(source, "mix").setValueNotifyingHost(0.731f);
         parameterById(source, "focus").setValueNotifyingHost(0.58f);
         parameterById(source, "harmony").setValueNotifyingHost(0.42f);
+        parameterById(source, "monoSafe").setValueNotifyingHost(1.0f);
 
         juce::MemoryBlock data;
         source.getStateInformation(data);
@@ -372,6 +381,10 @@ void testCurrentStateRoundTrip()
         require(std::abs(static_cast<float>(savedHarmony.getProperty("value"))
                          - 42.0f) < 0.001f,
                 "Saved Harmony value is wrong");
+        const auto savedMonoSafe = findParameterState(savedState, "monoSafe");
+        require(savedMonoSafe.isValid(), "Saved state has no Mono Safe node");
+        require(static_cast<float>(savedMonoSafe.getProperty("value")) > 0.5f,
+                "Saved Mono Safe value is wrong");
         for (const auto* removedId : removedIds)
             require(!findParameterState(savedState, removedId).isValid(),
                     std::string("Saved state still contains removed parameter: ")
@@ -402,7 +415,37 @@ void testCurrentStateRoundTrip()
                 "Focus did not survive save/load");
         require(std::abs(parameterById(restored, "harmony").getValue() - 0.42f) < 0.001f,
                 "Harmony did not survive save/load");
+        require(parameterById(restored, "monoSafe").getValue() > 0.5f,
+                "Mono Safe did not survive save/load");
     }
+
+    // Projects saved before Mono Safe became a host parameter have no matching
+    // ValueTree child. They must keep every existing setting and receive the
+    // new feature's requested Off default.
+    AmanitaOceanAudioProcessor legacySource;
+    algorithmParameter(legacySource).setValueNotifyingHost(2.0f / 3.0f);
+    parameterById(legacySource, "mix").setValueNotifyingHost(0.812f);
+    juce::MemoryBlock currentData;
+    legacySource.getStateInformation(currentData);
+    auto legacyState = decodeState(currentData);
+    const auto monoSafeState = findParameterState(legacyState, "monoSafe");
+    require(monoSafeState.isValid(), "Current state has no Mono Safe node to remove");
+    legacyState.removeChild(monoSafeState, nullptr);
+    juce::MemoryBlock legacyData;
+    if (const auto xml = legacyState.createXml())
+        juce::AudioProcessor::copyXmlToBinary(*xml, legacyData);
+    require(!legacyData.isEmpty(), "Could not create pre-Mono-Safe state");
+
+    AmanitaOceanAudioProcessor legacyRestored;
+    legacyRestored.setStateInformation(
+        legacyData.getData(), static_cast<int>(legacyData.getSize()));
+    require(algorithmParameter(legacyRestored).getIndex() == 2
+                && std::abs(parameterById(legacyRestored, "mix").getValue()
+                            - 0.812f)
+                       < 0.001f,
+            "Existing project settings changed while adding Mono Safe");
+    require(parameterById(legacyRestored, "monoSafe").getValue() < 0.5f,
+            "Existing projects do not receive Mono Safe Off by default");
 }
 
 juce::Component* findDescendantById(juce::Component& component,
@@ -899,11 +942,11 @@ void testCustomEditorLayoutAndAttachments()
                 "Inactive Character text is not sufficiently de-emphasised");
     }
 
-    constexpr std::array<const char*, 16> interactiveIds {
+    constexpr std::array<const char*, 17> interactiveIds {
         "character-selector", "character-default", "character-bloom", "character-drift",
         "character-veil",
         "evolution", "preDelay", "size", "decay", "lowCut", "highDamping",
-        "harmony", "width", "focus", "mix", "freeze"
+        "harmony", "width", "focus", "mix", "mono-safe", "freeze"
     };
     constexpr std::array<std::array<int, 2>, 3> editorSizes {{
         { AmanitaOceanAudioProcessorEditor::minimumWidth,
@@ -1069,16 +1112,32 @@ void testCustomEditorLayoutAndAttachments()
 
     auto* freezeButton = dynamic_cast<juce::ToggleButton*>(
         findDescendantById(*editor, "freeze"));
-    require(freezeButton != nullptr, "Freeze toggle was not found");
+    auto* monoSafeButton = dynamic_cast<juce::ToggleButton*>(
+        findDescendantById(*editor, "mono-safe"));
+    require(freezeButton != nullptr && monoSafeButton != nullptr,
+            "Mono Safe or Freeze toggle was not found");
     editor->setSize(AmanitaOceanAudioProcessorEditor::defaultWidth,
                     AmanitaOceanAudioProcessorEditor::defaultHeight);
     const auto freezeBounds = editor->getLocalArea(freezeButton,
                                                     freezeButton->getLocalBounds());
+    const auto monoSafeBounds = editor->getLocalArea(
+        monoSafeButton, monoSafeButton->getLocalBounds());
     require(freezeBounds.getRight() == 928
                 && freezeBounds.getWidth() >= 72
                 && freezeBounds.getWidth() <= 88
                 && freezeBounds.getWidth() % 4 == 0,
             "Freeze pill is not fitted to its text on the 4-pixel layout grid");
+    require(monoSafeBounds.getRight() == freezeBounds.getX() - 8
+                && monoSafeBounds.getWidth() >= 88
+                && monoSafeBounds.getWidth() <= 136
+                && monoSafeBounds.getWidth() % 4 == 0,
+            "Mono Safe pill is not fitted beside Freeze on the 4-pixel grid");
+    require(!monoSafeButton->getToggleState()
+                && parameterById(processor, "monoSafe").getValue() < 0.5f,
+            "Mono Safe must default to Off");
+    monoSafeButton->setToggleState(true, juce::sendNotificationSync);
+    require(parameterById(processor, "monoSafe").getValue() > 0.5f,
+            "Mono Safe button did not update the host parameter");
     freezeButton->setToggleState(true, juce::sendNotificationSync);
     require(parameterById(processor, "freeze").getValue() > 0.5f,
             "Custom Freeze toggle did not update the host parameter");
@@ -1195,7 +1254,8 @@ void benchmarkBackgroundRenderer(int requestedWidth, int requestedFrames)
 std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
                                    float evolution,
                                    float focus = 0.0f,
-                                   float sizePercent = 100.0f)
+                                   float sizePercent = 100.0f,
+                                   bool monoSafe = false)
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto sampleCount = 24000;
@@ -1208,6 +1268,8 @@ std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
     parameterById(processor, "evolution").setValueNotifyingHost(evolution);
     parameterById(processor, "focus").setValueNotifyingHost(focus);
     parameterById(processor, "size").setValueNotifyingHost(sizePercent / 200.0f);
+    parameterById(processor, "monoSafe").setValueNotifyingHost(
+        monoSafe ? 1.0f : 0.0f);
     processor.prepareToPlay(sampleRate, blockSize);
 
     std::vector<float> result(static_cast<std::size_t>(sampleCount * 2), 0.0f);
@@ -1236,7 +1298,8 @@ std::vector<float> renderProcessor(const AlgorithmCase& algorithmCase,
 std::vector<float> renderDsp(const AlgorithmCase& algorithmCase,
                              float evolution,
                              float focus = 0.0f,
-                             float sizeScale = 1.0f)
+                             float sizeScale = 1.0f,
+                             bool monoSafe = false)
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto sampleCount = 24000;
@@ -1249,6 +1312,7 @@ std::vector<float> renderDsp(const AlgorithmCase& algorithmCase,
     parameters.evolution = evolution;
     parameters.ducking = focus;
     parameters.size = sizeScale;
+    parameters.monoSafeStereo = monoSafe;
 
     amanita::dsp::FDNReverb reverb;
     reverb.setParameters(parameters);
@@ -1353,6 +1417,44 @@ void testSizeParameterReachesDsp()
                     + std::to_string(sizeCase.percent) + "%: maximum difference="
                     + std::to_string(maximumDifference));
     }
+}
+
+void testMonoSafeParameterReachesDsp()
+{
+    const auto& algorithmCase = algorithmCases.front();
+    const auto processorRender = renderProcessor(
+        algorithmCase, 0.35f, 0.0f, 100.0f, true);
+    const auto directRender = renderDsp(
+        algorithmCase, 0.35f, 0.0f, 1.0f, true);
+    const auto openRender = renderProcessor(
+        algorithmCase, 0.35f, 0.0f, 100.0f, false);
+    require(processorRender.size() == directRender.size()
+                && processorRender.size() == openRender.size(),
+            "Mono Safe routing render has the wrong size");
+
+    auto maximumDifference = 0.0f;
+    auto referenceEnergy = 0.0;
+    auto voicingDifferenceEnergy = 0.0;
+    for (std::size_t sample = 0; sample < processorRender.size(); ++sample)
+    {
+        require(std::isfinite(processorRender[sample]),
+                "Mono Safe routing produced NaN/Inf");
+        maximumDifference = std::max(
+            maximumDifference,
+            std::abs(processorRender[sample] - directRender[sample]));
+        const auto reference = static_cast<double>(openRender[sample]);
+        const auto difference = static_cast<double>(
+            processorRender[sample] - openRender[sample]);
+        referenceEnergy += reference * reference;
+        voicingDifferenceEnergy += difference * difference;
+    }
+
+    const auto normalisedDifference = std::sqrt(
+        voicingDifferenceEnergy / std::max(referenceEnergy, 1.0e-20));
+    require(maximumDifference <= 2.0e-7f,
+            "Host Mono Safe parameter does not reach the expected DSP path");
+    require(normalisedDifference >= 0.05 && normalisedDifference <= 2.0,
+            "Mono Safe host parameter does not select a distinct stereo voicing");
 }
 
 void testFocusParameterReachesDsp()
@@ -1515,6 +1617,7 @@ int main(int argc, char** argv)
         testDeepCurrentBackgroundRenderer();
         testUnifiedAlgorithmReachesDsp();
         testSizeParameterReachesDsp();
+        testMonoSafeParameterReachesDsp();
         testFocusParameterReachesDsp();
         testHarmonyParameterReachesAutoDsp();
         if (argc >= 3 && std::strcmp(argv[1], "--render-ui") == 0)

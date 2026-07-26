@@ -2,6 +2,7 @@
 #include "dsp/DriftCharacter.h"
 #include "dsp/HarmonicTail.h"
 #include "dsp/SpatialDucker.h"
+#include "dsp/StereoField.h"
 #include "dsp/VeilCharacter.h"
 
 #include <algorithm>
@@ -137,6 +138,7 @@ using amanita::dsp::HarmonicTail;
 using amanita::dsp::ReverbMode;
 using amanita::dsp::ReverbParameters;
 using amanita::dsp::SpatialDucker;
+using amanita::dsp::StereoField;
 using amanita::dsp::VeilCharacter;
 
 [[nodiscard]] bool isPrime(int value)
@@ -481,6 +483,411 @@ void testFeedbackMatrix()
 
         require(std::abs(inputNorm - outputNorm) < 1.0e-5,
                 "Hadamard feedback matrix does not preserve energy");
+    }
+}
+
+void testMonoSafeStereoField()
+{
+    auto leftEnergy = 0.0;
+    auto rightEnergy = 0.0;
+    auto crossEnergy = 0.0;
+    auto maximumSideSpan = 0.0;
+    for (std::size_t line = 0; line < StereoField::numDelayLines; ++line)
+    {
+        std::array<float, StereoField::numDelayLines> basis {};
+        basis[line] = 1.0f;
+        const auto decoded = StereoField::decode(basis);
+        const auto linePower = static_cast<double>(decoded.left) * decoded.left
+                             + static_cast<double>(decoded.right) * decoded.right;
+        const auto monoPowerRatio = std::pow(
+            static_cast<double>(decoded.left + decoded.right), 2.0)
+                                  / (2.0 * linePower);
+        const auto sideSpan = std::abs(
+            static_cast<double>(decoded.left - decoded.right))
+                            / std::sqrt(linePower);
+
+        require(std::abs(linePower - 0.25) < 1.0e-6,
+                "Stereo decoder does not use equal-power line placement");
+        require(decoded.left * decoded.right >= -1.0e-8f,
+                "Stereo decoder does not use a shared L/R polarity");
+        require(monoPowerRatio >= 0.49,
+                "An FDN line disappears or loses excessive energy in mono");
+
+        leftEnergy += static_cast<double>(decoded.left) * decoded.left;
+        rightEnergy += static_cast<double>(decoded.right) * decoded.right;
+        crossEnergy += static_cast<double>(decoded.left) * decoded.right;
+        maximumSideSpan = std::max(maximumSideSpan, sideSpan);
+    }
+
+    require(std::abs(leftEnergy - 1.0) < 1.0e-6
+                && std::abs(rightEnergy - 1.0) < 1.0e-6,
+            "Stereo decoder changed the output-row energy");
+    require(crossEnergy >= 0.10 && crossEnergy <= 0.20,
+            "Stereo decoder is either excessively correlated or insufficiently mono-safe");
+    require(maximumSideSpan >= 0.70,
+            "Stereo decoder collapsed the delay lines toward the centre");
+
+    constexpr std::array<double, 4> sampleRates {
+        44100.0, 48000.0, 88200.0, 96000.0
+    };
+    std::array<double, sampleRates.size()> lowSideRatios {};
+    std::array<double, sampleRates.size()> highSideRatios {};
+    for (std::size_t rateIndex = 0; rateIndex < sampleRates.size(); ++rateIndex)
+    {
+        const auto sampleRate = sampleRates[rateIndex];
+        const auto measureSideRatio = [sampleRate] (double frequency)
+        {
+            StereoField field;
+            field.prepare(sampleRate);
+            const auto sampleCount = static_cast<int>(sampleRate * 1.5);
+            const auto measurementStart = static_cast<int>(sampleRate * 0.5);
+            auto inputEnergy = 0.0;
+            auto outputEnergy = 0.0;
+            auto monoPeak = 0.0f;
+            for (auto sample = 0; sample < sampleCount; ++sample)
+            {
+                const auto phase = 2.0 * 3.14159265358979323846
+                                 * frequency * static_cast<double>(sample)
+                                 / sampleRate;
+                const auto side = static_cast<float>(std::sin(phase));
+                const auto output = field.applyWidth(side, -side, 1.0f);
+                monoPeak = std::max(
+                    monoPeak, std::abs(0.5f * (output.left + output.right)));
+                if (sample >= measurementStart)
+                {
+                    const auto outputSide = 0.5 * static_cast<double>(
+                        output.left - output.right);
+                    inputEnergy += static_cast<double>(side) * side;
+                    outputEnergy += outputSide * outputSide;
+                }
+            }
+
+            require(monoPeak < 1.0e-7f,
+                    "Sub Anchor changed the Mid/mono signal");
+            return std::sqrt(outputEnergy / std::max(inputEnergy, 1.0e-20));
+        };
+
+        lowSideRatios[rateIndex] = measureSideRatio(60.0);
+        highSideRatios[rateIndex] = measureSideRatio(2000.0);
+        require(lowSideRatios[rateIndex] >= 0.82
+                    && lowSideRatios[rateIndex] <= 0.90,
+                "Sub Anchor does not gently narrow the low Side");
+        require(highSideRatios[rateIndex] >= 0.99
+                    && highSideRatios[rateIndex] <= 1.01,
+                "Sub Anchor changes the high-frequency Side");
+
+        StereoField field;
+        field.prepare(sampleRate);
+        const auto mid = field.applyWidth(0.3f, 0.3f, 2.0f);
+        require(std::abs(mid.left - 0.3f) < 1.0e-7f
+                    && std::abs(mid.right - 0.3f) < 1.0e-7f,
+                "Sub Anchor or Width changed a pure Mid signal");
+        const auto mono = field.applyWidth(0.4f, -0.2f, 0.0f);
+        require(std::abs(mono.left - mono.right) < 1.0e-7f,
+                "Width=0 is not mono after Sub Anchor");
+    }
+
+    const auto [minimumLow, maximumLow] = std::minmax_element(
+        lowSideRatios.begin(), lowSideRatios.end());
+    const auto [minimumHigh, maximumHigh] = std::minmax_element(
+        highSideRatios.begin(), highSideRatios.end());
+    require(*maximumLow - *minimumLow < 0.002
+                && *maximumHigh - *minimumHigh < 0.002,
+            "Sub Anchor response changes across sample rates");
+    std::cout << "[METRIC] Stereo Field covariance=" << crossEnergy
+              << ", 60 Hz Side=" << *minimumLow << ".." << *maximumLow
+              << ", 2 kHz Side=" << *minimumHigh << ".." << *maximumHigh
+              << '\n';
+}
+
+void testStereoFieldVoicingSwitch()
+{
+    constexpr float inverseSqrtEight = 0.35355339059327376220f;
+    constexpr std::array<float, StereoField::numDelayLines> expectedLeft {
+        1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f
+    };
+    constexpr std::array<float, StereoField::numDelayLines> expectedRight {
+        1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f
+    };
+
+    for (std::size_t line = 0; line < StereoField::numDelayLines; ++line)
+    {
+        std::array<float, StereoField::numDelayLines> basis {};
+        basis[line] = 1.0f;
+        const auto legacy = StereoField::decodeLegacy(basis);
+        require(std::abs(legacy.left - expectedLeft[line] * inverseSqrtEight)
+                    < 1.0e-7f
+                    && std::abs(legacy.right
+                                - expectedRight[line] * inverseSqrtEight)
+                           < 1.0e-7f,
+                "Open stereo decoder does not reproduce the original sign matrix");
+    }
+
+    const auto mono = StereoField::applyLegacyWidth(0.6f, -0.2f, 0.0f);
+    const auto normal = StereoField::applyLegacyWidth(0.6f, -0.2f, 1.0f);
+    const auto wide = StereoField::applyLegacyWidth(0.6f, -0.2f, 2.0f);
+    require(std::abs(mono.left - 0.2f) < 1.0e-7f
+                && std::abs(mono.right - 0.2f) < 1.0e-7f
+                && std::abs(normal.left - 0.6f) < 1.0e-7f
+                && std::abs(normal.right + 0.2f) < 1.0e-7f
+                && std::abs(wide.left - 1.0f) < 1.0e-7f
+                && std::abs(wide.right + 0.6f) < 1.0e-7f,
+            "Open stereo Width does not reproduce the original M/S path");
+
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto totalSamples = 57600;
+    constexpr auto toggleSample = 24000;
+    constexpr auto postSettleSample = toggleSample + 7200;
+
+    ReverbParameters newParameters;
+    newParameters.mix = 1.0f;
+    newParameters.decaySeconds = 8.0f;
+    newParameters.size = 1.0f;
+    newParameters.preDelayMs = 0.0f;
+    newParameters.lowCutHz = 20.0f;
+    newParameters.highDampingHz = 20000.0f;
+    newParameters.evolution = 0.5f;
+    newParameters.width = 1.0f;
+    newParameters.ducking = 0.0f;
+    newParameters.harmony = 0.0f;
+    newParameters.autoHarmony = false;
+    newParameters.monoSafeStereo = true;
+
+    auto legacyParameters = newParameters;
+    legacyParameters.monoSafeStereo = false;
+
+    FDNReverb alwaysNew;
+    FDNReverb alwaysLegacy;
+    FDNReverb switched;
+    alwaysNew.setParameters(newParameters);
+    alwaysLegacy.setParameters(legacyParameters);
+    switched.setParameters(legacyParameters);
+    alwaysNew.prepare(sampleRate, 512);
+    alwaysLegacy.prepare(sampleRate, 512);
+    switched.prepare(sampleRate, 512);
+
+    auto preErrorEnergy = 0.0;
+    auto preReferenceEnergy = 0.0;
+    auto postErrorEnergy = 0.0;
+    auto postReferenceEnergy = 0.0;
+    auto firstTransitionFraction = 0.0;
+    auto peak = 0.0f;
+    std::uint32_t noiseState = 0x51e2e0u;
+
+    for (auto sample = 0; sample < totalSamples; ++sample)
+    {
+        if (sample == toggleSample)
+            switched.setParameters(newParameters);
+
+        noiseState = noiseState * 1664525u + 1013904223u;
+        const auto noise = static_cast<float>(static_cast<std::int32_t>(noiseState))
+                         / static_cast<float>(
+                               std::numeric_limits<std::int32_t>::max());
+        const auto excitationActive = sample < 9600;
+        const auto inputLeft = excitationActive
+            ? (sample == 0 ? 0.8f : 0.012f * noise)
+            : 0.0f;
+        const auto inputRight = excitationActive
+            ? (sample == 0 ? -0.35f : -0.009f * noise)
+            : 0.0f;
+
+        auto newLeft = inputLeft;
+        auto newRight = inputRight;
+        auto legacyLeft = inputLeft;
+        auto legacyRight = inputRight;
+        auto switchedLeft = inputLeft;
+        auto switchedRight = inputRight;
+        alwaysNew.processSample(newLeft, newRight);
+        alwaysLegacy.processSample(legacyLeft, legacyRight);
+        switched.processSample(switchedLeft, switchedRight);
+
+        require(std::isfinite(switchedLeft) && std::isfinite(switchedRight),
+                "Mono Safe transition produced NaN/Inf");
+        peak = std::max({ peak, std::abs(switchedLeft), std::abs(switchedRight) });
+
+        if (sample < toggleSample)
+        {
+            const auto leftError = static_cast<double>(switchedLeft - legacyLeft);
+            const auto rightError = static_cast<double>(switchedRight - legacyRight);
+            preErrorEnergy += leftError * leftError + rightError * rightError;
+            preReferenceEnergy += static_cast<double>(legacyLeft) * legacyLeft
+                                + static_cast<double>(legacyRight) * legacyRight;
+        }
+        else if (sample >= postSettleSample)
+        {
+            const auto leftError = static_cast<double>(switchedLeft - newLeft);
+            const auto rightError = static_cast<double>(switchedRight - newRight);
+            postErrorEnergy += leftError * leftError + rightError * rightError;
+            postReferenceEnergy += static_cast<double>(newLeft) * newLeft
+                                 + static_cast<double>(newRight) * newRight;
+        }
+
+        if (sample == toggleSample)
+        {
+            const auto firstDistance = std::hypot(
+                static_cast<double>(switchedLeft - legacyLeft),
+                static_cast<double>(switchedRight - legacyRight));
+            const auto fullDistance = std::hypot(
+                static_cast<double>(newLeft - legacyLeft),
+                static_cast<double>(newRight - legacyRight));
+            require(fullDistance > 1.0e-8,
+                    "Mono Safe test has no decoder contrast at the switch");
+            firstTransitionFraction = firstDistance / fullDistance;
+        }
+    }
+
+    const auto preNormalisedError = std::sqrt(
+        preErrorEnergy / std::max(preReferenceEnergy, 1.0e-20));
+    const auto postNormalisedError = std::sqrt(
+        postErrorEnergy / std::max(postReferenceEnergy, 1.0e-20));
+    require(preNormalisedError < 1.0e-7,
+            "Mono Safe Off differs from the open stereo path");
+    require(firstTransitionFraction < 0.02,
+            "Mono Safe switch changes the tail abruptly");
+    require(postNormalisedError < 1.0e-5,
+            "Mono Safe switch does not settle on the protected stereo path");
+    require(peak < 4.0f,
+            "Mono Safe transition exceeded the safety range");
+
+    std::cout << "[METRIC] Stereo Field voicing first fraction="
+              << firstTransitionFraction
+              << ", legacy NRMS=" << preNormalisedError
+              << ", new-settled NRMS=" << postNormalisedError << '\n';
+}
+
+void testStereoFieldFdnIntegration()
+{
+    constexpr std::array modes {
+        ReverbMode::defaultMode,
+        ReverbMode::bloom,
+        ReverbMode::drift,
+        ReverbMode::veil
+    };
+    constexpr std::array<double, 4> sampleRates {
+        44100.0, 48000.0, 88200.0, 96000.0
+    };
+
+    for (const auto mode : modes)
+    {
+        for (const auto sampleRate : sampleRates)
+        {
+            ReverbParameters parameters;
+            parameters.mode = mode;
+            parameters.mix = 1.0f;
+            parameters.decaySeconds = 5.0f;
+            parameters.size = 1.0f;
+            parameters.preDelayMs = 0.0f;
+            parameters.lowCutHz = 20.0f;
+            parameters.highDampingHz = 20000.0f;
+            parameters.evolution = 1.0f;
+            parameters.ducking = 0.0f;
+            parameters.harmony = 0.0f;
+            parameters.monoSafeStereo = true;
+
+            std::array<FDNReverb, 3> reverbs;
+            constexpr std::array<float, 3> widths { 0.0f, 1.0f, 2.0f };
+            for (std::size_t index = 0; index < reverbs.size(); ++index)
+            {
+                parameters.width = widths[index];
+                reverbs[index].setParameters(parameters);
+                reverbs[index].prepare(sampleRate, 512);
+            }
+
+            const auto sampleCount = static_cast<int>(sampleRate * 1.5);
+            const auto excitationSamples = static_cast<int>(sampleRate * 0.20);
+            const auto measurementStart = static_cast<int>(sampleRate * 0.30);
+            std::array<double, reverbs.size()> midEnergy {};
+            std::array<double, reverbs.size()> sideEnergy {};
+            std::array<double, 2> midErrorEnergy {};
+            auto peak = 0.0f;
+            auto widthZeroDifferencePeak = 0.0f;
+            std::uint32_t noiseState = 0x51deca7u;
+
+            for (auto sample = 0; sample < sampleCount; ++sample)
+            {
+                noiseState = noiseState * 1664525u + 1013904223u;
+                const auto noise = static_cast<float>(
+                    static_cast<std::int32_t>(noiseState))
+                                 / static_cast<float>(
+                                     std::numeric_limits<std::int32_t>::max());
+                const auto active = sample < excitationSamples;
+                const auto dryLeft = active
+                    ? (sample == 0 ? 0.8f : 0.018f * noise)
+                    : 0.0f;
+                const auto dryRight = active
+                    ? (sample == 0 ? -0.35f : -0.013f * noise)
+                    : 0.0f;
+                std::array<float, reverbs.size()> left {};
+                std::array<float, reverbs.size()> right {};
+                for (std::size_t index = 0; index < reverbs.size(); ++index)
+                {
+                    left[index] = dryLeft;
+                    right[index] = dryRight;
+                    reverbs[index].processSample(left[index], right[index]);
+                    require(std::isfinite(left[index])
+                                && std::isfinite(right[index]),
+                            "Stereo Field FDN integration produced NaN/Inf");
+                    peak = std::max(
+                        { peak, std::abs(left[index]), std::abs(right[index]) });
+                }
+
+                widthZeroDifferencePeak = std::max(
+                    widthZeroDifferencePeak, std::abs(left[0] - right[0]));
+                if (sample >= measurementStart)
+                {
+                    std::array<double, reverbs.size()> mid {};
+                    for (std::size_t index = 0; index < reverbs.size(); ++index)
+                    {
+                        mid[index] = 0.5 * static_cast<double>(
+                            left[index] + right[index]);
+                        const auto side = 0.5 * static_cast<double>(
+                            left[index] - right[index]);
+                        midEnergy[index] += 2.0 * mid[index] * mid[index];
+                        sideEnergy[index] += 2.0 * side * side;
+                    }
+                    for (std::size_t index = 1; index < reverbs.size(); ++index)
+                    {
+                        const auto error = mid[index] - mid[0];
+                        midErrorEnergy[index - 1] += error * error;
+                    }
+                }
+            }
+
+            require(peak < 4.0f,
+                    "Stereo Field FDN integration exceeded the safety range");
+            require(widthZeroDifferencePeak < 1.0e-6f,
+                    "Width=0 does not produce a mono wet tail");
+            require(midEnergy[0] > 1.0e-10,
+                    "Stereo Field FDN integration tail is silent");
+            for (const auto errorEnergy : midErrorEnergy)
+            {
+                const auto normalisedError = std::sqrt(
+                    errorEnergy / std::max(midEnergy[0], 1.0e-20));
+                require(normalisedError < 1.0e-6,
+                        "Width or Sub Anchor changed the FDN Mid signal");
+            }
+
+            const auto normalMonoRatio = midEnergy[1]
+                / std::max(midEnergy[1] + sideEnergy[1], 1.0e-20);
+            const auto wideMonoRatio = midEnergy[2]
+                / std::max(midEnergy[2] + sideEnergy[2], 1.0e-20);
+            const auto normalSideRatio = sideEnergy[1]
+                / std::max(midEnergy[1] + sideEnergy[1], 1.0e-20);
+            require(normalMonoRatio >= 0.25,
+                    "Width=100% loses excessive FDN energy in mono");
+            require(wideMonoRatio >= 0.125,
+                    "Width=200% loses excessive FDN energy in mono");
+            require(normalSideRatio >= 0.01,
+                    "Mono-safe decoder collapsed the FDN tail toward mono");
+
+            std::cout << "[METRIC] Stereo Field mode="
+                      << static_cast<int>(mode)
+                      << " rate=" << sampleRate
+                      << " mono fold 100%="
+                      << 10.0 * std::log10(normalMonoRatio)
+                      << " dB 200%="
+                      << 10.0 * std::log10(wideMonoRatio) << " dB\n";
+        }
     }
 }
 
@@ -5277,6 +5684,8 @@ void testNoAllocationsInProcess()
             parameters.evolution = 1.0f - parameters.evolution;
             parameters.ducking = 1.0f - parameters.ducking;
             parameters.size = parameters.size > 0.15f ? 0.15f : 2.0f;
+            parameters.width = parameters.width > 0.0f ? 0.0f : 2.0f;
+            parameters.monoSafeStereo = !parameters.monoSafeStereo;
             parameters.freeze = !parameters.freeze;
             harmonicWeights = modeIndex % 2 == 0
                 ? harmonyWeights({ 0, 4, 7 })
@@ -5767,6 +6176,12 @@ int main(int argc, char** argv)
 
     const std::array tests {
         NamedTest { "orthonormal feedback matrix", testFeedbackMatrix },
+        NamedTest { "mono-safe Stereo Field and Sub Anchor",
+                    testMonoSafeStereoField },
+        NamedTest { "Stereo Field Mono Safe voicing switch",
+                    testStereoFieldVoicingSwitch },
+        NamedTest { "Stereo Field FDN integration",
+                    testStereoFieldFdnIntegration },
         NamedTest { "Drift superposition linearity",
                     testDriftSuperpositionLinearity },
         NamedTest { "unified Drift identity and sub bypass",
@@ -5846,6 +6261,10 @@ int main(int argc, char** argv)
         && std::strcmp(argv[1], "--test-decay-normalisation") == 0;
     const auto wantsDcGuardTestsOnly = argc == 2
         && std::strcmp(argv[1], "--test-dc-guard") == 0;
+    const auto wantsStereoTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-stereo-field") == 0;
+    const auto wantsModeSwitchTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-mode-switching") == 0;
     auto failures = 0;
     for (const auto& test : tests)
     {
@@ -5863,6 +6282,14 @@ int main(int argc, char** argv)
             continue;
         if (wantsDcGuardTestsOnly
             && std::strstr(test.name, "DC Guard") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
+        if (wantsStereoTestsOnly
+            && std::strstr(test.name, "Stereo Field") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
+        if (wantsModeSwitchTestsOnly
+            && std::strstr(test.name, "mode switching") == nullptr
             && std::strcmp(test.name, "no allocations in process") != 0)
             continue;
         try

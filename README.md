@@ -1,7 +1,7 @@
 # Amanita Ocean
 
 Экспериментальный stereo algorithmic reverb для электронной музыки, Psytrance,
-Ambient и Downtempo. Текущая версия `0.19.0` — проверяемый DSP-прототип с
+Ambient и Downtempo. Текущая версия `0.20.0` — проверяемый DSP-прототип с
 собственным масштабируемым интерфейсом на C++20, JUCE 8.0.14 и CMake.
 
 Проект не воспроизводит интерфейс, пресеты, режимы или алгоритмы коммерческих
@@ -24,9 +24,15 @@ Ambient и Downtempo. Текущая версия `0.19.0` — проверяе�
 - mode-aware Evolution, согласованно управляющий силой Character и движением
   дробных delay lines;
 - RT60-derived gain каждой feedback-линии;
+- decay-normalised excitation, удерживающий воспринимаемую энергию хвоста
+  заметно ровнее при изменении Decay;
 - Low Cut и High Damping внутри feedback loop;
 - независимый фиксированный `3 Hz` DC Guard, который остаётся в loop при Freeze;
-- stereo excitation/decoding и M/S Width;
+- два плавно переключаемых stereo-voicing: открытая ортогональная проекция и
+  опциональный `MONO SAFE` equal-power decoder, в котором каждая FDN-линия
+  имеет общую L/R-полярность и остаётся слышимой при mono fold;
+- wet-only M/S Width; при `MONO SAFE = On` добавляется мягкий `145 Hz`
+  Sub Anchor;
 - one-knob Focus с perceptual dry/wet masking-анализом, пассивными
   спектральными pockets, transient-aware слоем и адаптивной stereo geometry;
 - Harmonic Gravity: allocation-free Auto-анализатор формирует общую 12-note
@@ -53,11 +59,27 @@ Ambient и Downtempo. Текущая версия `0.19.0` — проверяе�
 Пока не реализованы отдельные low/high RT60 controls, пресеты и финальная
 система factory/user preset browser.
 
+## Новое в 0.20.0
+
+- `MONO SAFE` добавляет второй полноценный stereo-voicing с equal-power
+  shared-sign decoder. Каждая из восьми FDN-линий сохраняет вклад при mono
+  fold, а мягкий `145 Hz` Sub Anchor слегка собирает только самый низ Side.
+  Исходное открытое stereo-поле остаётся default-вариантом; переключение
+  сглаживается за `30 ms`, сохраняется в проекте и доступно автоматизации.
+- Decay теперь изменяет длительность пространства значительно независимее от
+  его воспринимаемой громкости и плотности. Excitation gain нормализуется по
+  средней энергии feedback-линий относительно опорного `5 s` хвоста и плавно
+  интерполируется за `250 ms`.
+- Постоянный `3 Hz` DC Guard остаётся активным во Freeze. Он не является
+  слышимым tone-control, но не позволяет нулевой частоте и offset накапливаться
+  в очень длинном удерживаемом хвосте.
+
 ## Архитектура
 
 ```text
 stereo input
     -> Auto HarmonicAnalyzer (parallel dry analysis, 12-note chroma/confidence)
+    -> decay-normalised excitation gain
     -> smoothed variable pre-delay
     -> L/R all-pass diffusion (4 stages per channel)
        -> Default: direct excitation
@@ -70,9 +92,9 @@ stereo input
     -> Freeze morph to fixed 3 Hz DC-guarded delay path + RT60 gain
     -> Drift: Evolution morph of two linear passive spectral feedback kernels
     -> orthonormal H8 feedback matrix
-    -> two orthogonal stereo output projections
+    -> Mono Safe switch: open orthogonal or shared-sign equal-power Stereo Field
     -> Harmony-controlled HarmonicTail modal halo (post-FDN, outside feedback)
-    -> wet-only M/S width
+    -> wet-only M/S Width (+ gentle 145 Hz Sub Anchor when Mono Safe is On)
     -> wet Focus from dry/wet spectral conflict + transient detector
     -> smoothed dry/wet mix
 ```
@@ -99,6 +121,15 @@ thread. В `0.19.0` диапазон ручки расширен до `0–200%`
 ```text
 g_i = exp(log(0.001) * delaySeconds_i / decaySeconds)
 ```
+
+Изменение RT60 одновременно меняет удерживаемую сетью энергию. Чтобы длинный
+Decay не становился автоматически заметно громче и плотнее, общий excitation
+gain рассчитывается по отношению средней потери feedback-линий к опорному
+Decay `5 s`. Полная квадратнокорневая нормализация переисправляла бы уже
+диффузную frequency-dependent сеть, поэтому используется измеренная
+fourth-root зависимость с безопасным диапазоном `0.55–1.35`. Коэффициент
+сглаживается за `250 ms`, сохраняет исходные ортогональные L/R injection
+vectors и во Freeze всё равно плавно стремится к нулю.
 
 Матрица ортонормальна, loop-фильтры пассивны, а feedback gain всегда меньше
 единицы. Во Freeze damping плавно обходится, входное возбуждение стремится точно
@@ -214,6 +245,36 @@ Default/Bloom/Drift↔Veil интерполируются за `200 ms` без �
 до `100%` по smoothstep-кривой; сам convex blend пассивен и не может усилить
 стационарную частоту. AP6 остаётся фиксированным и не создаёт chorus или pitch
 wobble.
+
+### Stereo Field и Sub Anchor
+
+После feedback-сети восемь delay outputs декодируются как отдельные
+equal-power позиции. Суммарная энергия каждой позиции равна `0.25`, нормы
+левой и правой output-строк остаются единичными, а общая полярность L/R
+гарантирует ненулевой mono-вклад каждой линии. В прежней ортогональной
+проекции четыре линии были чистым Side и исчезали при `L+R`; теперь даже
+крайняя позиция сохраняет не менее половины своей нормализованной энергии при
+mono fold. Edge-weighted расположение и чередование полярностей удерживают
+stereo covariance около `0.155`, поэтому хвост не превращается в узкое
+коррелированное облако.
+
+После Harmonic Tail существующая ручка `Width` по-прежнему изменяет только
+Side и математически не затрагивает Mid. Внутри этой стадии однополюсный
+Sub Anchor мягко выделяет Side ниже `145 Hz` и оставляет от него `84%`.
+Измеренный Side transfer равен примерно `0.865` на `60 Hz`
+(`≈−1.25 dB`) и `0.998` на `2 kHz`; переход непрерывен и практически одинаков
+при `44.1/48/88.2/96 kHz`. Это не жёсткий mono-maker: низ лишь немного
+собирается к центру, а верхняя ширина и движение Character сохраняются.
+Стадия находится вне feedback-loop, поэтому не меняет Decay, Freeze,
+damping или устойчивость FDN.
+
+Кнопка `MONO SAFE` в заголовке выбирает второе полноценное stereo-voicing.
+В состоянии `Off` работает более открытая ортогональная sign-матрица и
+классический M/S Width. В состоянии `On` включаются shared-sign decoder и
+Sub Anchor: каждая линия остаётся слышимой при mono fold, а низ хвоста слегка
+собирается к центру. Переключение интерполируется за `30 ms`, чтобы не
+создавать щелчок. `MONO SAFE` является сохраняемым и автоматизируемым host
+parameter с default `Off`.
 
 ### Harmonic Gravity
 
@@ -410,6 +471,7 @@ JUCE, без растровых ресурсов. Числовые значен�
 | Evolution | 0–100 % (default 35 %) | Сила и движение выбранного Character: от едва заметного до полного |
 | Harmony | 0–100 % (default 0 %) | Сила Auto Harmonic Gravity: от bit-exact bypass до полного harmonic halo |
 | Width | 0–200 % | Ширина только wet-сигнала |
+| Mono Safe | Off/On (default Off) | Альтернативный mono-safe decoder и мягкий 145 Hz Sub Anchor |
 | Focus | 0–100 % (default 100 %) | Выводит dry на передний план через локальные spectral pockets, transient и stereo separation |
 | Freeze | Off/On | Плавная фиксация текущего хвоста |
 
@@ -575,6 +637,10 @@ clap-validator validate \
 
 ./build/AmanitaOceanDSPTests --test-harmony
 
+./build/AmanitaOceanDSPTests --test-stereo-field
+
+./build/AmanitaOceanDSPTests --test-mode-switching
+
 ./build/AmanitaOceanDSPTests \
   --render-harmony-ab pad ./build/harmony
 
@@ -622,6 +688,13 @@ Harmony A/B renderer создаёт пары `*-off.wav` / `*-on.wav` с одн�
 - decay и долговременную устойчивость Freeze;
 - подавление постоянной составляющей независимым DC Guard во Freeze на
   `44.1/48/88.2/96 kHz`;
+- equal-power/shared-sign инварианты всех восьми Stereo Field positions:
+  единичную энергию L/R-строк, ненулевой mono fold и сохранение Side;
+- частотный отклик `145 Hz` Sub Anchor, точную Mid-инвариантность Width и
+  mono fold всех четырёх Character при Width `0/100/200%` на
+  `44.1/48/88.2/96 kHz`;
+- точные endpoints обоих stereo-voicing, плавный `30 ms` переход и
+  совпадение с Mono Safe после его завершения;
 - восстановление после NaN/Inf на входе;
 - резкие изменения всех параметров;
 - плавные morph между четырьмя Character без сброса хвоста;

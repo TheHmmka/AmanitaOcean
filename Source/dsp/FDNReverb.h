@@ -5,6 +5,7 @@
 #include "HarmonicAnalyzer.h"
 #include "HarmonicTail.h"
 #include "SpatialDucker.h"
+#include "StereoField.h"
 #include "VeilCharacter.h"
 
 #include <array>
@@ -38,12 +39,13 @@ struct ReverbParameters
     float harmonyConfidence = 0.0f;
     bool autoHarmony = false;
     bool freeze = false;
+    bool monoSafeStereo = false;
 };
 
 class FDNReverb
 {
 public:
-    static constexpr std::size_t numDelayLines = 8;
+    static constexpr std::size_t numDelayLines = StereoField::numDelayLines;
     // Keeps the shortest line above 4.34 ms, so Decay=30 s remains below the
     // normal 0.999 feedback ceiling at every supported sample rate.
     static constexpr float minimumSizeScale = 0.15f;
@@ -147,6 +149,7 @@ private:
     HarmonicAnalyzer harmonicAnalyzer_;
     HarmonicTail harmonicTail_;
     SpatialDucker spatialDucker_;
+    StereoField stereoField_;
     VeilCharacter veil_;
 
     LinearSmoother bloomAmount_;
@@ -159,6 +162,7 @@ private:
     LinearSmoother dampingCoefficient_;
     LinearSmoother evolution_;
     LinearSmoother width_;
+    LinearSmoother monoSafeStereoAmount_;
     LinearSmoother harmony_;
     LinearSmoother freeze_;
     LinearSmoother decayInjectionGain_;
