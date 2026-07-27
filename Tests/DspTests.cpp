@@ -1,6 +1,7 @@
 #include "dsp/FDNReverb.h"
 #include "dsp/DriftCharacter.h"
 #include "dsp/HarmonicTail.h"
+#include "dsp/LateralDecay.h"
 #include "dsp/SpatialDucker.h"
 #include "dsp/StereoField.h"
 #include "dsp/VeilCharacter.h"
@@ -134,6 +135,7 @@ using amanita::dsp::DriftCharacter;
 using amanita::dsp::HarmonicAnalyzer;
 using amanita::dsp::HarmonicAnalysisFrame;
 using amanita::dsp::HarmonicTail;
+using amanita::dsp::LateralDecay;
 
 using amanita::dsp::ReverbMode;
 using amanita::dsp::ReverbParameters;
@@ -486,6 +488,97 @@ void testFeedbackMatrix()
     }
 }
 
+void testLateralDecayProfile()
+{
+    constexpr std::array<double, 4> sampleRates {
+        44100.0, 48000.0, 88200.0, 96000.0
+    };
+    constexpr std::array<float, 3> sizes { 0.15f, 1.0f, 2.0f };
+    constexpr std::array<float, 3> decays { 0.2f, 5.0f, 30.0f };
+    constexpr std::array<float, 3> widths { 0.0f, 1.0f, 2.0f };
+    constexpr std::array<float, 3> evolutions { 0.0f, 0.5f, 1.0f };
+
+    require(std::abs(LateralDecay::decayTimeScale(1, 1.0f, 1.0f) - 1.07f)
+                < 1.0e-6f,
+            "Width=100% does not produce the intended subtle lateral RT60 extension");
+    require(std::abs(LateralDecay::decayTimeScale(1, 2.0f, 1.0f) - 1.14f)
+                < 1.0e-6f,
+            "Width=200% does not produce the intended maximum lateral RT60 extension");
+
+    for (std::size_t line = 0; line < LateralDecay::numDelayLines; ++line)
+    {
+        require(LateralDecay::decayTimeScale(line, 0.0f, 1.0f) == 1.0f
+                    && LateralDecay::decayTimeScale(line, 2.0f, 0.0f) == 1.0f,
+                "Lateral Decay is not neutral at zero Width or Evolution");
+        if (LateralDecay::isLateralLine(line))
+            require(LateralDecay::decayTimeScale(line, 2.0f, 1.0f) > 1.0f,
+                    "A lateral FDN line was not extended");
+        else
+            require(LateralDecay::decayTimeScale(line, 2.0f, 1.0f) == 1.0f,
+                    "Lateral Decay changed a mono-core FDN line");
+    }
+
+    for (const auto sampleRate : sampleRates)
+    {
+        FDNReverb geometry;
+        geometry.prepare(sampleRate, 512);
+        const auto& delaySamples = geometry.getNominalDelaySamples();
+
+        for (const auto size : sizes)
+        {
+            for (const auto decay : decays)
+            {
+                for (const auto width : widths)
+                {
+                    for (const auto evolution : evolutions)
+                    {
+                        for (std::size_t line = 0;
+                             line < LateralDecay::numDelayLines;
+                             ++line)
+                        {
+                            const auto delaySeconds = delaySamples[line] * size
+                                                    / static_cast<float>(sampleRate);
+                            const auto baseGain = LateralDecay::feedbackGain(
+                                delaySeconds, decay, line, 0.0f, 0.0f);
+                            const auto gain = LateralDecay::feedbackGain(
+                                delaySeconds, decay, line, width, evolution);
+                            require(std::isfinite(gain)
+                                        && gain >= 0.0f
+                                        && gain <= LateralDecay::maximumFeedbackGain,
+                                    "Lateral Decay produced an invalid feedback gain");
+                            if (LateralDecay::isLateralLine(line))
+                                require(gain + 1.0e-7f >= baseGain,
+                                        "Lateral Decay shortened a lateral FDN line");
+                            else
+                                require(std::bit_cast<std::uint32_t>(gain)
+                                            == std::bit_cast<std::uint32_t>(baseGain),
+                                        "Lateral Decay changed a mono-core feedback gain");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    constexpr float referenceDelaySeconds = 0.047f;
+    constexpr float referenceDecaySeconds = 5.0f;
+    const auto centreGain = LateralDecay::feedbackGain(
+        referenceDelaySeconds, referenceDecaySeconds, 0, 2.0f, 1.0f);
+    const auto lateralGain = LateralDecay::feedbackGain(
+        referenceDelaySeconds, referenceDecaySeconds, 1, 2.0f, 1.0f);
+    const auto centreRt60 = std::log(0.001f) * referenceDelaySeconds
+                          / std::log(centreGain);
+    const auto lateralRt60 = std::log(0.001f) * referenceDelaySeconds
+                           / std::log(lateralGain);
+    require(std::abs(centreRt60 - referenceDecaySeconds) < 1.0e-3f,
+            "Lateral Decay changed the centre RT60");
+    require(std::abs(lateralRt60
+                     - referenceDecaySeconds
+                           * (1.0f + LateralDecay::maximumLateralExtension))
+                < 1.0e-3f,
+            "Lateral Decay feedback gain does not encode its requested RT60");
+}
+
 void testMonoSafeStereoField()
 {
     auto leftEnergy = 0.0;
@@ -798,7 +891,6 @@ void testStereoFieldFdnIntegration()
             const auto measurementStart = static_cast<int>(sampleRate * 0.30);
             std::array<double, reverbs.size()> midEnergy {};
             std::array<double, reverbs.size()> sideEnergy {};
-            std::array<double, 2> midErrorEnergy {};
             auto peak = 0.0f;
             auto widthZeroDifferencePeak = 0.0f;
             std::uint32_t noiseState = 0x51deca7u;
@@ -835,20 +927,14 @@ void testStereoFieldFdnIntegration()
                     widthZeroDifferencePeak, std::abs(left[0] - right[0]));
                 if (sample >= measurementStart)
                 {
-                    std::array<double, reverbs.size()> mid {};
                     for (std::size_t index = 0; index < reverbs.size(); ++index)
                     {
-                        mid[index] = 0.5 * static_cast<double>(
+                        const auto mid = 0.5 * static_cast<double>(
                             left[index] + right[index]);
                         const auto side = 0.5 * static_cast<double>(
                             left[index] - right[index]);
-                        midEnergy[index] += 2.0 * mid[index] * mid[index];
+                        midEnergy[index] += 2.0 * mid * mid;
                         sideEnergy[index] += 2.0 * side * side;
-                    }
-                    for (std::size_t index = 1; index < reverbs.size(); ++index)
-                    {
-                        const auto error = mid[index] - mid[0];
-                        midErrorEnergy[index - 1] += error * error;
                     }
                 }
             }
@@ -859,12 +945,12 @@ void testStereoFieldFdnIntegration()
                     "Width=0 does not produce a mono wet tail");
             require(midEnergy[0] > 1.0e-10,
                     "Stereo Field FDN integration tail is silent");
-            for (const auto errorEnergy : midErrorEnergy)
+            for (std::size_t index = 1; index < midEnergy.size(); ++index)
             {
-                const auto normalisedError = std::sqrt(
-                    errorEnergy / std::max(midEnergy[0], 1.0e-20));
-                require(normalisedError < 1.0e-6,
-                        "Width or Sub Anchor changed the FDN Mid signal");
+                const auto midEnergyRatio = midEnergy[index]
+                                          / std::max(midEnergy[0], 1.0e-20);
+                require(midEnergyRatio >= 0.85 && midEnergyRatio <= 1.20,
+                        "Lateral Decay collapsed or over-amplified the FDN mono core");
             }
 
             const auto normalMonoRatio = midEnergy[1]
@@ -886,9 +972,115 @@ void testStereoFieldFdnIntegration()
                       << " mono fold 100%="
                       << 10.0 * std::log10(normalMonoRatio)
                       << " dB 200%="
-                      << 10.0 * std::log10(wideMonoRatio) << " dB\n";
+                      << 10.0 * std::log10(wideMonoRatio)
+                      << " dB, Mid energy 100/200%="
+                      << midEnergy[1] / std::max(midEnergy[0], 1.0e-20)
+                      << '/'
+                      << midEnergy[2] / std::max(midEnergy[0], 1.0e-20)
+                      << '\n';
         }
     }
+}
+
+void testLateralDecayFdnTail()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto sampleCount = static_cast<int>(sampleRate * 6.5);
+    constexpr auto earlyStart = static_cast<int>(sampleRate * 0.75);
+    constexpr auto earlyEnd = static_cast<int>(sampleRate * 1.75);
+    constexpr auto lateStart = static_cast<int>(sampleRate * 4.75);
+    constexpr auto lateEnd = static_cast<int>(sampleRate * 5.75);
+
+    struct TailMetrics
+    {
+        double earlyMid = 0.0;
+        double earlySide = 0.0;
+        double lateMid = 0.0;
+        double lateSide = 0.0;
+        float peak = 0.0f;
+    };
+
+    const auto measure = [] (float evolution, float width)
+    {
+        ReverbParameters parameters;
+        parameters.mode = ReverbMode::defaultMode;
+        parameters.mix = 1.0f;
+        parameters.decaySeconds = 8.0f;
+        parameters.size = 1.0f;
+        parameters.preDelayMs = 0.0f;
+        parameters.lowCutHz = 20.0f;
+        parameters.highDampingHz = 20000.0f;
+        parameters.evolution = evolution;
+        parameters.width = width;
+        parameters.ducking = 0.0f;
+        parameters.harmony = 0.0f;
+        parameters.monoSafeStereo = false;
+
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 512);
+        TailMetrics metrics;
+        for (auto sample = 0; sample < sampleCount; ++sample)
+        {
+            auto left = sample == 0 ? 1.0f : 0.0f;
+            auto right = 0.0f;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Lateral Decay FDN tail produced NaN/Inf");
+            metrics.peak = std::max(
+                { metrics.peak, std::abs(left), std::abs(right) });
+
+            const auto mid = 0.5 * static_cast<double>(left + right);
+            const auto side = 0.5 * static_cast<double>(left - right);
+            if (sample >= earlyStart && sample < earlyEnd)
+            {
+                metrics.earlyMid += mid * mid;
+                metrics.earlySide += side * side;
+            }
+            if (sample >= lateStart && sample < lateEnd)
+            {
+                metrics.lateMid += mid * mid;
+                metrics.lateSide += side * side;
+            }
+        }
+        return metrics;
+    };
+
+    const auto neutral = measure(0.0f, 2.0f);
+    const auto monoReference = measure(1.0f, 0.0f);
+    const auto lateral = measure(1.0f, 2.0f);
+    for (const auto* metrics : { &neutral, &lateral })
+    {
+        require(metrics->earlyMid > 1.0e-12
+                    && metrics->earlySide > 1.0e-12
+                    && metrics->lateMid > 1.0e-16
+                    && metrics->lateSide > 1.0e-16,
+                "Lateral Decay FDN measurement window is silent");
+        require(metrics->peak < 4.0f,
+                "Lateral Decay FDN tail exceeded the safety range");
+    }
+    require(monoReference.earlyMid > 1.0e-12
+                && monoReference.lateMid > 1.0e-16
+                && monoReference.peak < 4.0f,
+            "Lateral Decay mono-core reference is silent or unstable");
+
+    const auto retentionContrast = [] (const TailMetrics& metrics)
+    {
+        const auto midRetention = metrics.lateMid / metrics.earlyMid;
+        const auto sideRetention = metrics.lateSide / metrics.earlySide;
+        return sideRetention / std::max(midRetention, 1.0e-20);
+    };
+    const auto neutralContrast = retentionContrast(neutral);
+    const auto lateralContrast = retentionContrast(lateral);
+    const auto monoCoreRatio = lateral.lateMid / monoReference.lateMid;
+    std::cout << "[METRIC] Lateral Decay retention contrast neutral/active="
+              << neutralContrast << '/' << lateralContrast
+              << ", late mono-core ratio=" << monoCoreRatio << '\n';
+
+    require(lateralContrast >= neutralContrast * 1.03,
+            "Width/Evolution coupling does not retain the Side relative to the mono core");
+    require(monoCoreRatio >= 0.80 && monoCoreRatio <= 2.00,
+            "Lateral Decay collapsed or over-amplified the late mono core");
 }
 
 void testDriftSuperpositionLinearity()
@@ -6176,12 +6368,16 @@ int main(int argc, char** argv)
 
     const std::array tests {
         NamedTest { "orthonormal feedback matrix", testFeedbackMatrix },
+        NamedTest { "Stereo Field Lateral Decay profile",
+                    testLateralDecayProfile },
         NamedTest { "mono-safe Stereo Field and Sub Anchor",
                     testMonoSafeStereoField },
         NamedTest { "Stereo Field Mono Safe voicing switch",
                     testStereoFieldVoicingSwitch },
         NamedTest { "Stereo Field FDN integration",
                     testStereoFieldFdnIntegration },
+        NamedTest { "Stereo Field Lateral Decay FDN tail",
+                    testLateralDecayFdnTail },
         NamedTest { "Drift superposition linearity",
                     testDriftSuperpositionLinearity },
         NamedTest { "unified Drift identity and sub bypass",

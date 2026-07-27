@@ -1,4 +1,5 @@
 #include "FDNReverb.h"
+#include "LateralDecay.h"
 
 #include <algorithm>
 #include <cmath>
@@ -11,7 +12,6 @@ namespace
 constexpr float pi = 3.14159265358979323846f;
 constexpr float twoPi = 2.0f * pi;
 constexpr float inverseSqrtEight = 0.35355339059327376220f;
-constexpr float logMinus60dB = -6.90775527898213705205f;
 constexpr float freezeFeedback = 0.9995f;
 constexpr float bloomFreezeFeedback = 0.9985f;
 constexpr float maximumPreDelaySeconds = 0.25f;
@@ -49,6 +49,8 @@ constexpr std::array<float, FDNReverb::numDelayLines> inputLeftSigns {
 constexpr std::array<float, FDNReverb::numDelayLines> inputRightSigns {
     1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f, -1.0f
 };
+
+static_assert(FDNReverb::numDelayLines == LateralDecay::numDelayLines);
 
 [[nodiscard]] bool isPrime(int value) noexcept
 {
@@ -340,13 +342,17 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
     {
         const auto delaySeconds = nominalDelaySamples_[index] * parameters_.size
                                 / static_cast<float>(sampleRate_);
-        const auto gain = std::exp(logMinus60dB * delaySeconds / parameters_.decaySeconds);
-        feedbackGains_[index].prepare(sampleRate_, 0.25, std::min(gain, 0.999f));
+        const auto gain = LateralDecay::feedbackGain(
+            delaySeconds, parameters_.decaySeconds, index,
+            parameters_.width, parameters_.evolution);
+        feedbackGains_[index].prepare(sampleRate_, 0.25, gain);
     }
     decayInjectionGain_.prepare(
         sampleRate_, 0.25,
         calculateDecayNormalisedInjectionGain(parameters_.decaySeconds,
-                                              parameters_.size));
+                                              parameters_.size,
+                                              parameters_.width,
+                                              parameters_.evolution));
 
     prepared_ = true;
     reset();
@@ -482,12 +488,16 @@ void FDNReverb::updateTargets() noexcept
     {
         const auto delaySeconds = nominalDelaySamples_[index] * parameters_.size
                                 / static_cast<float>(sampleRate_);
-        const auto gain = std::exp(logMinus60dB * delaySeconds / parameters_.decaySeconds);
-        feedbackGains_[index].setTarget(std::min(gain, 0.999f));
+        const auto gain = LateralDecay::feedbackGain(
+            delaySeconds, parameters_.decaySeconds, index,
+            parameters_.width, parameters_.evolution);
+        feedbackGains_[index].setTarget(gain);
     }
     decayInjectionGain_.setTarget(
         calculateDecayNormalisedInjectionGain(parameters_.decaySeconds,
-                                              parameters_.size));
+                                              parameters_.size,
+                                              parameters_.width,
+                                              parameters_.evolution));
 }
 
 float FDNReverb::diffuseInput(float sample, std::array<AllPass, 4>& stages) noexcept
@@ -499,24 +509,29 @@ float FDNReverb::diffuseInput(float sample, std::array<AllPass, 4>& stages) noex
 }
 
 float FDNReverb::calculateDecayNormalisedInjectionGain(float decaySeconds,
-                                                       float size) const noexcept
+                                                       float size,
+                                                       float width,
+                                                       float evolution) const noexcept
 {
+    const auto lateralDecayIsInactive =
+        LateralDecay::decayTimeScale(1, width, evolution) == 1.0f;
     if (std::abs(decaySeconds - decayNormalisationReferenceSeconds)
         <= std::numeric_limits<float>::epsilon()
-             * decayNormalisationReferenceSeconds)
+             * decayNormalisationReferenceSeconds
+        && lateralDecayIsInactive)
         return 1.0f;
 
     auto meanGainSquared = 0.0f;
     auto referenceMeanGainSquared = 0.0f;
-    for (const auto delaySamples : nominalDelaySamples_)
+    for (std::size_t index = 0; index < numDelayLines; ++index)
     {
-        const auto delaySeconds = delaySamples * size / static_cast<float>(sampleRate_);
-        const auto gain = std::min(
-            std::exp(logMinus60dB * delaySeconds / decaySeconds), 0.999f);
-        const auto referenceGain = std::min(
-            std::exp(logMinus60dB * delaySeconds
-                     / decayNormalisationReferenceSeconds),
-            0.999f);
+        const auto delaySeconds = nominalDelaySamples_[index] * size
+                                / static_cast<float>(sampleRate_);
+        const auto gain = LateralDecay::feedbackGain(
+            delaySeconds, decaySeconds, index, width, evolution);
+        const auto referenceGain = LateralDecay::feedbackGain(
+            delaySeconds, decayNormalisationReferenceSeconds,
+            index, 0.0f, 0.0f);
         meanGainSquared += gain * gain;
         referenceMeanGainSquared += referenceGain * referenceGain;
     }

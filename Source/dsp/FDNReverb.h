@@ -124,7 +124,9 @@ private:
     [[nodiscard]] float diffuseInput(float sample, std::array<AllPass, 4>& stages) noexcept;
     [[nodiscard]] float calculateDecayNormalisedInjectionGain(
         float decaySeconds,
-        float size) const noexcept;
+        float size,
+        float width,
+        float evolution) const noexcept;
     [[nodiscard]] static float sanitise(float sample, float limit = 8.0f) noexcept;
     [[nodiscard]] static float flushDenormal(float sample) noexcept;
 

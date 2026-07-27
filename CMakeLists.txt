@@ -45,6 +45,8 @@ add_library(AmanitaOceanDSP STATIC
     Source/dsp/HarmonicAnalyzer.h
     Source/dsp/HarmonicTail.cpp
     Source/dsp/HarmonicTail.h
+    Source/dsp/LateralDecay.cpp
+    Source/dsp/LateralDecay.h
     Source/dsp/SpatialDucker.cpp
     Source/dsp/SpatialDucker.h
     Source/dsp/StereoField.cpp

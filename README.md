@@ -24,6 +24,8 @@ Ambient и Downtempo. Текущая версия `0.20.0` — проверяе�
 - mode-aware Evolution, согласованно управляющий силой Character и движением
   дробных delay lines;
 - RT60-derived gain каждой feedback-линии;
+- Lateral Decay без отдельной ручки: Width и Evolution слегка удлиняют
+  RT60 боковой группы линий, не сокращая центральное mono-ядро;
 - decay-normalised excitation, удерживающий воспринимаемую энергию хвоста
   заметно ровнее при изменении Decay;
 - Low Cut и High Damping внутри feedback loop;
@@ -31,8 +33,8 @@ Ambient и Downtempo. Текущая версия `0.20.0` — проверяе�
 - два плавно переключаемых stereo-voicing: открытая ортогональная проекция и
   опциональный `MONO SAFE` equal-power decoder, в котором каждая FDN-линия
   имеет общую L/R-полярность и остаётся слышимой при mono fold;
-- wet-only M/S Width; при `MONO SAFE = On` добавляется мягкий `145 Hz`
-  Sub Anchor;
+- M/S Width после FDN; при `MONO SAFE = On` добавляется мягкий `145 Hz`
+  Sub Anchor, а внутри loop та же ручка задаёт глубину Lateral Decay;
 - one-knob Focus с perceptual dry/wet masking-анализом, пассивными
   спектральными pockets, transient-aware слоем и адаптивной stereo geometry;
 - Harmonic Gravity: allocation-free Auto-анализатор формирует общую 12-note
@@ -89,7 +91,8 @@ stereo input
     -> two orthogonal excitation vectors
     -> 8 Evolution-modulated fractional delay lines (+ Bloom slow per-line drift)
     -> low-cut + high-frequency damping
-    -> Freeze morph to fixed 3 Hz DC-guarded delay path + RT60 gain
+    -> Width/Evolution-linked lateral RT60 profile + Freeze morph
+       to fixed 3 Hz DC-guarded delay path
     -> Drift: Evolution morph of two linear passive spectral feedback kernels
     -> orthonormal H8 feedback matrix
     -> Mono Safe switch: open orthogonal or shared-sign equal-power Stereo Field
@@ -121,6 +124,22 @@ thread. В `0.19.0` диапазон ручки расширен до `0–200%`
 ```text
 g_i = exp(log(0.001) * delaySeconds_i / decaySeconds)
 ```
+
+Четыре нечётные линии образуют латеральную группу существующей stereo-геометрии,
+а четыре чётные сохраняют центральное mono-ядро. Для боковой группы эффективный
+RT60 дополнительно умножается на
+
+```text
+1 + 0.14 * smoothstep(Width / 2) * smoothstep(Evolution)
+```
+
+При `Width = 100%` и максимальном Evolution это даёт лишь `+7%`, при
+`Width = 200%` — максимум `+14%`; при нулевом Width или Evolution расчёт
+bit-exact совпадает с базовым. Новые targets вычисляются вне sample loop и
+используют существующее `250 ms` сглаживание feedback gains. Каждый gain
+по-прежнему ограничен `0.999`, а Freeze плавно сводит латеральную разницу к
+единому безопасному коэффициенту. Поэтому это изменение длительности
+пространства, а не дополнительный output Side boost.
 
 Изменение RT60 одновременно меняет удерживаемую сетью энергию. Чтобы длинный
 Decay не становился автоматически заметно громче и плотнее, общий excitation
@@ -258,15 +277,22 @@ mono fold. Edge-weighted расположение и чередование по
 stereo covariance около `0.155`, поэтому хвост не превращается в узкое
 коррелированное облако.
 
-После Harmonic Tail существующая ручка `Width` по-прежнему изменяет только
-Side и математически не затрагивает Mid. Внутри этой стадии однополюсный
-Sub Anchor мягко выделяет Side ниже `145 Hz` и оставляет от него `84%`.
+Внутри feedback-loop ручка `Width` вместе с Evolution управляет мягким
+Lateral Decay: боковая группа линий живёт немного дольше, а gains центральной
+группы остаются прежними. Поскольку Hadamard продолжает равномерно смешивать
+восемь состояний, эффект остаётся диффузным и не превращается в отдельный
+когерентный Side-резонанс. В моно сохраняется базовое центральное ядро, а при
+включённом shared-sign decoder вклад не теряет ни одна из продлённых линий.
+
+После Harmonic Tail та же ручка `Width` изменяет только готовый Side и
+математически не затрагивает готовый Mid. Внутри этой выходной стадии
+однополюсный Sub Anchor мягко выделяет Side ниже `145 Hz` и оставляет от него `84%`.
 Измеренный Side transfer равен примерно `0.865` на `60 Hz`
 (`≈−1.25 dB`) и `0.998` на `2 kHz`; переход непрерывен и практически одинаков
 при `44.1/48/88.2/96 kHz`. Это не жёсткий mono-maker: низ лишь немного
 собирается к центру, а верхняя ширина и движение Character сохраняются.
-Стадия находится вне feedback-loop, поэтому не меняет Decay, Freeze,
-damping или устойчивость FDN.
+Сама выходная M/S/Sub Anchor стадия находится вне feedback-loop и не меняет
+Decay, Freeze, damping или устойчивость FDN.
 
 Кнопка `MONO SAFE` в заголовке выбирает второе полноценное stereo-voicing.
 В состоянии `Off` работает более открытая ортогональная sign-матрица и
@@ -470,7 +496,7 @@ JUCE, без растровых ресурсов. Числовые значен�
 | High Damping | 1–20 kHz | Cutoff однополюсного damping LPF |
 | Evolution | 0–100 % (default 35 %) | Сила и движение выбранного Character: от едва заметного до полного |
 | Harmony | 0–100 % (default 0 %) | Сила Auto Harmonic Gravity: от bit-exact bypass до полного harmonic halo |
-| Width | 0–200 % | Ширина только wet-сигнала |
+| Width | 0–200 % | Ширина wet-сигнала и глубина Evolution-linked Lateral Decay |
 | Mono Safe | Off/On (default Off) | Альтернативный mono-safe decoder и мягкий 145 Hz Sub Anchor |
 | Focus | 0–100 % (default 100 %) | Выводит dry на передний план через локальные spectral pockets, transient и stereo separation |
 | Freeze | Off/On | Плавная фиксация текущего хвоста |
@@ -690,9 +716,11 @@ Harmony A/B renderer создаёт пары `*-off.wav` / `*-on.wav` с одн�
   `44.1/48/88.2/96 kHz`;
 - equal-power/shared-sign инварианты всех восьми Stereo Field positions:
   единичную энергию L/R-строк, ненулевой mono fold и сохранение Side;
-- частотный отклик `145 Hz` Sub Anchor, точную Mid-инвариантность Width и
-  mono fold всех четырёх Character при Width `0/100/200%` на
+- частотный отклик `145 Hz` Sub Anchor, точную Mid-инвариантность выходной
+  M/S-стадии и mono fold всех четырёх Character при Width `0/100/200%` на
   `44.1/48/88.2/96 kHz`;
+- RT60-профиль Lateral Decay, неизменность центральных gains, более долгое
+  удержание позднего Side и сохранение mono-ядра;
 - точные endpoints обоих stereo-voicing, плавный `30 ms` переход и
   совпадение с Mono Safe после его завершения;
 - восстановление после NaN/Inf на входе;
