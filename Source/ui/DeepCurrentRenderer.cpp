@@ -62,6 +62,24 @@ void DeepCurrentRenderer::reset(int characterIndex,
     evolution_ = juce::jlimit(0.0f, 1.0f, evolution);
     motion_ = frozen ? 0.0f : 1.0f;
     timeSeconds_ = std::isfinite(timeSeconds) ? timeSeconds : 0.0;
+    currentFieldFlowX_ = targetCurrentFieldFlowX_;
+    currentFieldFlowY_ = targetCurrentFieldFlowY_;
+    currentFieldStrength_ = targetCurrentFieldStrength_;
+}
+
+void DeepCurrentRenderer::setCurrentFieldSnapshot(float flowX,
+                                                  float flowY,
+                                                  float strength) noexcept
+{
+    targetCurrentFieldFlowX_ = std::isfinite(flowX)
+        ? juce::jlimit(-1.0f, 1.0f, flowX)
+        : targetCurrentFieldFlowX_;
+    targetCurrentFieldFlowY_ = std::isfinite(flowY)
+        ? juce::jlimit(-1.0f, 1.0f, flowY)
+        : targetCurrentFieldFlowY_;
+    targetCurrentFieldStrength_ = std::isfinite(strength)
+        ? juce::jlimit(0.0f, 1.0f, strength)
+        : targetCurrentFieldStrength_;
 }
 
 void DeepCurrentRenderer::setSize(int logicalWidth, int logicalHeight)
@@ -94,6 +112,9 @@ bool DeepCurrentRenderer::advance(double elapsedSeconds,
     const auto previousTime = timeSeconds_;
     const auto previousEvolution = evolution_;
     const auto previousMotion = motion_;
+    const auto previousCurrentFieldFlowX = currentFieldFlowX_;
+    const auto previousCurrentFieldFlowY = currentFieldFlowY_;
+    const auto previousCurrentFieldStrength = currentFieldStrength_;
     const auto previousBlend = characterBlend_;
     const auto elapsed = juce::jlimit(0.0, 0.1,
                                       std::isfinite(elapsedSeconds) ? elapsedSeconds : 0.0);
@@ -116,6 +137,13 @@ bool DeepCurrentRenderer::advance(double elapsedSeconds,
         : evolution_;
     evolution_ += (safeEvolution - evolution_)
                 * smoothingCoefficient(elapsed, 0.30);
+    const auto fieldSmoothing = smoothingCoefficient(elapsed, 0.12);
+    currentFieldFlowX_ +=
+        (targetCurrentFieldFlowX_ - currentFieldFlowX_) * fieldSmoothing;
+    currentFieldFlowY_ +=
+        (targetCurrentFieldFlowY_ - currentFieldFlowY_) * fieldSmoothing;
+    currentFieldStrength_ +=
+        (targetCurrentFieldStrength_ - currentFieldStrength_) * fieldSmoothing;
 
     const auto targetMotion = frozen ? 0.0f : 1.0f;
     const auto motionTime = frozen ? 0.36 : 0.55;
@@ -134,6 +162,9 @@ bool DeepCurrentRenderer::advance(double elapsedSeconds,
     return std::abs(timeSeconds_ - previousTime) > 1.0e-9
         || std::abs(evolution_ - previousEvolution) > 1.0e-6f
         || std::abs(motion_ - previousMotion) > 1.0e-6f
+        || std::abs(currentFieldFlowX_ - previousCurrentFieldFlowX) > 1.0e-6f
+        || std::abs(currentFieldFlowY_ - previousCurrentFieldFlowY) > 1.0e-6f
+        || std::abs(currentFieldStrength_ - previousCurrentFieldStrength) > 1.0e-6f
         || blendChanged;
 }
 
@@ -231,14 +262,24 @@ void DeepCurrentRenderer::render(juce::Colour accent)
             const auto veilY = baseY + veilAmount
                 * (0.52f * primary + 0.48f * secondary);
 
+            const auto fieldDepth = 0.18f + 0.82f * currentFieldStrength_;
+            const auto currentAmount = unit * (4.0f + 13.0f * fieldDepth);
+            const auto currentX = baseX + currentAmount
+                * (0.74f * currentFieldFlowX_ + 0.26f * secondary);
+            const auto currentY = baseY + currentAmount
+                * (0.62f * currentFieldFlowY_
+                   + 0.38f * fromCentre * primary);
+
             const auto x = characterBlend_[0] * defaultX
                          + characterBlend_[1] * bloomX
                          + characterBlend_[2] * driftX
-                         + characterBlend_[3] * veilX;
+                         + characterBlend_[3] * veilX
+                         + characterBlend_[4] * currentX;
             const auto y = characterBlend_[0] * defaultY
                          + characterBlend_[1] * bloomY
                          + characterBlend_[2] * driftY
-                         + characterBlend_[3] * veilY;
+                         + characterBlend_[3] * veilY
+                         + characterBlend_[4] * currentY;
             if (point == 0)
                 path.startNewSubPath(x, y);
             else
@@ -314,14 +355,24 @@ void DeepCurrentRenderer::render(juce::Colour accent)
                              + (baseY - centre.y) * (0.93f - 0.055f * evolution_)
                              + veilAmount * slow;
 
+            const auto fieldDepth = 0.18f + 0.82f * currentFieldStrength_;
+            const auto currentAmount =
+                unit * (2.8f + 12.0f * spread) * fieldDepth;
+            const auto currentX = baseX + currentAmount
+                * (0.72f * currentFieldFlowX_ + 0.28f * slow);
+            const auto currentY = baseY + currentAmount
+                * (0.68f * currentFieldFlowY_ + 0.32f * fine);
+
             const auto x = characterBlend_[0] * defaultX
                          + characterBlend_[1] * bloomX
                          + characterBlend_[2] * driftX
-                         + characterBlend_[3] * veilX;
+                         + characterBlend_[3] * veilX
+                         + characterBlend_[4] * currentX;
             const auto y = characterBlend_[0] * defaultY
                          + characterBlend_[1] * bloomY
                          + characterBlend_[2] * driftY
-                         + characterBlend_[3] * veilY;
+                         + characterBlend_[3] * veilY
+                         + characterBlend_[4] * currentY;
             if (point == 0)
                 path.startNewSubPath(x, y);
             else
@@ -380,6 +431,21 @@ int DeepCurrentRenderer::getFrameWidth() const noexcept
 int DeepCurrentRenderer::getFrameHeight() const noexcept
 {
     return overlay_.getHeight();
+}
+
+float DeepCurrentRenderer::getCurrentFieldFlowX() const noexcept
+{
+    return currentFieldFlowX_;
+}
+
+float DeepCurrentRenderer::getCurrentFieldFlowY() const noexcept
+{
+    return currentFieldFlowY_;
+}
+
+float DeepCurrentRenderer::getCurrentFieldStrength() const noexcept
+{
+    return currentFieldStrength_;
 }
 
 bool DeepCurrentRenderer::needsHighRefresh(int characterIndex,

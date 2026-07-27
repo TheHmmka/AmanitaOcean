@@ -19,9 +19,6 @@ constexpr float maximumPreDelaySeconds = 0.25f;
 constexpr float maximumDelayMotionSeconds = 0.00065f;
 constexpr float dcGuardFrequencyHz = 3.0f;
 constexpr double characterModeMorphSeconds = 0.20;
-constexpr float decayNormalisationReferenceSeconds = 5.0f;
-constexpr float minimumDecayInjectionGain = 0.55f;
-constexpr float maximumDecayInjectionGain = 1.35f;
 
 constexpr float defaultMinimumMotionSeconds = 0.000025f;
 constexpr float bloomMinimumMotionSeconds = 0.000030f;
@@ -53,6 +50,7 @@ constexpr std::array<float, FDNReverb::numDelayLines> inputRightSigns {
 };
 
 static_assert(FDNReverb::numDelayLines == LateralDecay::numDelayLines);
+static_assert(FDNReverb::numDelayLines == CurrentField::numLines);
 
 [[nodiscard]] bool isPrime(int value) noexcept
 {
@@ -305,6 +303,7 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
     }
 
     bloom_.prepare(sampleRate_);
+    currentField_.prepare(sampleRate_);
     drift_.prepare(sampleRate_);
     harmonicAnalyzer_.prepare(sampleRate_);
     const auto& initialAnalysis = harmonicAnalyzer_.getFrame();
@@ -320,6 +319,8 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
     stereoField_.prepare(sampleRate_);
     bloomAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                          parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
+    currentAmount_.prepare(sampleRate_, characterModeMorphSeconds,
+                           parameters_.mode == ReverbMode::current ? 1.0f : 0.0f);
     driftAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                          parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
     veilAmount_.prepare(sampleRate_, characterModeMorphSeconds,
@@ -348,13 +349,6 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
             parameters_.width, parameters_.evolution);
         feedbackGains_[index].prepare(sampleRate_, 0.25, gain);
     }
-    decayInjectionGain_.prepare(
-        sampleRate_, 0.25,
-        calculateDecayNormalisedInjectionGain(parameters_.decaySeconds,
-                                              parameters_.size,
-                                              parameters_.width,
-                                              parameters_.evolution));
-
     prepared_ = true;
     reset();
 }
@@ -363,6 +357,8 @@ void FDNReverb::reset() noexcept
 {
     bloomAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                          parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
+    currentAmount_.prepare(sampleRate_, characterModeMorphSeconds,
+                           parameters_.mode == ReverbMode::current ? 1.0f : 0.0f);
     driftAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                          parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
     veilAmount_.prepare(sampleRate_, characterModeMorphSeconds,
@@ -378,6 +374,7 @@ void FDNReverb::reset() noexcept
     for (auto& stage : diffusersRight_)
         stage.reset();
     bloom_.reset();
+    currentField_.reset();
     drift_.reset();
     harmonicAnalyzer_.reset();
     if (parameters_.autoHarmony)
@@ -395,6 +392,7 @@ void FDNReverb::reset() noexcept
     dampingStates_.fill(0.0f);
     dcGuardLowPassStates_.fill(0.0f);
     lfoPhases_ = initialLfoPhases;
+    currentFieldStrength_ = 0.0f;
 }
 
 void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
@@ -404,6 +402,7 @@ void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
     switch (newParameters.mode)
     {
         case ReverbMode::bloom:
+        case ReverbMode::current:
         case ReverbMode::drift:
         case ReverbMode::veil:
             parameters_.mode = newParameters.mode;
@@ -460,6 +459,7 @@ const ReverbParameters& FDNReverb::getParameters() const noexcept
 void FDNReverb::updateTargets() noexcept
 {
     bloomAmount_.setTarget(parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
+    currentAmount_.setTarget(parameters_.mode == ReverbMode::current ? 1.0f : 0.0f);
     driftAmount_.setTarget(parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
     veilAmount_.setTarget(parameters_.mode == ReverbMode::veil ? 1.0f : 0.0f);
     mix_.setTarget(parameters_.mix);
@@ -494,11 +494,6 @@ void FDNReverb::updateTargets() noexcept
             parameters_.width, parameters_.evolution);
         feedbackGains_[index].setTarget(gain);
     }
-    decayInjectionGain_.setTarget(
-        calculateDecayNormalisedInjectionGain(parameters_.decaySeconds,
-                                              parameters_.size,
-                                              parameters_.width,
-                                              parameters_.evolution));
 }
 
 float FDNReverb::diffuseInput(float sample, std::array<AllPass, 4>& stages) noexcept
@@ -507,50 +502,6 @@ float FDNReverb::diffuseInput(float sample, std::array<AllPass, 4>& stages) noex
     for (auto& stage : stages)
         output = stage.process(output);
     return sanitise(output);
-}
-
-float FDNReverb::calculateDecayNormalisedInjectionGain(float decaySeconds,
-                                                       float size,
-                                                       float width,
-                                                       float evolution) const noexcept
-{
-    const auto lateralDecayIsInactive =
-        LateralDecay::decayTimeScale(1, width, evolution) == 1.0f;
-    if (std::abs(decaySeconds - decayNormalisationReferenceSeconds)
-        <= std::numeric_limits<float>::epsilon()
-             * decayNormalisationReferenceSeconds
-        && lateralDecayIsInactive)
-        return 1.0f;
-
-    auto meanGainSquared = 0.0f;
-    auto referenceMeanGainSquared = 0.0f;
-    for (std::size_t index = 0; index < numDelayLines; ++index)
-    {
-        const auto delaySeconds = nominalDelaySamples_[index] * size
-                                / static_cast<float>(sampleRate_);
-        const auto gain = LateralDecay::feedbackGain(
-            delaySeconds, decaySeconds, index, width, evolution);
-        const auto referenceGain = LateralDecay::feedbackGain(
-            delaySeconds, decayNormalisationReferenceSeconds,
-            index, 0.0f, 0.0f);
-        meanGainSquared += gain * gain;
-        referenceMeanGainSquared += referenceGain * referenceGain;
-    }
-
-    meanGainSquared /= static_cast<float>(numDelayLines);
-    referenceMeanGainSquared /= static_cast<float>(numDelayLines);
-    const auto loss = std::max(1.0e-6f, 1.0f - meanGainSquared);
-    const auto referenceLoss = std::max(
-        1.0e-6f, 1.0f - referenceMeanGainSquared);
-
-    // A scalar keeps the orthogonal stereo injection vectors intact. Full
-    // sqrt(loss) energy normalisation over-corrects the perceived level of this
-    // already diffused, frequency-dependent network, so the measured
-    // fourth-root law balances sustained Wet RMS while retaining the natural
-    // difference between short and long impulse envelopes.
-    const auto gain = std::sqrt(std::sqrt(loss / referenceLoss));
-    return std::clamp(gain, minimumDecayInjectionGain,
-                      maximumDecayInjectionGain);
 }
 
 void FDNReverb::process(float* left, float* right, int numSamples) noexcept
@@ -584,11 +535,15 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     const auto bloomExcitation = bloom_.processExcitation(diffusedLeft, diffusedRight);
     const auto veilExcitation = veil_.processExcitation(diffusedLeft, diffusedRight);
     const auto bloomAmount = bloomAmount_.next();
+    const auto currentAmount = currentAmount_.next();
     const auto driftAmount = driftAmount_.next();
     const auto veilAmount = veilAmount_.next();
     const auto evolution = smoothCurve(evolution_.next());
-    const auto defaultAmount = std::clamp(1.0f - bloomAmount - driftAmount - veilAmount,
-                                          0.0f, 1.0f);
+    const auto defaultAmount = std::clamp(
+        1.0f - bloomAmount - currentAmount - driftAmount - veilAmount,
+        0.0f, 1.0f);
+    currentFieldStrength_ = currentAmount * (0.06f + 0.94f * evolution);
+    const auto& currentFrame = currentField_.next(currentFieldStrength_ > 0.0f);
     const auto bloomStrength = 0.08f + 0.92f * evolution;
     const auto veilStrength = 0.04f + 0.96f * evolution;
     const auto effectiveBloomAmount = bloomAmount * bloomStrength;
@@ -611,7 +566,9 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     excitationRight = sanitise(excitationRight * characterExcitationGain);
 
     const auto size = size_.next();
-    const auto motionSeconds = defaultAmount
+    const auto currentIndependentMotion =
+        currentAmount * (1.0f - evolution) * (1.0f - evolution);
+    const auto motionSeconds = (defaultAmount + currentIndependentMotion)
                                    * scaleEvolution(defaultMinimumMotionSeconds,
                                                     defaultMaximumMotionSeconds, evolution)
                              + bloomAmount
@@ -635,6 +592,11 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     {
         const auto modulation = modulationDepth * std::sin(twoPi * lfoPhases_[index]);
         auto delaySamples = nominalDelaySamples_[index] * size + modulation;
+        if (currentFieldStrength_ > 0.0f)
+            delaySamples += static_cast<float>(sampleRate_)
+                          * CurrentField::maximumDelaySeconds
+                          * currentFieldStrength_
+                          * currentFrame.delay[index];
         const auto bloomDrift = bloom_.nextDriftSamples(index, evolution,
                                                         bloomAmount > 0.0f);
         if (bloomAmount > 0.0f)
@@ -659,9 +621,21 @@ void FDNReverb::processSample(float& left, float& right) noexcept
             + (1.0f - lowCutCoefficient) * delayed[index]);
         const auto highPassed = delayed[index] - lowCutStates_[index];
 
+        auto lineDampingCoefficient = dampingCoefficient;
+        if (currentFieldStrength_ > 0.0f)
+        {
+            lineDampingCoefficient = std::clamp(
+                dampingCoefficient
+                    + CurrentField::dampingPoleWarp
+                          * currentFieldStrength_
+                          * currentFrame.damping[index]
+                          * dampingCoefficient
+                          * (1.0f - dampingCoefficient),
+                0.0f, 0.9999f);
+        }
         dampingStates_[index] = flushDenormal(
-            dampingCoefficient * dampingStates_[index]
-            + (1.0f - dampingCoefficient) * highPassed);
+            lineDampingCoefficient * dampingStates_[index]
+            + (1.0f - lineDampingCoefficient) * highPassed);
 
         const auto filtered = sanitise(dampingStates_[index]);
         const auto freezeMorphed = filtered
@@ -681,7 +655,7 @@ void FDNReverb::processSample(float& left, float& right) noexcept
                            driftAmount > 0.0f);
     applyFeedbackMatrix(feedback);
 
-    const auto inputGain = (1.0f - freeze) * decayInjectionGain_.next();
+    const auto inputGain = 1.0f - freeze;
     for (std::size_t index = 0; index < numDelayLines; ++index)
     {
         const auto injection = inverseSqrtEight
@@ -691,14 +665,45 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     }
 
     const auto monoSafeStereoAmount = monoSafeStereoAmount_.next();
-    const auto legacyDecodedWet = StereoField::decodeLegacy(delayed);
-    const auto monoSafeDecodedWet = StereoField::decode(delayed);
-    auto wetLeft = legacyDecodedWet.left
-                 + monoSafeStereoAmount
-                       * (monoSafeDecodedWet.left - legacyDecodedWet.left);
-    auto wetRight = legacyDecodedWet.right
-                  + monoSafeStereoAmount
-                        * (monoSafeDecodedWet.right - legacyDecodedWet.right);
+    const auto decodeLegacyWet = [&]() noexcept
+    {
+        return currentFieldStrength_ > 0.0f
+            ? StereoField::decodeCurrentLegacy(
+                  delayed, currentFrame.stereo, currentFieldStrength_)
+            : StereoField::decodeLegacy(delayed);
+    };
+    const auto decodeMonoSafeWet = [&]() noexcept
+    {
+        return currentFieldStrength_ > 0.0f
+            ? StereoField::decodeCurrentMonoSafe(
+                  delayed, currentFrame.stereo, currentFieldStrength_)
+            : StereoField::decode(delayed);
+    };
+
+    auto decodedWet = StereoField::Frame {};
+    if (monoSafeStereoAmount <= 0.0f)
+    {
+        decodedWet = decodeLegacyWet();
+    }
+    else if (monoSafeStereoAmount >= 1.0f)
+    {
+        decodedWet = decodeMonoSafeWet();
+    }
+    else
+    {
+        const auto legacyDecodedWet = decodeLegacyWet();
+        const auto monoSafeDecodedWet = decodeMonoSafeWet();
+        decodedWet.left = legacyDecodedWet.left
+                        + monoSafeStereoAmount
+                              * (monoSafeDecodedWet.left
+                                 - legacyDecodedWet.left);
+        decodedWet.right = legacyDecodedWet.right
+                         + monoSafeStereoAmount
+                               * (monoSafeDecodedWet.right
+                                  - legacyDecodedWet.right);
+    }
+    auto wetLeft = decodedWet.left;
+    auto wetRight = decodedWet.right;
 
     // Harmonic pitch targets latch at the exact Freeze edge. The main FDN uses
     // its 50 ms fade to avoid a gain click, but feeding that fade to the map
@@ -776,6 +781,16 @@ double FDNReverb::getSampleRate() const noexcept
 const std::array<float, FDNReverb::numDelayLines>& FDNReverb::getNominalDelaySamples() const noexcept
 {
     return nominalDelaySamples_;
+}
+
+const CurrentField::Frame& FDNReverb::getCurrentFieldFrame() const noexcept
+{
+    return currentField_.getLastFrame();
+}
+
+float FDNReverb::getCurrentFieldStrength() const noexcept
+{
+    return currentFieldStrength_;
 }
 
 const HarmonicAnalysisFrame& FDNReverb::getHarmonicAnalysisFrame() const noexcept

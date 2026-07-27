@@ -12,7 +12,7 @@ class CharacterSelector final : public juce::Component,
                                 private juce::Timer
 {
 public:
-    static constexpr int characterCount = 4;
+    static constexpr int characterCount = 5;
 
     explicit CharacterSelector(juce::AudioProcessorValueTreeState& state);
     ~CharacterSelector() override;

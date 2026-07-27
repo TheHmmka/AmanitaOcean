@@ -24,6 +24,9 @@ public:
         float evolution = 0.0f;
         float focus = 1.0f;
         bool frozen = false;
+        float currentFlowX = 0.0f;
+        float currentFlowY = 0.0f;
+        float currentStrength = 0.0f;
         juce::Colour accent { 0xff79cbd0 };
     };
 
@@ -39,6 +42,14 @@ public:
                      float focus,
                      bool frozen,
                      juce::Colour accent) noexcept;
+    void setSnapshot(int algorithm,
+                     float evolution,
+                     float focus,
+                     bool frozen,
+                     float currentFlowX,
+                     float currentFlowY,
+                     float currentStrength,
+                     juce::Colour accent) noexcept;
     void triggerRepaint() noexcept;
 
     [[nodiscard]] bool isAttached() const noexcept;
@@ -52,6 +63,9 @@ private:
         float evolution = 0.0f;
         float focus = 1.0f;
         bool frozen = false;
+        float currentFlowX = 0.0f;
+        float currentFlowY = 0.0f;
+        float currentStrength = 0.0f;
         juce::Colour accent { 0xff79cbd0 };
     };
 
@@ -93,16 +107,23 @@ private:
     std::atomic<float> evolution_ { 0.0f };
     std::atomic<float> focus_ { 1.0f };
     std::atomic<bool> frozen_ { false };
+    std::atomic<float> currentFlowX_ { 0.0f };
+    std::atomic<float> currentFlowY_ { 0.0f };
+    std::atomic<float> currentStrength_ { 0.0f };
     std::atomic<std::uint32_t> accentArgb_ { 0xff79cbd0u };
+    std::atomic<std::uint32_t> snapshotRevision_ { 0 };
 
     std::atomic<bool> attached_ { false };
     std::atomic<bool> ready_ { false };
     std::atomic<bool> failed_ { false };
     juce::Component* attachedComponent_ = nullptr;
 
-    std::array<float, 4> characterBlend_ { 1.0f, 0.0f, 0.0f, 0.0f };
+    std::array<float, 5> characterBlend_ { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f };
     float renderedEvolution_ = 0.0f;
     float renderedFocus_ = 1.0f;
+    float renderedCurrentFlowX_ = 0.0f;
+    float renderedCurrentFlowY_ = 0.0f;
+    float renderedCurrentStrength_ = 0.0f;
     juce::Colour renderedAccent_ { 0xff79cbd0 };
     float motion_ = 1.0f;
     float animationTime_ = 19.73f;

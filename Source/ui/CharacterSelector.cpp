@@ -13,18 +13,20 @@ constexpr float selectedTextAlpha = 0.98f;
 constexpr float inactiveTextAlpha = 0.20f;
 
 constexpr std::array<const char*, CharacterSelector::characterCount> characterNames {
-    "Default", "Bloom", "Drift", "Veil"
+    "Default", "Bloom", "Drift", "Veil", "Current"
 };
 
 constexpr std::array<const char*, CharacterSelector::characterCount> componentIds {
-    "character-default", "character-bloom", "character-drift", "character-veil"
+    "character-default", "character-bloom", "character-drift", "character-veil",
+    "character-current"
 };
 
 constexpr std::array<const char*, CharacterSelector::characterCount> descriptions {
     "Selects the balanced Default reverb character.",
     "Selects the expanding Bloom reverb character.",
     "Selects the moving Drift reverb character.",
-    "Selects the softened Veil reverb character."
+    "Selects the softened Veil reverb character.",
+    "Selects the coherent Current field reverb character."
 };
 
 class SegmentButton final : public juce::TextButton
@@ -74,7 +76,7 @@ CharacterSelector::CharacterSelector(juce::AudioProcessorValueTreeState& state)
     setAccessible(true);
     setTitle("Reverb character");
     setDescription("Selects the reverb character. Use the left and right arrow keys to navigate.");
-    setHelpText("Choose Default, Bloom, Drift, or Veil.");
+    setHelpText("Choose Default, Bloom, Drift, Veil, or Current.");
     setWantsKeyboardFocus(true);
     setFocusContainerType(juce::Component::FocusContainerType::keyboardFocusContainer);
 

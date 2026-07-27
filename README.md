@@ -14,13 +14,15 @@ Ambient и Downtempo. Текущая версия `0.20.0` — проверяе�
 - ортонормальная feedback-матрица Адамара `H8 / sqrt(8)`;
 - prime nominal delay lengths, пересчитываемые при смене sample rate;
 - два независимых четырёхступенчатых stereo all-pass diffuser;
-- единый Character `Default/Bloom/Drift/Veil` с плавным 200-ms morph
+- единый Character `Default/Bloom/Drift/Veil/Current` с плавным 200-ms morph
   без сброса хвоста;
 - Bloom rising-tap swell, второй stereo diffusion layer и intrinsic micro-drift;
 - единый Drift, плавно развивающийся от воздушного движения к выраженным
   body/presence trajectories максимального Evolution; оба spectral kernel
   остаются линейными и пассивными в штатном тракте;
 - Veil lossless AP6 disperser, превращающий атаки в плотное ~90-ms облако;
+- Current Field: одно сверхмедленное когерентное течение согласованно
+  изменяет delay offset, damping и полную stereo-позицию всех восьми линий;
 - mode-aware Evolution, согласованно управляющий силой Character и движением
   дробных delay lines;
 - статическая perceptual-нормализация Bloom/Veil excitation, удерживающая
@@ -28,8 +30,8 @@ Ambient и Downtempo. Текущая версия `0.20.0` — проверяе�
 - RT60-derived gain каждой feedback-линии;
 - Lateral Decay без отдельной ручки: Width и Evolution слегка удлиняют
   RT60 боковой группы линий, не сокращая центральное mono-ядро;
-- decay-normalised excitation, удерживающий воспринимаемую энергию хвоста
-  заметно ровнее при изменении Decay;
+- постоянная FDN excitation, не зависящая от Decay: ранний Wet-сигнал сохраняет
+  уровень, а длинный хвост естественно накапливает больше энергии;
 - Low Cut и High Damping внутри feedback loop;
 - независимый фиксированный `3 Hz` DC Guard, который остаётся в loop при Freeze;
 - два плавно переключаемых stereo-voicing: открытая ортогональная проекция и
@@ -70,10 +72,9 @@ Ambient и Downtempo. Текущая версия `0.20.0` — проверяе�
   fold, а мягкий `145 Hz` Sub Anchor слегка собирает только самый низ Side.
   Исходное открытое stereo-поле остаётся default-вариантом; переключение
   сглаживается за `30 ms`, сохраняется в проекте и доступно автоматизации.
-- Decay теперь изменяет длительность пространства значительно независимее от
-  его воспринимаемой громкости и плотности. Excitation gain нормализуется по
-  средней энергии feedback-линий относительно опорного `5 s` хвоста и плавно
-  интерполируется за `250 ms`.
+- Decay изменяет feedback RT60 при постоянном уровне excitation. Первый
+  Wet-возврат не проседает при увеличении Decay, а длинный хвост естественно
+  становится плотнее по мере накопления энергии внутри FDN.
 - Постоянный `3 Hz` DC Guard остаётся активным во Freeze. Он не является
   слышимым tone-control, но не позволяет нулевой частоте и offset накапливаться
   в очень длинном удерживаемом хвосте.
@@ -83,7 +84,7 @@ Ambient и Downtempo. Текущая версия `0.20.0` — проверяе�
 ```text
 stereo input
     -> Auto HarmonicAnalyzer (parallel dry analysis, 12-note chroma/confidence)
-    -> decay-normalised excitation gain
+    -> constant FDN excitation gain (independent of Decay)
     -> smoothed variable pre-delay
     -> L/R all-pass diffusion (4 stages per channel)
        -> Default: direct excitation
@@ -93,12 +94,15 @@ stereo input
     -> shared-L/R static covariance compensation (maximum gain 1.25)
     -> two orthogonal excitation vectors
     -> 8 Evolution-modulated fractional delay lines (+ Bloom slow per-line drift)
+       -> Current: shared rank-2 flow -> coupled delay offsets
     -> low-cut + high-frequency damping
+       -> Current: coupled per-line damping-pole movement
     -> Width/Evolution-linked lateral RT60 profile + Freeze morph
        to fixed 3 Hz DC-guarded delay path
     -> Drift: Evolution morph of two linear passive spectral feedback kernels
     -> orthonormal H8 feedback matrix
     -> Mono Safe switch: open orthogonal or shared-sign equal-power Stereo Field
+       -> Current: coherent full L/R decoder movement
     -> Harmony-controlled HarmonicTail modal halo (post-FDN, outside feedback)
     -> wet-only M/S Width (+ gentle 145 Hz Sub Anchor when Mono Safe is On)
     -> wet Focus from dry/wet spectral conflict + transient detector
@@ -144,14 +148,12 @@ bit-exact совпадает с базовым. Новые targets вычисл�
 единому безопасному коэффициенту. Поэтому это изменение длительности
 пространства, а не дополнительный output Side boost.
 
-Изменение RT60 одновременно меняет удерживаемую сетью энергию. Чтобы длинный
-Decay не становился автоматически заметно громче и плотнее, общий excitation
-gain рассчитывается по отношению средней потери feedback-линий к опорному
-Decay `5 s`. Полная квадратнокорневая нормализация переисправляла бы уже
-диффузную frequency-dependent сеть, поэтому используется измеренная
-fourth-root зависимость с безопасным диапазоном `0.55–1.35`. Коэффициент
-сглаживается за `250 ms`, сохраняет исходные ортогональные L/R injection
-vectors и во Freeze всё равно плавно стремится к нулю.
+Decay изменяет только feedback gains и RT60 сети. Уровень возбуждения всех
+восьми линий остаётся постоянным, поэтому первый прямой возврат не становится
+тише при увеличении Decay. Более длинный хвост естественно удерживает больше
+стационарной энергии — это часть характера ревербератора, а не ошибка,
+автоматическая компенсация или AGC. Freeze по-прежнему плавно сводит входное
+возбуждение точно к нулю независимо от положения Decay.
 
 Матрица ортонормальна, loop-фильтры пассивны, а feedback gain всегда меньше
 единицы. Во Freeze damping плавно обходится, входное возбуждение стремится точно
@@ -238,6 +240,47 @@ Freeze morph. Уже сформированный тембр хвоста уде
 живое пространство без signal-dependent компенсации и проверяется 120-секундным
 Freeze render.
 
+### Current
+
+Current моделирует восемь линий как точки внутри одного жидкого объёма. Две
+сверхмедленные фазы `0.0173 Hz` и `0.0067 Hz` формируют общий двумерный вектор
+течения. Симметричные координаты линий проецируют его в три согласованных
+составляющих:
+
+- радиальная проекция сдвигает fractional read position не более чем на
+  `0.22 ms`;
+- тангенциальная проекция пассивно смещает damping pole, не выводя коэффициент
+  за устойчивый диапазон;
+- повёрнутая проекция одновременно перемещает полную L/R-позицию каждой линии.
+
+Это rank-2 поле, а не набор из восьми несвязанных генераторов: все изменения
+имеют общую причину и движутся как части одного течения. Остаточное базовое
+micro-motion Current максимально только на нижнем конце Evolution и
+квадратично исчезает по мере усиления общего поля, поэтому на максимуме нет
+впечатления независимых per-line LFO или обычного chorus.
+
+При `Evolution = 0%` Current намеренно не превращается в Default. Поле остаётся
+активным на `6%`: отличие тонкое, но характер уже узнаваем. Evolution плавно
+увеличивает одну общую силу от `6%` до `100%`, поэтому delay, damping и stereo
+trajectory становятся глубже одновременно, не меняя topology FDN и не
+добавляя отдельного output-эффекта.
+
+В открытом stereo-voicing каждый исходный L/R-вектор линии вращается целиком с
+сохранением его энергии. Поэтому движутся и Mid, и Side, а не только ширина
+вокруг неподвижного центра. При включённом `MONO SAFE` то же течение ограничено
+shared-sign equal-power квадрантом: линия продолжает перемещаться между L/R, но
+не может развернуть полярность и исчезнуть при mono fold. После этого общий
+Width работает как обычно. Во Freeze согласованное delay/stereo-движение
+продолжается, а фильтрующая часть поля следует безопасному Freeze bypass.
+
+Визуальный Current использует тот же опубликованный DSP-вектор `flowX/flowY` и
+ту же сглаженную силу поля, что и аудиотракт. Audio thread передаёт только
+lock-free атомарный snapshot без блокировок и выделений памяти; CPU fallback и
+OpenGL shader независимо интерполируют его вне audio thread, каждый в своём
+графическом контексте. Поэтому направление и глубина фонового течения отражают
+реальное состояние ревербератора, а не запускают отдельную несвязанную
+анимацию.
+
 ### Veil
 
 Veil размывает атаку без envelope detector, gain pumping, lookahead и
@@ -262,11 +305,11 @@ Same-sample составляющая импульса находится око�
 
 Veil находится только в excitation path и не увеличивает feedback gain. Его
 состояние обрабатывается постоянно даже при выключенном режиме, поэтому
-Default/Bloom/Drift↔Veil интерполируются за `200 ms` без холодного старта и
-щелчка. `Evolution` смешивает базовое возбуждение и выход AP6 с силой от `4%`
-до `100%` по smoothstep-кривой; сам convex blend пассивен и не может усилить
-стационарную частоту. AP6 остаётся фиксированным и не создаёт chorus или pitch
-wobble.
+Default/Bloom/Drift/Current↔Veil интерполируются за `200 ms` без холодного
+старта и щелчка. `Evolution` смешивает базовое возбуждение и выход AP6 с силой
+от `4%` до `100%` по smoothstep-кривой; сам convex blend пассивен и не может
+усилить стационарную частоту. AP6 остаётся фиксированным и не создаёт chorus
+или pitch wobble.
 
 ### Character excitation normalisation
 
@@ -286,6 +329,8 @@ Bloom использует мягкую fourth-root компенсацию (`pow
 Итоговый gain ограничен `1.25`; это не позволяет редким когерентным тонам или
 переходу Bloom↔Veil получить полную математическую компенсацию ценой
 нежелательного усиления. Для Default и Drift коэффициент точно равен единице.
+Current также использует базовый excitation path и не получает отдельной
+амплитудной компенсации.
 
 ### Stereo Field и Sub Anchor
 
@@ -416,26 +461,29 @@ DSP находится в `Source/dsp` и не зависит от JUCE/UI. Вс
 
 Интерфейс построен вокруг одного главного действия: выбранный Character задаёт
 тип движения, а большой центральный `Evolution` — его силу. `Default`, `Bloom`,
-`Drift` и `Veil` образуют один взаимоисключающий selector; активный режим
-окрашивается собственным accent, а остальные подписи уходят до `15%`
-непрозрачности. Никаких скрытых переключателей режимов нет. Название и значение
-`Evolution`, как и у остальных ручек,
-расположены под регулятором. Остальные девять непрерывных параметров собраны в
-нижнюю полосу группами `3/3/3`, `Freeze` вынесен в заголовок.
+`Drift`, `Veil` и `Current` образуют один взаимоисключающий selector; активный
+режим окрашивается собственным accent, а остальные подписи уходят до `15%`
+непрозрачности. Никаких скрытых переключателей режимов нет. Название и
+значение `Evolution`, как и у остальных ручек, расположены под регулятором.
+Остальные девять непрерывных параметров собраны в нижнюю полосу группами
+`3/3/3`, `Freeze` вынесен в заголовок.
 
 Визуальное направление — «bathymetric instrument»: глубокий petrol-black фон,
 тёплый светлый текст и медленно движущиеся контурные линии поля. Для каждого
-Character используется свой сдержанный accent — бирюзовый, медный, синий или
-лиловый. Начиная с `0.11.0`, CPU-only `DeepCurrentRenderer` добавляет три очень
-медленных световых поля и пятнадцать дальних контуров. В `0.11.1` поле
+Character используется свой сдержанный accent — бирюзовый, медный, синий,
+лиловый или нефритовый. Начиная с `0.11.0`, CPU-only
+`DeepCurrentRenderer` добавляет три очень медленных световых поля и пятнадцать
+дальних контуров. В `0.11.1` поле
 расширено тринадцатью сквозными flow-линиями: движение теперь проходит под
 header, Character selector, центральной областью и всей нижней полосой ручек.
 В `0.11.2` графический кэш переведён в нативное логическое разрешение, а
 Evolution изменяет геометрию поля без дискретного появления слоёв через
 8-битную прозрачность.
 `Default` дышит почти изотропно, `Bloom` расширяет поле, `Drift` создаёт
-горизонтальный shear, а `Veil` смягчает и сжимает глубину. Evolution управляет
-амплитудой, Freeze примерно за `1.5 s` останавливает течение.
+горизонтальный shear, `Veil` смягчает и сжимает глубину, а `Current` следует
+направлению общего DSP-поля. Evolution управляет амплитудой, Freeze примерно
+за `1.5 s` останавливает декоративное течение остальных Character; Current
+продолжает отражать движение удерживаемого хвоста.
 
 Deep Current рендерится в отдельный полупрозрачный ARGB-кэш `1:1` до
 `1200 × 750 px` с качественной интерполяцией при дальнейшем увеличении editor.
@@ -450,10 +498,11 @@ CPU fallback работает только в editor/message thread, пропу�
 прошедший через большую толщу воды. Слои имеют независимые масштабы, направления
 и глубину, но разделяют одно медленное поле преломления. Broad-noise gate
 оставляет большую часть кадра почти чёрной, поэтому световые сети не превращают
-фон в яркую поверхность бассейна. Четыре Character непрерывно меняют масштаб,
+фон в яркую поверхность бассейна. Пять Character непрерывно меняют масштаб,
 анизотропию, скорость, глубину и соотношение halo/core. `Evolution`, `Focus`,
-`Freeze` и текущий accent передаются в OpenGL thread только через атомарный
-snapshot; audio thread в визуализации не участвует.
+`Freeze`, текущий accent и опубликованное состояние Current Field передаются в
+OpenGL thread только через атомарный snapshot. Визуализация не выполняет
+графическую работу в audio thread.
 В `0.16.1` световые окна стали шире, а объёмный свет получил отдельную
 экспозицию с мягким ограничением пиков: движение читается при обычном освещении,
 не повышая резкость самих каустических границ.
@@ -509,7 +558,7 @@ JUCE, без растровых ресурсов. Числовые значен�
 
 | Параметр | Диапазон | Назначение |
 |---|---:|---|
-| Character | Default/Bloom/Drift/Veil | Единственный переключатель алгоритма хвоста |
+| Character | Default/Bloom/Drift/Veil/Current | Единственный переключатель алгоритма хвоста |
 | Mix | 0–100 % | Линейный dry/wet mix |
 | Decay | 0.2–30 s | Broadband RT60 feedback-сети |
 | Size | 0–200 % | Масштаб всех FDN delay lengths; 50–200 % сохраняют прежнюю геометрию |
@@ -530,7 +579,7 @@ JUCE, без растровых ресурсов. Числовые значен�
 Low Cut остаётся непрерывным, но UI и host-текст всегда отображают его целыми
 герцами.
 
-Все четыре варианта Character взаимоисключающие: выбор нового режима полностью
+Все пять вариантов Character взаимоисключающие: выбор нового режима полностью
 заменяет предыдущий, без дополнительных флагов и скрытых приоритетов. Версия
 `0.9.0` добавил предварительный host-ID `ducking`; `0.10.0` заменил исходный
 full-band gain ducking на Perceptual Ducking. В `0.10.1` публичный параметр и
@@ -691,6 +740,8 @@ clap-validator validate \
 
 ./build/AmanitaOceanDSPTests --test-character-normalisation
 
+./build/AmanitaOceanDSPTests --test-current
+
 ./build/AmanitaOceanDSPTests \
   --render-harmony-ab pad ./build/harmony
 
@@ -711,6 +762,9 @@ clap-validator validate \
 
 ./build/AmanitaOceanDSPTests \
   --render-veil ./build/amanita_ocean_veil_ir.wav
+
+./build/AmanitaOceanDSPTests \
+  --render-current ./build/amanita_ocean_current_ir.wav
 
 ./build/AmanitaOceanDSPTests --stress-bloom
 
@@ -741,16 +795,19 @@ Harmony A/B renderer создаёт пары `*-off.wav` / `*-on.wav` с одн�
 - equal-power/shared-sign инварианты всех восьми Stereo Field positions:
   единичную энергию L/R-строк, ненулевой mono fold и сохранение Side;
 - частотный отклик `145 Hz` Sub Anchor, точную Mid-инвариантность выходной
-  M/S-стадии и mono fold всех четырёх Character при Width `0/100/200%` на
+  M/S-стадии и mono fold всех пяти Character при Width `0/100/200%` на
   `44.1/48/88.2/96 kHz`;
 - RT60-профиль Lateral Decay, неизменность центральных gains, более долгое
   удержание позднего Side и сохранение mono-ядра;
+- неизменность уровня первого прямого возврата между `5 s` и `30 s` во всех
+  пяти Character и на всех поддерживаемых sample rate, а также естественный
+  монотонный рост стационарной энергии длинного хвоста;
 - точные endpoints обоих stereo-voicing, плавный `30 ms` переход и
   совпадение с Mono Safe после его завершения;
 - восстановление после NaN/Inf на входе;
 - резкие изменения всех параметров;
-- плавные morph между четырьмя Character без сброса хвоста;
-- автоматизацию Evolution `0↔100%` во всех четырёх режимах без щелчков;
+- плавные morph между пятью Character без сброса хвоста;
+- автоматизацию Evolution `0↔100%` во всех пяти режимах без щелчков;
 - stereo decorrelation и детерминированную эволюцию Bloom;
 - оба линейных passive kernel единого Drift, их convex morph и sub bypass;
 - суперпозицию Drift и полностью включённого Drift Freeze;
@@ -758,6 +815,13 @@ Harmony A/B renderer создаёт пары `*-off.wav` / `*-on.wav` с одн�
   ограниченного 5.8 kHz, при Evolution `30%/100%` и в Freeze;
 - независимые L/R spectral trajectories и in-loop imprint Drift;
 - сохранение энергии, L/R decorrelation и sample-rate timing AP6 Veil;
+- геометрию Current Field на `44.1/48/88.2/96 kHz`: нулевую сумму
+  проекций, ортогональность delay/damping, эффективный rank не выше двух и
+  недостижение слышимой pitch-модуляции;
+- отличимый от Default минимум Current при Evolution `0%`, усиление общего
+  поля к `100%`, block invariance, плавные переходы режима и устойчивый Freeze;
+- сохранение энергии полной L/R-ротации Current и mono fold каждой линии в
+  ограниченном shared-sign decoder;
 - настоящее размытие импульса Veil: leading energy, crest, centroid и NRMS;
 - статическую covariance-нормализацию Bloom/Veil excitation на
   `44.1/48/88.2/96 kHz`: perceptual gain endpoints, диапазон Evolution,
@@ -788,12 +852,13 @@ Harmony A/B renderer создаёт пары `*-off.wav` / `*-on.wav` с одн�
   allocations;
 - детерминированные fingerprints минимального и максимального Evolution
   каждого Character;
-- round-trip текущего state и точный host→DSP routing четырёх Character,
+- round-trip текущего state и точный host→DSP routing пяти Character,
   Evolution и Focus;
 - создание custom editor, APVTS attachments, resize limits `800–1440 px`,
   доступность всех controls, непрерывный rotary travel Decay/Low Cut без
   стартовой ступени и корректный host gesture при вводе чисел;
-- детерминированность Deep Current, движение и заметность в верхней, нижней,
+- детерминированность Deep Current, привязку Current-вектора к DSP snapshot,
+  движение и заметность в верхней, нижней,
   левой и правой четвертях editor, нативное разрешение кэша, плавный
   покадровый Evolution без одиночных скачков, resize cache cycle и
   Freeze-to-idle timing;

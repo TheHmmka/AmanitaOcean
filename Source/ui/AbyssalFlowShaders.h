@@ -31,6 +31,9 @@ uniform float uFocus;
 uniform float uDirectOutput;
 uniform vec3 uAccent;
 uniform vec4 uCharacterBlend;
+uniform float uCurrentBlend;
+uniform vec2 uCurrentFlow;
+uniform float uCurrentStrength;
 
 float hash21(vec2 p)
 {
@@ -73,30 +76,51 @@ void main()
     float evolution = clamp(uEvolution, 0.0, 1.0);
     float focus = clamp(uFocus, 0.0, 1.0);
     vec4 character = max(uCharacterBlend, vec4(0.0));
-    character /= max(dot(character, vec4(1.0)), 0.0001);
+    float currentBlend = max(uCurrentBlend, 0.0);
+    float characterWeight = max(dot(character, vec4(1.0))
+                                + currentBlend,
+                                0.0001);
+    character /= characterWeight;
+    currentBlend /= characterWeight;
 
-    float scaleFactor = dot(character, vec4(1.00, 0.78, 1.08, 0.84))
+    vec2 currentVector = clamp(uCurrentFlow, vec2(-1.0), vec2(1.0));
+    float currentDepth = currentBlend
+                       * clamp(uCurrentStrength, 0.0, 1.0);
+
+    float scaleFactor = (dot(character, vec4(1.00, 0.78, 1.08, 0.84))
+                      + currentBlend * 0.94)
                       * mix(0.97, 1.05, evolution);
     vec2 anisotropy;
-    anisotropy.x = dot(character, vec4(1.00, 1.00, 1.35, 0.76));
-    anisotropy.y = dot(character, vec4(1.00, 1.08, 0.78, 1.32));
-    float warpFactor = dot(character, vec4(1.00, 0.90, 1.08, 1.20));
-    float speedFactor = dot(character, vec4(0.72, 0.54, 1.24, 0.46));
-    float densityFactor = dot(character, vec4(1.15, 1.28, 1.08, 0.88));
-    float maskFactor = dot(character, vec4(0.88, 1.18, 1.02, 0.58));
+    anisotropy.x = dot(character, vec4(1.00, 1.00, 1.35, 0.76))
+                 + currentBlend * 1.48;
+    anisotropy.y = dot(character, vec4(1.00, 1.08, 0.78, 1.32))
+                 + currentBlend * 0.72;
+    float warpFactor = dot(character, vec4(1.00, 0.90, 1.08, 1.20))
+                     + currentBlend * 1.28;
+    float speedFactor = dot(character, vec4(0.72, 0.54, 1.24, 0.46))
+                      + currentBlend * 0.82;
+    float densityFactor = dot(character, vec4(1.15, 1.28, 1.08, 0.88))
+                        + currentBlend * 1.12;
+    float maskFactor = dot(character, vec4(0.88, 1.18, 1.02, 0.58))
+                     + currentBlend * 0.90;
     float time = uTime * speedFactor * mix(0.68, 1.12, evolution);
 
     vec2 q = p * anisotropy * scaleFactor;
+    q += currentVector * currentDepth * 0.16;
     vec2 warp;
     warp.x = flowFbm(q * 0.78
                      + time * vec2(0.008, -0.006));
     warp.y = flowFbm(q * 0.78 + vec2(7.31, -4.17)
                      + time * vec2(-0.006, 0.009));
     warp = warp * 2.0 - 1.0;
+    warp += currentDepth
+          * vec2(currentVector.y, -currentVector.x) * 0.12;
 
     vec2 flow = q
               + warp * mix(0.34, 0.76, evolution) * warpFactor
               + time * vec2(-0.006, 0.004);
+    flow += currentDepth
+          * (currentVector * 0.22 + vec2(-p.y, p.x) * 0.06);
     float body = flowFbm(flow * 0.94);
     float undercurrent = flowFbm(
         mat2(0.78, -0.63, 0.63, 0.78) * flow * 1.46
@@ -200,6 +224,7 @@ uniform float uEvolution;
 uniform float uFocus;
 uniform vec3 uAccent;
 uniform vec4 uCharacterBlend;
+uniform float uCurrentBlend;
 
 void main()
 {
@@ -209,17 +234,24 @@ void main()
     float evolution = clamp(uEvolution, 0.0, 1.0);
     float focus = clamp(uFocus, 0.0, 1.0);
     vec4 character = max(uCharacterBlend, vec4(0.0));
-    character /= max(dot(character, vec4(1.0)), 0.0001);
+    float currentBlend = max(uCurrentBlend, 0.0);
+    float characterWeight = max(dot(character, vec4(1.0))
+                                + currentBlend,
+                                0.0001);
+    character /= characterWeight;
+    currentBlend /= characterWeight;
 
     vec3 accent = clamp(uAccent, vec3(0.0), vec3(1.0));
     float luminance = dot(accent, vec3(0.2126, 0.7152, 0.0722));
     accent = mix(vec3(luminance), accent, 0.74);
     vec3 glowTint = mix(vec3(0.040, 0.125, 0.138), accent, 0.70);
 
-    float coreGain = dot(character, vec4(0.068, 0.086, 0.081, 0.041))
+    float coreGain = (dot(character, vec4(0.068, 0.086, 0.081, 0.041))
+                    + currentBlend * 0.052)
                    * mix(0.55, 1.15, evolution)
                    * mix(0.88, 1.12, focus);
-    float haloGain = dot(character, vec4(0.44, 0.63, 0.49, 0.55))
+    float haloGain = (dot(character, vec4(0.44, 0.63, 0.49, 0.55))
+                    + currentBlend * 0.56)
                    * mix(0.68, 1.25, evolution)
                    * mix(1.12, 1.00, focus);
     float light = scene.a * coreGain

@@ -167,6 +167,10 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
     focusKnob_.setFocusOrder(13);
     mixKnob_.setFocusOrder(14);
 
+    const auto initialCurrentVisual = processor_.getCurrentVisualSnapshot();
+    deepCurrent_.setCurrentFieldSnapshot(initialCurrentVisual.flowX,
+                                         initialCurrentVisual.flowY,
+                                         initialCurrentVisual.strength);
     deepCurrent_.reset(visualCharacter_,
                        static_cast<float>(evolutionKnob_.getSlider().getValue() * 0.01),
                        freezeButton_.getToggleState());
@@ -176,6 +180,9 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
         static_cast<float>(evolutionKnob_.getSlider().getValue() * 0.01),
         static_cast<float>(focusKnob_.getSlider().getValue() * 0.01),
         freezeButton_.getToggleState(),
+        initialCurrentVisual.flowX,
+        initialCurrentVisual.flowY,
+        initialCurrentVisual.strength,
         currentAccent_);
 
     setResizable(true, true);
@@ -324,6 +331,10 @@ void AmanitaOceanAudioProcessorEditor::timerCallback()
     constexpr auto timerRate = 30.0;
     const auto evolution = static_cast<float>(evolutionKnob_.getSlider().getValue() * 0.01);
     const auto frozen = freezeButton_.getToggleState();
+    const auto currentVisual = processor_.getCurrentVisualSnapshot();
+    deepCurrent_.setCurrentFieldSnapshot(currentVisual.flowX,
+                                         currentVisual.flowY,
+                                         currentVisual.strength);
     backgroundDirty_ = deepCurrent_.advance(1.0 / timerRate,
                                             visualCharacter_,
                                             evolution,
@@ -358,6 +369,9 @@ void AmanitaOceanAudioProcessorEditor::timerCallback()
             deepCurrent_.getEvolution(),
             static_cast<float>(focusKnob_.getSlider().getValue() * 0.01),
             frozen,
+            currentVisual.flowX,
+            currentVisual.flowY,
+            currentVisual.strength,
             currentAccent_);
     }
 
@@ -391,7 +405,7 @@ void AmanitaOceanAudioProcessorEditor::timerCallback()
 
 void AmanitaOceanAudioProcessorEditor::updateCharacterVisuals(int characterIndex)
 {
-    visualCharacter_ = juce::jlimit(0, 3, characterIndex);
+    visualCharacter_ = juce::jlimit(0, 4, characterIndex);
     targetAccent_ = amanita::ui::characterAccent(visualCharacter_);
     backgroundDirty_ = true;
     repaint();
@@ -405,6 +419,9 @@ void AmanitaOceanAudioProcessorEditor::drawBathymetricField(juce::Graphics& grap
     const auto scale = field.getWidth() / 896.0f;
     const auto phase = static_cast<float>(deepCurrent_.getTimeSeconds() * 0.096);
     const auto& characterBlend = deepCurrent_.getCharacterBlend();
+    const auto currentFlowX = deepCurrent_.getCurrentFieldFlowX();
+    const auto currentFlowY = deepCurrent_.getCurrentFieldFlowY();
+    const auto currentFieldStrength = deepCurrent_.getCurrentFieldStrength();
     constexpr auto pointsPerContour = 112;
     constexpr auto contourCount = 10;
 
@@ -446,14 +463,23 @@ void AmanitaOceanAudioProcessorEditor::drawBathymetricField(juce::Graphics& grap
                 + (baseY - centre.y) * (0.88f - 0.10f * evolution)
                 + veil * slow;
 
+            const auto currentDepth = (0.18f + 0.82f * currentFieldStrength)
+                                    * (4.0f + 15.0f * spread) * scale;
+            const auto currentX = baseX
+                + currentDepth * (0.82f * currentFlowX + 0.18f * fine);
+            const auto currentY = baseY
+                + currentDepth * (0.58f * currentFlowY + 0.20f * slow);
+
             const auto x = characterBlend[0] * defaultX
                          + characterBlend[1] * bloomX
                          + characterBlend[2] * driftX
-                         + characterBlend[3] * veilX;
+                         + characterBlend[3] * veilX
+                         + characterBlend[4] * currentX;
             const auto y = characterBlend[0] * defaultY
                          + characterBlend[1] * bloomY
                          + characterBlend[2] * driftY
-                         + characterBlend[3] * veilY;
+                         + characterBlend[3] * veilY
+                         + characterBlend[4] * currentY;
 
             if (point == 0)
                 path.startNewSubPath(x, y);
@@ -490,8 +516,9 @@ juce::Rectangle<int> AmanitaOceanAudioProcessorEditor::scaledBounds(float x,
 
 juce::String AmanitaOceanAudioProcessorEditor::descriptionForCharacter(int characterIndex)
 {
-    constexpr std::array<const char*, 4> descriptions {
-        "Pure / Open", "Rising / Diffusion", "Spectral / Motion", "Soft / Cloud"
+    constexpr std::array<const char*, 5> descriptions {
+        "Pure / Open", "Rising / Diffusion", "Spectral / Motion", "Soft / Cloud",
+        "Coherent / Flow"
     };
-    return descriptions[static_cast<std::size_t>(juce::jlimit(0, 3, characterIndex))];
+    return descriptions[static_cast<std::size_t>(juce::jlimit(0, 4, characterIndex))];
 }

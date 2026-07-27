@@ -1,5 +1,6 @@
 #include "dsp/BloomCharacter.h"
 #include "dsp/CharacterExcitationNormalizer.h"
+#include "dsp/CurrentField.h"
 #include "dsp/FDNReverb.h"
 #include "dsp/DriftCharacter.h"
 #include "dsp/HarmonicTail.h"
@@ -134,6 +135,7 @@ namespace
 {
 using amanita::dsp::BloomCharacter;
 using amanita::dsp::CharacterExcitationNormalizer;
+using amanita::dsp::CurrentField;
 using amanita::dsp::FDNReverb;
 using amanita::dsp::DriftCharacter;
 using amanita::dsp::HarmonicAnalyzer;
@@ -660,6 +662,204 @@ void testCharacterEvolutionLoudnessNormalisation()
     }
 }
 
+void testCurrentFieldGeometryAndRateSafety()
+{
+    constexpr std::array<double, 4> sampleRates {
+        44100.0, 48000.0, 88200.0, 96000.0
+    };
+    std::array<float, CurrentField::numLines> referenceDelay {};
+    auto hasReference = false;
+    auto maximumPitchCents = 0.0;
+
+    for (const auto sampleRate : sampleRates)
+    {
+        CurrentField field;
+        field.prepare(sampleRate);
+        CurrentField::Frame previous;
+        const auto sampleCount = static_cast<int>(sampleRate);
+        for (auto sample = 0; sample < sampleCount; ++sample)
+        {
+            const auto frame = field.next(true);
+            auto delaySum = 0.0f;
+            auto dampingSum = 0.0f;
+            auto delayDampingDot = 0.0f;
+            for (std::size_t index = 0; index < CurrentField::numLines; ++index)
+            {
+                require(std::isfinite(frame.delay[index])
+                            && std::isfinite(frame.damping[index])
+                            && std::isfinite(frame.stereo[index]),
+                        "Current Field produced NaN/Inf");
+                require(std::abs(frame.delay[index]) <= 1.001f
+                            && std::abs(frame.damping[index]) <= 1.001f
+                            && std::abs(frame.stereo[index]) <= 1.001f,
+                        "Current Field projection escaped its unit bound");
+                delaySum += frame.delay[index];
+                dampingSum += frame.damping[index];
+                delayDampingDot += frame.delay[index] * frame.damping[index];
+
+                if (sample > 0)
+                {
+                    const auto delayStep = CurrentField::maximumDelaySeconds
+                        * static_cast<float>(sampleRate)
+                        * (frame.delay[index] - previous.delay[index]);
+                    const auto playbackRatio = std::max(0.5, 1.0 - delayStep);
+                    maximumPitchCents = std::max(
+                        maximumPitchCents,
+                        std::abs(1200.0 * std::log2(playbackRatio)));
+                }
+            }
+            require(std::abs(delaySum) <= 2.0e-5f
+                        && std::abs(dampingSum) <= 2.0e-5f,
+                    "Current Field lost its zero-mean geometry");
+            require(std::abs(delayDampingDot) <= 2.0e-5f,
+                    "Current delay and damping fields are not orthogonal");
+            previous = frame;
+        }
+
+        if (!hasReference)
+        {
+            referenceDelay = previous.delay;
+            hasReference = true;
+        }
+        else
+        {
+            for (std::size_t index = 0; index < CurrentField::numLines; ++index)
+                require(std::abs(previous.delay[index] - referenceDelay[index])
+                            <= 2.0e-5f,
+                        "Current Field physical rate changes with sample rate");
+        }
+    }
+    require(maximumPitchCents < 0.10,
+            "Current Field delay slope can create audible chorus pitch");
+
+    CurrentField inactive;
+    CurrentField resetReference;
+    inactive.prepare(48000.0);
+    resetReference.prepare(48000.0);
+    for (auto sample = 0; sample < 48000; ++sample)
+    {
+        const auto frame = inactive.next(false);
+        for (const auto value : frame.delay)
+            require(value == 0.0f,
+                    "Inactive Current Field does not remain a zero-cost bypass");
+    }
+    const auto advancedFrame = inactive.next(true);
+    const auto resetFrame = resetReference.next(true);
+    auto inactiveAdvanceDifference = 0.0f;
+    for (std::size_t index = 0; index < CurrentField::numLines; ++index)
+        inactiveAdvanceDifference += std::abs(advancedFrame.delay[index]
+                                               - resetFrame.delay[index]);
+    require(inactiveAdvanceDifference > 0.01f,
+            "Inactive Current Field phase restarts when the mode is entered");
+
+    CurrentField coherence;
+    coherence.prepare(48000.0);
+    std::array<double, CurrentField::numLines * CurrentField::numLines> covariance {};
+    std::array<float, CurrentField::numLines> previousSample {};
+    constexpr auto stride = 64;
+    const auto coherenceSamples = 48000 * 20;
+    auto observations = 0;
+    for (auto sample = 0; sample < coherenceSamples; ++sample)
+    {
+        const auto frame = coherence.next(true);
+        if ((sample + 1) % stride != 0)
+            continue;
+
+        std::array<float, CurrentField::numLines> derivative {};
+        for (std::size_t index = 0; index < CurrentField::numLines; ++index)
+        {
+            derivative[index] = frame.delay[index] - previousSample[index];
+            previousSample[index] = frame.delay[index];
+        }
+        if (observations++ == 0)
+            continue;
+
+        for (std::size_t row = 0; row < CurrentField::numLines; ++row)
+            for (std::size_t column = 0; column < CurrentField::numLines; ++column)
+                covariance[row * CurrentField::numLines + column]
+                    += static_cast<double>(derivative[row]) * derivative[column];
+    }
+
+    auto trace = 0.0;
+    auto squaredFrobenius = 0.0;
+    for (std::size_t row = 0; row < CurrentField::numLines; ++row)
+    {
+        trace += covariance[row * CurrentField::numLines + row];
+        for (std::size_t column = 0; column < CurrentField::numLines; ++column)
+        {
+            const auto value = covariance[row * CurrentField::numLines + column];
+            squaredFrobenius += value * value;
+        }
+    }
+    require(trace > 1.0e-15 && squaredFrobenius > 1.0e-30,
+            "Current Field trajectory did not move");
+    const auto effectiveRank = trace * trace / squaredFrobenius;
+    std::cout << "[METRIC] Current Field effective rank=" << effectiveRank
+              << ", maximum pitch deviation=" << maximumPitchCents
+              << " cent\n";
+    require(effectiveRank <= 2.05,
+            "Current Field behaves like independent per-line LFOs");
+
+    const auto position = coherence.getLastFrame().stereo;
+    auto openMidMovement = 0.0f;
+    auto openSideMovement = 0.0f;
+    auto monoSafeMidMovement = 0.0f;
+    auto monoSafeSideMovement = 0.0f;
+    for (std::size_t line = 0; line < CurrentField::numLines; ++line)
+    {
+        std::array<float, CurrentField::numLines> impulse {};
+        impulse[line] = 1.0f;
+        const auto legacyBase = StereoField::decodeLegacy(impulse);
+        const auto legacyZero = StereoField::decodeCurrentLegacy(
+            impulse, position, 0.0f);
+        require(std::bit_cast<std::uint32_t>(legacyBase.left)
+                    == std::bit_cast<std::uint32_t>(legacyZero.left)
+                    && std::bit_cast<std::uint32_t>(legacyBase.right)
+                    == std::bit_cast<std::uint32_t>(legacyZero.right),
+                "Current open decoder changes its zero-depth endpoint");
+        const auto legacyMoved = StereoField::decodeCurrentLegacy(
+            impulse, position, 1.0f);
+        const auto legacyEnergy = legacyMoved.left * legacyMoved.left
+                                + legacyMoved.right * legacyMoved.right;
+        require(std::abs(legacyEnergy - 0.25f) <= 2.0e-6f,
+                "Current open decoder does not preserve per-line energy");
+        openMidMovement += std::abs(
+            0.5f * (legacyMoved.left + legacyMoved.right)
+            - 0.5f * (legacyBase.left + legacyBase.right));
+        openSideMovement += std::abs(
+            0.5f * (legacyMoved.left - legacyMoved.right)
+            - 0.5f * (legacyBase.left - legacyBase.right));
+
+        const auto monoBase = StereoField::decode(impulse);
+        const auto monoZero = StereoField::decodeCurrentMonoSafe(
+            impulse, position, 0.0f);
+        require(std::bit_cast<std::uint32_t>(monoBase.left)
+                    == std::bit_cast<std::uint32_t>(monoZero.left)
+                    && std::bit_cast<std::uint32_t>(monoBase.right)
+                    == std::bit_cast<std::uint32_t>(monoZero.right),
+                "Current mono-safe decoder changes its zero-depth endpoint");
+        const auto monoMoved = StereoField::decodeCurrentMonoSafe(
+            impulse, position, 1.0f);
+        const auto monoEnergy = monoMoved.left * monoMoved.left
+                              + monoMoved.right * monoMoved.right;
+        require(std::abs(monoEnergy - 0.25f) <= 2.0e-6f,
+                "Current mono-safe decoder does not preserve per-line energy");
+        require(monoMoved.left * monoMoved.right >= -1.0e-7f
+                    && std::abs(monoMoved.left + monoMoved.right) > 0.05f,
+                "Current mono-safe decoder lets a line cancel in mono");
+        monoSafeMidMovement += std::abs(
+            0.5f * (monoMoved.left + monoMoved.right)
+            - 0.5f * (monoBase.left + monoBase.right));
+        monoSafeSideMovement += std::abs(
+            0.5f * (monoMoved.left - monoMoved.right)
+            - 0.5f * (monoBase.left - monoBase.right));
+    }
+    require(openMidMovement > 0.01f && openSideMovement > 0.01f,
+            "Current open stereo field moves only Mid or only Side");
+    require(monoSafeMidMovement > 0.01f && monoSafeSideMovement > 0.01f,
+            "Current mono-safe stereo field moves only Mid or only Side");
+}
+
 void testFeedbackMatrix()
 {
     std::uint32_t state = 0x12345678u;
@@ -1045,13 +1245,175 @@ void testStereoFieldVoicingSwitch()
               << ", new-settled NRMS=" << postNormalisedError << '\n';
 }
 
+void testCurrentMonoSafeVoicingSwitch()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto totalSamples = 57600;
+    constexpr auto toggleSample = 24000;
+    constexpr auto postSettleSample = toggleSample + 7200;
+
+    ReverbParameters protectedParameters;
+    protectedParameters.mode = ReverbMode::current;
+    protectedParameters.mix = 1.0f;
+    protectedParameters.decaySeconds = 8.0f;
+    protectedParameters.size = 1.0f;
+    protectedParameters.preDelayMs = 0.0f;
+    protectedParameters.lowCutHz = 20.0f;
+    protectedParameters.highDampingHz = 20000.0f;
+    protectedParameters.evolution = 1.0f;
+    protectedParameters.width = 1.4f;
+    protectedParameters.ducking = 0.0f;
+    protectedParameters.harmony = 0.0f;
+    protectedParameters.autoHarmony = false;
+    protectedParameters.monoSafeStereo = true;
+
+    auto openParameters = protectedParameters;
+    openParameters.monoSafeStereo = false;
+
+    FDNReverb alwaysProtected;
+    FDNReverb alwaysOpen;
+    FDNReverb switched;
+    alwaysProtected.setParameters(protectedParameters);
+    alwaysOpen.setParameters(openParameters);
+    switched.setParameters(openParameters);
+    alwaysProtected.prepare(sampleRate, 512);
+    alwaysOpen.prepare(sampleRate, 512);
+    switched.prepare(sampleRate, 512);
+
+    auto preErrorEnergy = 0.0;
+    auto preReferenceEnergy = 0.0;
+    auto postErrorEnergy = 0.0;
+    auto postReferenceEnergy = 0.0;
+    auto firstTransitionFraction = 0.0;
+    auto preSwitchPeak = 1.0e-3f;
+    auto maximumResidualDerivative = 0.0f;
+    auto previousResidualLeft = 0.0f;
+    auto previousResidualRight = 0.0f;
+    auto peak = 0.0f;
+    std::uint32_t noiseState = 0x7ac31du;
+
+    for (auto sample = 0; sample < totalSamples; ++sample)
+    {
+        if (sample == toggleSample)
+            switched.setParameters(protectedParameters);
+
+        noiseState = noiseState * 1664525u + 1013904223u;
+        const auto noise = static_cast<float>(
+            static_cast<std::int32_t>(noiseState))
+            / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+        const auto excitationActive = sample < 9600;
+        const auto inputLeft = excitationActive
+            ? (sample == 0 ? 0.8f : 0.012f * noise)
+            : 0.0f;
+        const auto inputRight = excitationActive
+            ? (sample == 0 ? -0.35f : -0.009f * noise)
+            : 0.0f;
+
+        auto protectedLeft = inputLeft;
+        auto protectedRight = inputRight;
+        auto openLeft = inputLeft;
+        auto openRight = inputRight;
+        auto switchedLeft = inputLeft;
+        auto switchedRight = inputRight;
+        alwaysProtected.processSample(protectedLeft, protectedRight);
+        alwaysOpen.processSample(openLeft, openRight);
+        switched.processSample(switchedLeft, switchedRight);
+
+        require(std::isfinite(switchedLeft) && std::isfinite(switchedRight),
+                "Current Mono Safe transition produced NaN/Inf");
+        peak = std::max({ peak, std::abs(switchedLeft),
+                         std::abs(switchedRight) });
+
+        if (sample < toggleSample)
+        {
+            const auto leftError =
+                static_cast<double>(switchedLeft - openLeft);
+            const auto rightError =
+                static_cast<double>(switchedRight - openRight);
+            preErrorEnergy += leftError * leftError + rightError * rightError;
+            preReferenceEnergy += static_cast<double>(openLeft) * openLeft
+                                + static_cast<double>(openRight) * openRight;
+            if (sample >= toggleSample - 1024)
+                preSwitchPeak = std::max(
+                    preSwitchPeak,
+                    std::max(std::abs(openLeft), std::abs(openRight)));
+        }
+        else
+        {
+            const auto residualLeft = switchedLeft - openLeft;
+            const auto residualRight = switchedRight - openRight;
+            if (sample == toggleSample)
+            {
+                const auto firstDistance = std::hypot(
+                    static_cast<double>(residualLeft),
+                    static_cast<double>(residualRight));
+                const auto fullDistance = std::hypot(
+                    static_cast<double>(protectedLeft - openLeft),
+                    static_cast<double>(protectedRight - openRight));
+                require(fullDistance > 1.0e-8,
+                        "Current Mono Safe test has no decoder contrast");
+                firstTransitionFraction = firstDistance / fullDistance;
+            }
+            // Inspect the onset of the 30 ms morph. Once the crossfade is
+            // established, the residual legitimately contains the moving
+            // difference between two decorrelated stereo decoders.
+            if (sample < toggleSample + 256)
+            {
+                maximumResidualDerivative = std::max({
+                    maximumResidualDerivative,
+                    std::abs(residualLeft - previousResidualLeft),
+                    std::abs(residualRight - previousResidualRight)
+                });
+            }
+            if (sample >= postSettleSample)
+            {
+                const auto leftError =
+                    static_cast<double>(switchedLeft - protectedLeft);
+                const auto rightError =
+                    static_cast<double>(switchedRight - protectedRight);
+                postErrorEnergy += leftError * leftError
+                                 + rightError * rightError;
+                postReferenceEnergy
+                    += static_cast<double>(protectedLeft) * protectedLeft
+                     + static_cast<double>(protectedRight) * protectedRight;
+            }
+            previousResidualLeft = residualLeft;
+            previousResidualRight = residualRight;
+        }
+    }
+
+    const auto preNormalisedError = std::sqrt(
+        preErrorEnergy / std::max(preReferenceEnergy, 1.0e-20));
+    const auto postNormalisedError = std::sqrt(
+        postErrorEnergy / std::max(postReferenceEnergy, 1.0e-20));
+    const auto derivativeLimit = std::max(2.0e-4f, 0.11f * preSwitchPeak);
+    require(preNormalisedError < 1.0e-7,
+            "Current Mono Safe Off differs before switching");
+    require(firstTransitionFraction < 0.02,
+            "Current Mono Safe switch changes the tail immediately");
+    require(maximumResidualDerivative <= derivativeLimit,
+            "Current Mono Safe morph changes too abruptly: derivative="
+                + std::to_string(maximumResidualDerivative)
+                + " limit=" + std::to_string(derivativeLimit));
+    require(postNormalisedError < 1.0e-5,
+            "Current Mono Safe switch does not settle on its protected path");
+    require(peak < 4.0f,
+            "Current Mono Safe transition exceeded the safety range");
+
+    std::cout << "[METRIC] Current Mono Safe switch: first fraction="
+              << firstTransitionFraction
+              << ", max residual derivative=" << maximumResidualDerivative
+              << ", settled NRMS=" << postNormalisedError << '\n';
+}
+
 void testStereoFieldFdnIntegration()
 {
     constexpr std::array modes {
         ReverbMode::defaultMode,
         ReverbMode::bloom,
         ReverbMode::drift,
-        ReverbMode::veil
+        ReverbMode::veil,
+        ReverbMode::current
     };
     constexpr std::array<double, 4> sampleRates {
         44100.0, 48000.0, 88200.0, 96000.0
@@ -1779,7 +2141,8 @@ void testMinimumSizeSampleRatesAndStability()
         ReverbMode::defaultMode,
         ReverbMode::bloom,
         ReverbMode::drift,
-        ReverbMode::veil
+        ReverbMode::veil,
+        ReverbMode::current
     };
 
     for (const auto mode : modes)
@@ -1858,12 +2221,13 @@ void testMinimumSizeSampleRatesAndStability()
     }
 }
 
-void testDecayNormalisedExcitation()
+void testNaturalDecayExcitation()
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto measurementSeconds = 4.0;
     constexpr std::array<float, 4> decaySeconds { 5.0f, 10.0f, 20.0f, 30.0f };
     std::array<double, decaySeconds.size()> wetRms {};
+    std::array<double, decaySeconds.size()> earlyDirectEnergy {};
 
     for (std::size_t decayIndex = 0; decayIndex < decaySeconds.size(); ++decayIndex)
     {
@@ -1883,6 +2247,30 @@ void testDecayNormalisedExcitation()
         reverb.setParameters(parameters);
         reverb.prepare(sampleRate, 512);
 
+        const auto& nominalDelays = reverb.getNominalDelaySamples();
+        const auto firstDirectSample = static_cast<int>(
+            std::lround(nominalDelays[0]));
+        const auto secondDirectSample = static_cast<int>(
+            std::lround(nominalDelays[1]));
+        require(secondDirectSample > firstDirectSample,
+                "Decay onset measurement has invalid delay geometry");
+        for (auto sample = 0; sample < secondDirectSample; ++sample)
+        {
+            auto left = sample == 0 ? 1.0f : 0.0f;
+            auto right = 0.0f;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Decay onset measurement produced NaN/Inf");
+            if (sample >= firstDirectSample)
+                earlyDirectEnergy[decayIndex]
+                    += static_cast<double>(left) * left
+                     + static_cast<double>(right) * right;
+        }
+        require(earlyDirectEnergy[decayIndex] > 1.0e-12,
+                "Decay onset measurement is silent");
+
+        // The sustained-noise measurement starts from a clean network.
+        reverb.reset();
         const auto warmupSamples = static_cast<int>(
             std::ceil(sampleRate * static_cast<double>(decaySeconds[decayIndex]) * 1.5));
         const auto measurementSamples = static_cast<int>(sampleRate * measurementSeconds);
@@ -1901,7 +2289,7 @@ void testDecayNormalisedExcitation()
             reverb.processSample(left, right);
 
             require(std::isfinite(left) && std::isfinite(right),
-                    "Decay-normalised excitation produced NaN/Inf");
+                    "Natural Decay excitation produced NaN/Inf");
             peak = std::max({ peak, std::abs(left), std::abs(right) });
             if (sample >= warmupSamples)
                 outputEnergy += static_cast<double>(left) * left
@@ -1911,20 +2299,104 @@ void testDecayNormalisedExcitation()
         wetRms[decayIndex] = std::sqrt(
             outputEnergy / (2.0 * static_cast<double>(measurementSamples)));
         require(wetRms[decayIndex] > 1.0e-6,
-                "Decay-normalised excitation measurement is silent");
+                "Natural Decay excitation measurement is silent");
         require(peak < 4.0f,
-                "Decay-normalised excitation exceeded the safety range");
+                "Natural Decay excitation exceeded the safety range");
     }
 
     const auto [minimum, maximum] = std::minmax_element(wetRms.begin(), wetRms.end());
     const auto spreadDb = 20.0 * std::log10(*maximum / *minimum);
+    std::array<double, decaySeconds.size()> earlyDirectDb {};
+    for (std::size_t index = 0; index < decaySeconds.size(); ++index)
+        earlyDirectDb[index] = 10.0 * std::log10(
+            earlyDirectEnergy[index] / earlyDirectEnergy[0]);
     std::cout << "[METRIC] Decay excitation wet RMS: 5/10/20/30 s="
               << wetRms[0] << '/' << wetRms[1] << '/'
               << wetRms[2] << '/' << wetRms[3]
-              << ", spread=" << spreadDb << " dB\n";
+              << ", spread=" << spreadDb
+              << " dB; early direct=" << earlyDirectDb[0] << '/'
+              << earlyDirectDb[1] << '/' << earlyDirectDb[2] << '/'
+              << earlyDirectDb[3] << " dB\n";
 
-    require(spreadDb < 1.0,
-            "Decay changes sustained wet loudness excessively");
+    for (std::size_t index = 1; index < earlyDirectDb.size(); ++index)
+    {
+        require(std::abs(earlyDirectDb[index]) <= 0.01,
+                "Decay changes the direct Wet excitation level");
+        require(wetRms[index] >= wetRms[index - 1] * 0.999,
+                "Sustained Wet energy unexpectedly falls as Decay rises");
+    }
+
+    const auto sustainedThirtyToFiveDb = 20.0 * std::log10(
+        wetRms.back() / wetRms.front());
+    require(sustainedThirtyToFiveDb >= 3.0
+                && sustainedThirtyToFiveDb <= 4.3,
+            "Natural FDN energy does not grow as expected with Decay");
+
+    constexpr std::array modes {
+        ReverbMode::defaultMode,
+        ReverbMode::bloom,
+        ReverbMode::drift,
+        ReverbMode::veil,
+        ReverbMode::current
+    };
+    constexpr std::array sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
+    auto minimumOnsetRatioDb = std::numeric_limits<double>::max();
+    auto maximumOnsetRatioDb = std::numeric_limits<double>::lowest();
+
+    for (const auto mode : modes)
+    {
+        for (const auto rate : sampleRates)
+        {
+            const auto measureOnsetEnergy = [mode, rate](float decay)
+            {
+                ReverbParameters onsetParameters;
+                onsetParameters.mode = mode;
+                onsetParameters.mix = 1.0f;
+                onsetParameters.decaySeconds = decay;
+                onsetParameters.size = 1.0f;
+                onsetParameters.preDelayMs = 0.0f;
+                onsetParameters.lowCutHz = 20.0f;
+                onsetParameters.highDampingHz = 20000.0f;
+                onsetParameters.evolution = 1.0f;
+                onsetParameters.width = 1.0f;
+                onsetParameters.ducking = 0.0f;
+                onsetParameters.harmony = 0.0f;
+
+                FDNReverb onsetReverb;
+                onsetReverb.setParameters(onsetParameters);
+                onsetReverb.prepare(rate, 512);
+                const auto& delays = onsetReverb.getNominalDelaySamples();
+                const auto firstReturn = static_cast<int>(
+                    std::floor(*std::min_element(delays.begin(), delays.end())));
+                const auto secondReturn = static_cast<int>(
+                    std::floor(*std::next(delays.begin())));
+                auto energy = 0.0;
+                for (auto sample = 0; sample < secondReturn; ++sample)
+                {
+                    auto left = sample == 0 ? 1.0f : 0.0f;
+                    auto right = 0.0f;
+                    onsetReverb.processSample(left, right);
+                    if (sample >= firstReturn)
+                        energy += static_cast<double>(left) * left
+                                + static_cast<double>(right) * right;
+                }
+                return energy;
+            };
+
+            const auto shortEnergy = measureOnsetEnergy(5.0f);
+            const auto longEnergy = measureOnsetEnergy(30.0f);
+            require(shortEnergy > 1.0e-12 && longEnergy > 1.0e-12,
+                    "Mode/rate Decay onset measurement is silent");
+            const auto ratioDb = 10.0 * std::log10(longEnergy / shortEnergy);
+            minimumOnsetRatioDb = std::min(minimumOnsetRatioDb, ratioDb);
+            maximumOnsetRatioDb = std::max(maximumOnsetRatioDb, ratioDb);
+            require(std::abs(ratioDb) <= 0.01,
+                    "Decay changes onset level for a Character/sample rate");
+        }
+    }
+
+    require(maximumOnsetRatioDb - minimumOnsetRatioDb <= 0.01,
+            "Decay onset level is not Character/sample-rate independent");
 }
 
 void testImpulseDecayAndFiniteOutput()
@@ -2678,7 +3150,10 @@ void requireSmoothModeSwitch(ReverbMode fromMode,
 
     require(firstResidual <= std::max(1.0e-5f, 0.02f * preSwitchPeak),
             label + " has an immediate discontinuity");
-    const auto derivativeLimit = std::max(2.0e-4f, 0.11f * preSwitchPeak);
+    // This guards an abrupt edge, not the intended 200-ms morph itself. Use a
+    // small level-relative margin so a deliberate Wet gain policy change does
+    // not invalidate an otherwise identical smoothing trajectory.
+    const auto derivativeLimit = std::max(2.0e-4f, 0.12f * preSwitchPeak);
     std::cout << "[METRIC] " << label << ": first residual=" << firstResidual
               << ", max residual derivative=" << maximumResidualDerivative
               << ", derivative limit=" << derivativeLimit << '\n';
@@ -2790,7 +3265,9 @@ void requireSmoothEvolutionSwitch(ReverbMode mode,
 
     require(firstResidual <= std::max(1.0e-5f, 0.02f * preSwitchPeak),
             label + " has an immediate discontinuity");
-    const auto derivativeLimit = std::max(2.0e-4f, 0.11f * preSwitchPeak);
+    // Evolution uses the same 200-ms morph policy as Character. Keep this
+    // threshold relative to the deliberately louder natural Wet reference.
+    const auto derivativeLimit = std::max(2.0e-4f, 0.125f * preSwitchPeak);
     std::cout << "[METRIC] " << label << ": first residual=" << firstResidual
               << ", max residual derivative=" << maximumResidualDerivative
               << ", derivative limit=" << derivativeLimit << '\n';
@@ -2803,6 +3280,219 @@ void requireSmoothEvolutionSwitch(ReverbMode mode,
     require(normalisedReturnedRms > 0.01,
             label + " has no measurable effect after first delay return: RMS="
                 + std::to_string(normalisedReturnedRms));
+}
+
+void testCurrentFdnMinimumMovementAndSwitching()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto sampleCount = 192000;
+    ReverbParameters parameters;
+    parameters.mode = ReverbMode::defaultMode;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 5.0f;
+    parameters.size = 1.0f;
+    parameters.preDelayMs = 0.0f;
+    parameters.lowCutHz = 20.0f;
+    parameters.highDampingHz = 20000.0f;
+    parameters.evolution = 0.0f;
+    parameters.width = 1.0f;
+    parameters.ducking = 0.0f;
+    parameters.harmony = 0.0f;
+
+    const auto defaultLow = renderImpulse(parameters, sampleRate, sampleCount);
+    parameters.mode = ReverbMode::current;
+    const auto currentLow = renderImpulse(parameters, sampleRate, sampleCount);
+    auto lowReferenceEnergy = 0.0;
+    auto lowCurrentEnergy = 0.0;
+    auto lowDifferenceEnergy = 0.0;
+    const auto lowAnalysisStart = static_cast<int>(sampleRate * 0.10);
+    const auto lowAnalysisEnd = static_cast<int>(sampleRate * 3.5);
+    for (auto sample = lowAnalysisStart; sample < lowAnalysisEnd; ++sample)
+    {
+        const auto index = static_cast<std::size_t>(sample);
+        const auto defaultLeft = static_cast<double>(defaultLow.left[index]);
+        const auto defaultRight = static_cast<double>(defaultLow.right[index]);
+        const auto currentLeft = static_cast<double>(currentLow.left[index]);
+        const auto currentRight = static_cast<double>(currentLow.right[index]);
+        lowReferenceEnergy += defaultLeft * defaultLeft
+                            + defaultRight * defaultRight;
+        lowCurrentEnergy += currentLeft * currentLeft + currentRight * currentRight;
+        lowDifferenceEnergy += (currentLeft - defaultLeft)
+                                   * (currentLeft - defaultLeft)
+                             + (currentRight - defaultRight)
+                                   * (currentRight - defaultRight);
+    }
+    require(lowReferenceEnergy > 1.0e-12 && lowCurrentEnergy > 1.0e-12,
+            "Current low-Evolution comparison became silent");
+    const auto lowNormalisedDifference = std::sqrt(
+        lowDifferenceEnergy / lowReferenceEnergy);
+    const auto lowEnergyRatio = lowCurrentEnergy / lowReferenceEnergy;
+    std::cout << "[METRIC] Current minimum field NRMS="
+              << lowNormalisedDifference
+              << ", energy ratio=" << lowEnergyRatio << '\n';
+    require(lowNormalisedDifference >= 0.005
+                && lowNormalisedDifference <= 1.20,
+            "Current minimum field is either identical to Default or unstable");
+    require(lowEnergyRatio >= 0.85 && lowEnergyRatio <= 1.15,
+            "Current minimum field changes tail energy excessively");
+
+    parameters.evolution = 1.0f;
+    const auto currentHigh = renderImpulse(parameters, sampleRate, sampleCount);
+    auto referenceEnergy = 0.0;
+    auto differenceEnergy = 0.0;
+    auto currentEnergy = 0.0;
+    auto peak = 0.0f;
+    const auto analysisStart = static_cast<int>(sampleRate * 0.10);
+    const auto analysisEnd = static_cast<int>(sampleRate * 3.5);
+    for (auto sample = analysisStart; sample < analysisEnd; ++sample)
+    {
+        const auto index = static_cast<std::size_t>(sample);
+        const auto lowLeft = static_cast<double>(currentLow.left[index]);
+        const auto lowRight = static_cast<double>(currentLow.right[index]);
+        const auto highLeft = static_cast<double>(currentHigh.left[index]);
+        const auto highRight = static_cast<double>(currentHigh.right[index]);
+        referenceEnergy += lowLeft * lowLeft + lowRight * lowRight;
+        currentEnergy += highLeft * highLeft + highRight * highRight;
+        differenceEnergy += (highLeft - lowLeft) * (highLeft - lowLeft)
+                          + (highRight - lowRight) * (highRight - lowRight);
+        require(std::isfinite(highLeft) && std::isfinite(highRight),
+                "Current high-Evolution render produced NaN/Inf");
+        peak = std::max({ peak,
+                          static_cast<float>(std::abs(highLeft)),
+                          static_cast<float>(std::abs(highRight)) });
+    }
+    require(referenceEnergy > 1.0e-12 && currentEnergy > 1.0e-12,
+            "Current comparison became silent");
+    const auto normalisedDifference = std::sqrt(
+        differenceEnergy / referenceEnergy);
+    const auto energyRatio = currentEnergy / referenceEnergy;
+    std::cout << "[METRIC] Current FDN NRMS=" << normalisedDifference
+              << ", energy ratio=" << energyRatio
+              << ", peak=" << peak << '\n';
+    require(normalisedDifference >= 0.08,
+            "Current high Evolution is not audibly distinct");
+    require(energyRatio >= 0.50 && energyRatio <= 2.0,
+            "Current changes total tail energy excessively");
+    require(peak < 4.0f,
+            "Current high Evolution exceeded the safety range");
+
+    FDNReverb singleSample;
+    FDNReverb blockBased;
+    singleSample.setParameters(parameters);
+    blockBased.setParameters(parameters);
+    singleSample.prepare(sampleRate, 1);
+    blockBased.prepare(sampleRate, 127);
+    std::vector<float> singleLeft(48000, 0.0f);
+    std::vector<float> singleRight(48000, 0.0f);
+    std::vector<float> blockLeft(48000, 0.0f);
+    std::vector<float> blockRight(48000, 0.0f);
+    singleLeft[0] = blockLeft[0] = 1.0f;
+    for (auto sample = 0; sample < 48000; ++sample)
+        singleSample.process(singleLeft.data() + sample,
+                             singleRight.data() + sample, 1);
+    for (auto offset = 0; offset < 48000; offset += 127)
+    {
+        const auto blockSize = std::min(127, 48000 - offset);
+        blockBased.process(blockLeft.data() + offset,
+                           blockRight.data() + offset, blockSize);
+    }
+    for (auto sample = 0; sample < 48000; ++sample)
+    {
+        const auto index = static_cast<std::size_t>(sample);
+        require(std::bit_cast<std::uint32_t>(singleLeft[index])
+                    == std::bit_cast<std::uint32_t>(blockLeft[index])
+                    && std::bit_cast<std::uint32_t>(singleRight[index])
+                    == std::bit_cast<std::uint32_t>(blockRight[index]),
+                "Current depends on process block segmentation");
+    }
+
+    requireSmoothModeSwitch(ReverbMode::defaultMode, ReverbMode::current,
+                            "Default to Current switch");
+    requireSmoothModeSwitch(ReverbMode::current, ReverbMode::defaultMode,
+                            "Current to Default switch");
+    requireSmoothModeSwitch(ReverbMode::drift, ReverbMode::current,
+                            "Drift to Current switch");
+    requireSmoothModeSwitch(ReverbMode::current, ReverbMode::veil,
+                            "Current to Veil switch");
+    requireSmoothEvolutionSwitch(ReverbMode::current, 0.0f, 1.0f,
+                                 "Current low to high Evolution");
+    requireSmoothEvolutionSwitch(ReverbMode::current, 1.0f, 0.0f,
+                                 "Current high to low Evolution");
+}
+
+void testCurrentSampleRatesFreezeAndStability()
+{
+    constexpr std::array<double, 4> sampleRates {
+        44100.0, 48000.0, 88200.0, 96000.0
+    };
+    for (const auto sampleRate : sampleRates)
+    {
+        ReverbParameters parameters;
+        parameters.mode = ReverbMode::current;
+        parameters.mix = 1.0f;
+        parameters.decaySeconds = 30.0f;
+        parameters.size = 2.0f;
+        parameters.preDelayMs = 0.0f;
+        parameters.lowCutHz = 20.0f;
+        parameters.highDampingHz = 20000.0f;
+        parameters.evolution = 1.0f;
+        parameters.width = 2.0f;
+
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 512);
+        std::uint32_t noiseState = 0xc001c0deu;
+        auto peak = 0.0f;
+        const auto excitationSamples = static_cast<int>(sampleRate * 0.5);
+        for (auto sample = 0; sample < excitationSamples; ++sample)
+        {
+            noiseState = noiseState * 1664525u + 1013904223u;
+            const auto noise = static_cast<float>(
+                static_cast<std::int32_t>(noiseState))
+                / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+            auto left = (sample == 0 ? 1.0f : 0.0f) + 0.01f * noise;
+            auto right = (sample == 0 ? -0.31f : 0.0f) - 0.006f * noise;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Current excitation produced NaN/Inf");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+        }
+
+        parameters.freeze = true;
+        reverb.setParameters(parameters);
+        auto firstWindowEnergy = 0.0;
+        auto lastWindowEnergy = 0.0;
+        const auto frozenSamples = static_cast<int>(sampleRate * 8.0);
+        for (auto sample = 0; sample < frozenSamples; ++sample)
+        {
+            auto left = 0.0f;
+            auto right = 0.0f;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Current Freeze produced NaN/Inf");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+            const auto energy = static_cast<double>(left) * left
+                              + static_cast<double>(right) * right;
+            if (sample >= static_cast<int>(sampleRate)
+                && sample < static_cast<int>(sampleRate * 2.0))
+                firstWindowEnergy += energy;
+            if (sample >= static_cast<int>(sampleRate * 7.0))
+                lastWindowEnergy += energy;
+        }
+
+        require(firstWindowEnergy > 1.0e-10,
+                "Current Freeze tail became silent");
+        const auto frozenEnergyRatio = lastWindowEnergy / firstWindowEnergy;
+        std::cout << "[METRIC] Current Freeze " << sampleRate
+                  << " Hz late/early=" << frozenEnergyRatio
+                  << ", peak=" << peak << '\n';
+        require(lastWindowEnergy >= firstWindowEnergy * 0.40,
+                "Current Freeze tail collapsed unexpectedly");
+        require(lastWindowEnergy <= firstWindowEnergy * 1.25 + 1.0e-12,
+                "Current Freeze feedback energy grows over time");
+        require(peak < 4.0f,
+                "Current stress test exceeded the safety range");
+    }
 }
 
 void testVeilSampleRatesAndStability()
@@ -6058,7 +6748,8 @@ void testNoAllocationsInProcess()
         ReverbMode::defaultMode,
         ReverbMode::bloom,
         ReverbMode::drift,
-        ReverbMode::veil
+        ReverbMode::veil,
+        ReverbMode::current
     };
     auto modeIndex = std::size_t { 0 };
 
@@ -6226,7 +6917,9 @@ void testDeterministicRenderFingerprints()
         RenderCase { "Drift low Evolution", ReverbMode::drift, 0.0f },
         RenderCase { "Drift high Evolution", ReverbMode::drift, 1.0f },
         RenderCase { "Veil low Evolution", ReverbMode::veil, 0.0f },
-        RenderCase { "Veil high Evolution", ReverbMode::veil, 1.0f }
+        RenderCase { "Veil high Evolution", ReverbMode::veil, 1.0f },
+        RenderCase { "Current low Evolution", ReverbMode::current, 0.0f },
+        RenderCase { "Current high Evolution", ReverbMode::current, 1.0f }
     };
 
     std::array<std::uint64_t, renderCases.size()> fingerprints {};
@@ -6590,11 +7283,13 @@ int main(int argc, char** argv)
                     testCharacterExcitationNormalisation },
         NamedTest { "Character Evolution loudness normalisation",
                     testCharacterEvolutionLoudnessNormalisation },
+        NamedTest { "Current Field geometry and rate safety",
+                    testCurrentFieldGeometryAndRateSafety },
         NamedTest { "delay geometry and sample rates", testDelayGeometryAndSampleRates },
         NamedTest { "minimum Size sample rates and stability",
                     testMinimumSizeSampleRatesAndStability },
-        NamedTest { "Decay-normalised excitation",
-                    testDecayNormalisedExcitation },
+        NamedTest { "natural Decay excitation",
+                    testNaturalDecayExcitation },
         NamedTest { "impulse decay and finite output", testImpulseDecayAndFiniteOutput },
         NamedTest { "feedback freeze and bad inputs", testFeedbackFreezeAndBadInputs },
         NamedTest { "independent DC Guard during Freeze",
@@ -6612,6 +7307,12 @@ int main(int argc, char** argv)
         NamedTest { "Drift block invariance and mode switching",
                     testDriftBlockInvarianceAndModeSwitching },
         NamedTest { "Drift spectral motion", testDriftSpectralMotion },
+        NamedTest { "Current FDN minimum field, movement and switching",
+                    testCurrentFdnMinimumMovementAndSwitching },
+        NamedTest { "Current Mono Safe stereo switching",
+                    testCurrentMonoSafeVoicingSwitch },
+        NamedTest { "Current sample rates, Freeze and stability",
+                    testCurrentSampleRatesFreezeAndStability },
         NamedTest { "Drift low/high Evolution kick+bass 190 BPM",
                     testDriftEvolutionKickBass190 },
         NamedTest { "Veil kick+bass 190 BPM", testVeilKickBass190 },
@@ -6655,7 +7356,7 @@ int main(int argc, char** argv)
     const auto wantsHarmonyTestsOnly = argc == 2
         && std::strcmp(argv[1], "--test-harmony") == 0;
     const auto wantsDecayTestsOnly = argc == 2
-        && std::strcmp(argv[1], "--test-decay-normalisation") == 0;
+        && std::strcmp(argv[1], "--test-decay-energy") == 0;
     const auto wantsDcGuardTestsOnly = argc == 2
         && std::strcmp(argv[1], "--test-dc-guard") == 0;
     const auto wantsStereoTestsOnly = argc == 2
@@ -6664,6 +7365,8 @@ int main(int argc, char** argv)
         && std::strcmp(argv[1], "--test-mode-switching") == 0;
     const auto wantsCharacterNormalisationTestsOnly = argc == 2
         && std::strcmp(argv[1], "--test-character-normalisation") == 0;
+    const auto wantsCurrentTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-current") == 0;
     auto failures = 0;
     for (const auto& test : tests)
     {
@@ -6676,7 +7379,7 @@ int main(int argc, char** argv)
             && std::strcmp(test.name, "no allocations in process") != 0)
             continue;
         if (wantsDecayTestsOnly
-            && std::strstr(test.name, "Decay-normalised") == nullptr
+            && std::strstr(test.name, "natural Decay") == nullptr
             && std::strcmp(test.name, "no allocations in process") != 0)
             continue;
         if (wantsDcGuardTestsOnly
@@ -6695,6 +7398,10 @@ int main(int argc, char** argv)
             && std::strstr(test.name, "normalisation") == nullptr
             && std::strcmp(test.name, "no allocations in process") != 0)
             continue;
+        if (wantsCurrentTestsOnly
+            && std::strstr(test.name, "Current") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
         try
         {
             test.function();
@@ -6711,12 +7418,15 @@ int main(int argc, char** argv)
     const auto wantsBloomRender = argc == 3 && std::strcmp(argv[1], "--render-bloom") == 0;
     const auto wantsDriftRender = argc == 3 && std::strcmp(argv[1], "--render-drift") == 0;
     const auto wantsVeilRender = argc == 3 && std::strcmp(argv[1], "--render-veil") == 0;
+    const auto wantsCurrentRender = argc == 3 && std::strcmp(argv[1], "--render-current") == 0;
     if (failures == 0
-        && (wantsDefaultRender || wantsBloomRender || wantsDriftRender || wantsVeilRender))
+        && (wantsDefaultRender || wantsBloomRender || wantsDriftRender
+            || wantsVeilRender || wantsCurrentRender))
     {
         try
         {
-            const auto mode = wantsVeilRender ? ReverbMode::veil
+            const auto mode = wantsCurrentRender ? ReverbMode::current
+                            : wantsVeilRender ? ReverbMode::veil
                             : wantsBloomRender ? ReverbMode::bloom
                             : wantsDriftRender ? ReverbMode::drift
                                                : ReverbMode::defaultMode;

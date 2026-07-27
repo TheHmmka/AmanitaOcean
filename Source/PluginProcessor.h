@@ -5,10 +5,18 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <atomic>
+#include <cstdint>
 
 class AmanitaOceanAudioProcessor final : public juce::AudioProcessor
 {
 public:
+    struct CurrentVisualSnapshot
+    {
+        float flowX = 0.0f;
+        float flowY = 0.0f;
+        float strength = 0.0f;
+    };
+
     AmanitaOceanAudioProcessor();
 
     void prepareToPlay(double sampleRate, int maximumExpectedSamplesPerBlock) override;
@@ -36,6 +44,7 @@ public:
 
     [[nodiscard]] juce::AudioProcessorValueTreeState& getParameterState() noexcept;
     [[nodiscard]] const juce::AudioProcessorValueTreeState& getParameterState() const noexcept;
+    [[nodiscard]] CurrentVisualSnapshot getCurrentVisualSnapshot() const noexcept;
 
 private:
     [[nodiscard]] static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -57,6 +66,11 @@ private:
     std::atomic<float>* freezeParameter_ = nullptr;
     std::atomic<float>* harmonyParameter_ = nullptr;
     std::atomic<float>* monoSafeParameter_ = nullptr;
+
+    std::atomic<std::uint32_t> currentVisualRevision_ { 0 };
+    std::atomic<float> currentVisualFlowX_ { 0.0f };
+    std::atomic<float> currentVisualFlowY_ { 0.0f };
+    std::atomic<float> currentVisualStrength_ { 0.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AmanitaOceanAudioProcessor)
 };

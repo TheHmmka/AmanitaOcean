@@ -32,11 +32,16 @@ struct AlgorithmCase
 };
 
 constexpr std::array algorithmCases {
-    AlgorithmCase { "Default", 0.0f,        0, amanita::dsp::ReverbMode::defaultMode },
-    AlgorithmCase { "Bloom",   1.0f / 3.0f, 1, amanita::dsp::ReverbMode::bloom },
-    AlgorithmCase { "Drift",   2.0f / 3.0f, 2, amanita::dsp::ReverbMode::drift },
-    AlgorithmCase { "Veil",    1.0f,        3, amanita::dsp::ReverbMode::veil }
+    AlgorithmCase { "Default", 0.0f,  0, amanita::dsp::ReverbMode::defaultMode },
+    AlgorithmCase { "Bloom",   0.25f, 1, amanita::dsp::ReverbMode::bloom },
+    AlgorithmCase { "Drift",   0.50f, 2, amanita::dsp::ReverbMode::drift },
+    AlgorithmCase { "Veil",    0.75f, 3, amanita::dsp::ReverbMode::veil },
+    AlgorithmCase { "Current", 1.0f,  4, amanita::dsp::ReverbMode::current }
 };
+
+static_assert(static_cast<std::size_t>(
+                  amanita::ui::DeepCurrentRenderer::characterCount)
+              == algorithmCases.size());
 
 constexpr std::array evolutionAmounts { 0.0f, 0.5f, 1.0f };
 
@@ -180,7 +185,7 @@ void testUnifiedHostContract()
     auto& algorithm = algorithmParameter(processor);
     require(algorithm.getName(128) == "Character", "Algorithm UI label changed");
     require(algorithm.choices.size() == static_cast<int>(algorithmCases.size()),
-            "Algorithm must contain exactly four choices");
+            "Algorithm must contain exactly five choices");
     require(algorithm.getIndex() == 0 && algorithm.getCurrentChoiceName() == "Default",
             "Algorithm does not default to Default");
 
@@ -423,7 +428,7 @@ void testCurrentStateRoundTrip()
     // ValueTree child. They must keep every existing setting and receive the
     // new feature's requested Off default.
     AmanitaOceanAudioProcessor legacySource;
-    algorithmParameter(legacySource).setValueNotifyingHost(2.0f / 3.0f);
+    algorithmParameter(legacySource).setValueNotifyingHost(0.50f);
     parameterById(legacySource, "mix").setValueNotifyingHost(0.812f);
     juce::MemoryBlock currentData;
     legacySource.getStateInformation(currentData);
@@ -463,10 +468,11 @@ juce::Component* findDescendantById(juce::Component& component,
 
 [[nodiscard]] juce::Colour backgroundAccent(int characterIndex) noexcept
 {
-    constexpr std::array<std::uint32_t, 4> colours {
-        0xff81bfc7, 0xffc89c83, 0xff829de0, 0xffb3a6c4
+    constexpr std::array<std::uint32_t, 5> colours {
+        0xff81bfc7, 0xffc89c83, 0xff829de0, 0xffb3a6c4, 0xff74c6a8
     };
-    return juce::Colour(colours[static_cast<std::size_t>(std::clamp(characterIndex, 0, 3))]);
+    return juce::Colour(colours[static_cast<std::size_t>(
+        std::clamp(characterIndex, 0, 4))]);
 }
 
 [[nodiscard]] juce::Image renderBackgroundBase(int width, int height)
@@ -503,9 +509,14 @@ juce::Component* findDescendantById(juce::Component& component,
                                                 float evolution,
                                                 bool frozen,
                                                 double timeSeconds,
-                                                juce::Colour accent)
+                                                juce::Colour accent,
+                                                float currentFlowX = 0.0f,
+                                                float currentFlowY = 0.0f,
+                                                float currentStrength = 0.0f)
 {
     amanita::ui::DeepCurrentRenderer renderer;
+    renderer.setCurrentFieldSnapshot(currentFlowX, currentFlowY,
+                                     currentStrength);
     renderer.reset(characterIndex, evolution, frozen, timeSeconds);
     renderer.setSize(width, height);
     renderer.render(accent);
@@ -600,9 +611,11 @@ void testDeepCurrentBackgroundRenderer()
     constexpr auto height = AmanitaOceanAudioProcessorEditor::defaultHeight;
     constexpr auto drift = 2;
     constexpr auto veil = 3;
+    constexpr auto current = 4;
     constexpr auto evolution = 0.82f;
     constexpr auto laterTime = 19.0;
     const auto accent = backgroundAccent(drift);
+    const auto currentAccent = backgroundAccent(current);
 
     const auto initial = renderBackgroundFrame(width, height, drift, evolution, false,
                                                0.0, accent);
@@ -614,11 +627,38 @@ void testDeepCurrentBackgroundRenderer()
                                                        2.0, accent);
     const auto veilAtSameTime = renderBackgroundFrame(width, height, veil, evolution, false,
                                                       laterTime, accent);
+    constexpr auto currentFlowX = 0.62f;
+    constexpr auto currentFlowY = -0.28f;
+    constexpr auto currentStrength = 0.78f;
+    const auto currentInitial = renderBackgroundFrame(
+        width, height, current, evolution, false, 0.0, currentAccent,
+        currentFlowX, currentFlowY, currentStrength);
+    const auto currentRepeated = renderBackgroundFrame(
+        width, height, current, evolution, false, 0.0, currentAccent,
+        currentFlowX, currentFlowY, currentStrength);
+    const auto currentLater = renderBackgroundFrame(
+        width, height, current, evolution, false, laterTime, currentAccent,
+        currentFlowX, currentFlowY, currentStrength);
+    const auto currentAtSameTime = renderBackgroundFrame(width, height, current, evolution,
+                                                         false, laterTime, accent,
+                                                         currentFlowX, currentFlowY,
+                                                         currentStrength);
+    const auto currentOppositeField = renderBackgroundFrame(
+        width, height, current, evolution, false, laterTime, currentAccent,
+        -currentFlowX, -currentFlowY, currentStrength);
     const auto base = renderBackgroundBase(width, height);
 
     const auto repeatDifference = measureImageDifference(initial, repeated);
     const auto motionDifference = measureImageDifference(initial, later);
     const auto characterDifference = measureImageDifference(later, veilAtSameTime);
+    const auto currentRepeatDifference = measureImageDifference(currentInitial,
+                                                                currentRepeated);
+    const auto currentMotionDifference = measureImageDifference(currentInitial,
+                                                                currentLater);
+    const auto currentCharacterDifference = measureImageDifference(later,
+                                                                   currentAtSameTime);
+    const auto currentFieldDifference = measureImageDifference(
+        currentLater, currentOppositeField);
     const auto overlayDifference = measureImageDifference(initial, base);
     const auto topRegion = juce::Rectangle<int>(0, 0, width, height / 4);
     const auto bottomRegion = juce::Rectangle<int>(0, height * 3 / 4,
@@ -644,6 +684,20 @@ void testDeepCurrentBackgroundRenderer()
     require(characterDifference.normalisedMean > 1.0e-6
                 && characterDifference.changedPixels > 1000,
             "Deep Current Drift and Veil frames are indistinguishable");
+    require(currentRepeatDifference.changedPixels == 0,
+            "Deep Current mode is not pixel-deterministic for identical inputs");
+    require(currentMotionDifference.normalisedMean > 1.0e-6
+                && currentMotionDifference.changedPixels > 1000,
+            "Deep Current mode does not visibly evolve between fixed render times");
+    require(currentMotionDifference.normalisedMean < 0.02
+                && currentMotionDifference.normalisedMaximum < 0.20,
+            "Deep Current mode fixed-time motion is too visually aggressive");
+    require(currentCharacterDifference.normalisedMean > 1.0e-6
+                && currentCharacterDifference.changedPixels > 1000,
+            "Deep Current mode and Drift frames are indistinguishable");
+    require(currentFieldDifference.normalisedMean > 1.0e-6
+                && currentFieldDifference.changedPixels > 1000,
+            "Deep Current renderer ignores the published DSP field direction");
     require(overlayDifference.normalisedMean > 1.0e-6
                 && overlayDifference.changedPixels > 1000,
             "Deep Current rendered no content over the base gradient");
@@ -877,6 +931,9 @@ void testDeepCurrentBackgroundRenderer()
               << "[METRIC] Deep Current mean pixel delta: motion="
               << motionDifference.normalisedMean
               << ", Drift/Veil=" << characterDifference.normalisedMean
+              << ", Drift/Current=" << currentCharacterDifference.normalisedMean
+              << ", Current motion=" << currentMotionDifference.normalisedMean
+              << ", Current field=" << currentFieldDifference.normalisedMean
               << ", overlay=" << overlayDifference.normalisedMean
               << ", motion changed pixels=" << motionDifference.changedPixels
               << ", top/bottom motion=" << topMotion.normalisedMean
@@ -919,8 +976,9 @@ void testCustomEditorLayoutAndAttachments()
     require(std::abs(constrainer->getFixedAspectRatio() - 1.5) <= 1.0e-9,
             "Custom editor aspect ratio is wrong");
 
-    constexpr std::array<const char*, 4> characterButtonIds {
-        "character-default", "character-bloom", "character-drift", "character-veil"
+    constexpr std::array<const char*, 5> characterButtonIds {
+        "character-default", "character-bloom", "character-drift", "character-veil",
+        "character-current"
     };
     for (int index = 0; index < static_cast<int>(characterButtonIds.size()); ++index)
     {
@@ -942,9 +1000,9 @@ void testCustomEditorLayoutAndAttachments()
                 "Inactive Character text is not sufficiently de-emphasised");
     }
 
-    constexpr std::array<const char*, 17> interactiveIds {
+    constexpr std::array<const char*, 18> interactiveIds {
         "character-selector", "character-default", "character-bloom", "character-drift",
-        "character-veil",
+        "character-veil", "character-current",
         "evolution", "preDelay", "size", "decay", "lowCut", "highDamping",
         "harmony", "width", "focus", "mix", "mono-safe", "freeze"
     };
@@ -1101,13 +1159,13 @@ void testCustomEditorLayoutAndAttachments()
             "Dragged Low Cut exposed fractional hertz in the custom label: "
                 + lowCutValueLabel->getText().toStdString());
 
-    auto* veilButton = dynamic_cast<juce::Button*>(
-        findDescendantById(*editor, "character-veil"));
-    require(veilButton != nullptr, "Veil selector button was not found");
-    require(!veilButton->getWantsKeyboardFocus(),
+    auto* currentButton = dynamic_cast<juce::Button*>(
+        findDescendantById(*editor, "character-current"));
+    require(currentButton != nullptr, "Current selector button was not found");
+    require(!currentButton->getWantsKeyboardFocus(),
             "Character segment must not create a keyboard-focus trap");
-    veilButton->onClick();
-    require(algorithmParameter(processor).getIndex() == 3,
+    currentButton->onClick();
+    require(algorithmParameter(processor).getIndex() == 4,
             "Custom Character selector did not update the host parameter");
 
     auto* freezeButton = dynamic_cast<juce::ToggleButton*>(
@@ -1149,8 +1207,8 @@ void renderEditorPng(const juce::String& path,
                      bool frozen)
 {
     AmanitaOceanAudioProcessor processor;
-    const auto safeIndex = std::clamp(characterIndex, 0, 3);
-    algorithmParameter(processor).setValueNotifyingHost(static_cast<float>(safeIndex) / 3.0f);
+    const auto safeIndex = std::clamp(characterIndex, 0, 4);
+    algorithmParameter(processor).setValueNotifyingHost(static_cast<float>(safeIndex) / 4.0f);
     parameterById(processor, "evolution").setValueNotifyingHost(0.68f);
     parameterById(processor, "freeze").setValueNotifyingHost(frozen ? 1.0f : 0.0f);
 
@@ -1181,7 +1239,7 @@ void renderBackgroundPng(const juce::String& path,
                          double timeSeconds,
                          int requestedWidth)
 {
-    const auto safeCharacter = std::clamp(characterIndex, 0, 3);
+    const auto safeCharacter = std::clamp(characterIndex, 0, 4);
     const auto safeEvolution = std::isfinite(evolution)
         ? std::clamp(evolution, 0.0f, 1.0f)
         : 0.68f;

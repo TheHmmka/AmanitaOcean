@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BloomCharacter.h"
+#include "CurrentField.h"
 #include "DriftCharacter.h"
 #include "HarmonicAnalyzer.h"
 #include "HarmonicTail.h"
@@ -19,7 +20,8 @@ enum class ReverbMode
     defaultMode = 0,
     bloom,
     drift,
-    veil
+    veil,
+    current
 };
 
 struct ReverbParameters
@@ -63,6 +65,8 @@ public:
     [[nodiscard]] double getSampleRate() const noexcept;
     [[nodiscard]] const std::array<float, numDelayLines>& getNominalDelaySamples() const noexcept;
     [[nodiscard]] const HarmonicAnalysisFrame& getHarmonicAnalysisFrame() const noexcept;
+    [[nodiscard]] const CurrentField::Frame& getCurrentFieldFrame() const noexcept;
+    [[nodiscard]] float getCurrentFieldStrength() const noexcept;
 
     static void applyFeedbackMatrix(std::array<float, numDelayLines>& values) noexcept;
 
@@ -122,11 +126,6 @@ private:
 
     void updateTargets() noexcept;
     [[nodiscard]] float diffuseInput(float sample, std::array<AllPass, 4>& stages) noexcept;
-    [[nodiscard]] float calculateDecayNormalisedInjectionGain(
-        float decaySeconds,
-        float size,
-        float width,
-        float evolution) const noexcept;
     [[nodiscard]] static float sanitise(float sample, float limit = 8.0f) noexcept;
     [[nodiscard]] static float flushDenormal(float sample) noexcept;
 
@@ -147,6 +146,7 @@ private:
     std::array<AllPass, 4> diffusersLeft_;
     std::array<AllPass, 4> diffusersRight_;
     BloomCharacter bloom_;
+    CurrentField currentField_;
     DriftCharacter drift_;
     HarmonicAnalyzer harmonicAnalyzer_;
     HarmonicTail harmonicTail_;
@@ -155,6 +155,7 @@ private:
     VeilCharacter veil_;
 
     LinearSmoother bloomAmount_;
+    LinearSmoother currentAmount_;
     LinearSmoother driftAmount_;
     LinearSmoother veilAmount_;
     LinearSmoother mix_;
@@ -167,7 +168,7 @@ private:
     LinearSmoother monoSafeStereoAmount_;
     LinearSmoother harmony_;
     LinearSmoother freeze_;
-    LinearSmoother decayInjectionGain_;
     float dcGuardCoefficient_ = 0.0f;
+    float currentFieldStrength_ = 0.0f;
 };
 } // namespace amanita::dsp

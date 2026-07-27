@@ -72,6 +72,9 @@ void OceanShaderBackground::setSnapshot(const Snapshot& snapshot) noexcept
                 snapshot.evolution,
                 snapshot.focus,
                 snapshot.frozen,
+                snapshot.currentFlowX,
+                snapshot.currentFlowY,
+                snapshot.currentStrength,
                 snapshot.accent);
 }
 
@@ -81,12 +84,41 @@ void OceanShaderBackground::setSnapshot(int algorithm,
                                         bool frozen,
                                         juce::Colour accent) noexcept
 {
-    algorithm_.store(juce::jlimit(0, 3, algorithm), std::memory_order_relaxed);
+    setSnapshot(algorithm, evolution, focus, frozen,
+                0.0f, 0.0f, 0.0f, accent);
+}
+
+void OceanShaderBackground::setSnapshot(int algorithm,
+                                        float evolution,
+                                        float focus,
+                                        bool frozen,
+                                        float currentFlowX,
+                                        float currentFlowY,
+                                        float currentStrength,
+                                        juce::Colour accent) noexcept
+{
+    // Acquire on the opening revision keeps the payload writes behind the
+    // visible odd revision; the closing release publishes one coherent frame.
+    snapshotRevision_.fetch_add(1, std::memory_order_acq_rel);
+    algorithm_.store(juce::jlimit(0, 4, algorithm), std::memory_order_relaxed);
     evolution_.store(clampUnit(evolution), std::memory_order_relaxed);
     focus_.store(clampUnit(focus), std::memory_order_relaxed);
     frozen_.store(frozen, std::memory_order_relaxed);
+    currentFlowX_.store(
+        std::isfinite(currentFlowX)
+            ? juce::jlimit(-1.0f, 1.0f, currentFlowX)
+            : 0.0f,
+        std::memory_order_relaxed);
+    currentFlowY_.store(
+        std::isfinite(currentFlowY)
+            ? juce::jlimit(-1.0f, 1.0f, currentFlowY)
+            : 0.0f,
+        std::memory_order_relaxed);
+    currentStrength_.store(clampUnit(currentStrength),
+                           std::memory_order_relaxed);
     accentArgb_.store(static_cast<std::uint32_t>(accent.getARGB()),
-                      std::memory_order_release);
+                      std::memory_order_relaxed);
+    snapshotRevision_.fetch_add(1, std::memory_order_release);
 }
 
 void OceanShaderBackground::triggerRepaint() noexcept
@@ -230,6 +262,12 @@ void OceanShaderBackground::renderOpenGL()
                               characterBlend_[1],
                               characterBlend_[2],
                               characterBlend_[3]);
+    sceneProgram_->setUniform("uCurrentBlend", characterBlend_[4]);
+    sceneProgram_->setUniform("uCurrentFlow",
+                              renderedCurrentFlowX_,
+                              renderedCurrentFlowY_);
+    sceneProgram_->setUniform("uCurrentStrength",
+                              renderedCurrentStrength_);
 
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
@@ -247,7 +285,8 @@ void OceanShaderBackground::renderOpenGL()
             characterBlend_[0] * 1.00f
           + characterBlend_[1] * 1.25f
           + characterBlend_[2] * 0.86f
-          + characterBlend_[3] * 1.35f;
+          + characterBlend_[3] * 1.35f
+          + characterBlend_[4] * 1.18f;
         const auto blurRadius =
             2.65f * characterRadius
           * juce::jmap(renderedEvolution_, 0.88f, 1.22f)
@@ -304,6 +343,7 @@ void OceanShaderBackground::renderOpenGL()
                                   characterBlend_[1],
                                   characterBlend_[2],
                                   characterBlend_[3]);
+    compositeProgram_->setUniform("uCurrentBlend", characterBlend_[4]);
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
     glActiveTexture(GL_TEXTURE1);
@@ -524,15 +564,32 @@ OceanShaderBackground::RenderSnapshot
 OceanShaderBackground::loadSnapshot() const noexcept
 {
     RenderSnapshot snapshot;
-    snapshot.algorithm = juce::jlimit(
-        0, 3, algorithm_.load(std::memory_order_relaxed));
-    snapshot.evolution = clampUnit(
-        evolution_.load(std::memory_order_relaxed));
-    snapshot.focus = clampUnit(focus_.load(std::memory_order_relaxed));
-    snapshot.frozen = frozen_.load(std::memory_order_relaxed);
-    snapshot.accent = juce::Colour(
-        accentArgb_.load(std::memory_order_acquire));
-    return snapshot;
+    for (;;)
+    {
+        const auto revisionBefore =
+            snapshotRevision_.load(std::memory_order_acquire);
+        if ((revisionBefore & 1u) != 0u)
+            continue;
+
+        snapshot.algorithm = juce::jlimit(
+            0, 4, algorithm_.load(std::memory_order_relaxed));
+        snapshot.evolution = clampUnit(
+            evolution_.load(std::memory_order_relaxed));
+        snapshot.focus = clampUnit(focus_.load(std::memory_order_relaxed));
+        snapshot.frozen = frozen_.load(std::memory_order_relaxed);
+        snapshot.currentFlowX =
+            currentFlowX_.load(std::memory_order_relaxed);
+        snapshot.currentFlowY =
+            currentFlowY_.load(std::memory_order_relaxed);
+        snapshot.currentStrength = clampUnit(
+            currentStrength_.load(std::memory_order_relaxed));
+        snapshot.accent = juce::Colour(
+            accentArgb_.load(std::memory_order_relaxed));
+
+        if (revisionBefore
+            == snapshotRevision_.load(std::memory_order_acquire))
+            return snapshot;
+    }
 }
 
 void OceanShaderBackground::initialiseRenderedState(
@@ -542,6 +599,9 @@ void OceanShaderBackground::initialiseRenderedState(
     characterBlend_[static_cast<std::size_t>(target.algorithm)] = 1.0f;
     renderedEvolution_ = target.evolution;
     renderedFocus_ = target.focus;
+    renderedCurrentFlowX_ = target.currentFlowX;
+    renderedCurrentFlowY_ = target.currentFlowY;
+    renderedCurrentStrength_ = target.currentStrength;
     renderedAccent_ = target.accent;
     motion_ = target.frozen ? 0.0f : 1.0f;
     renderedStateInitialised_ = true;
@@ -570,6 +630,12 @@ void OceanShaderBackground::advanceRenderedState(
     renderedEvolution_ +=
         (target.evolution - renderedEvolution_) * controlAmount;
     renderedFocus_ += (target.focus - renderedFocus_) * controlAmount;
+    renderedCurrentFlowX_ +=
+        (target.currentFlowX - renderedCurrentFlowX_) * controlAmount;
+    renderedCurrentFlowY_ +=
+        (target.currentFlowY - renderedCurrentFlowY_) * controlAmount;
+    renderedCurrentStrength_ +=
+        (target.currentStrength - renderedCurrentStrength_) * controlAmount;
 
     const auto colourAmount = smoothingAmount(elapsedSeconds, 0.42f);
     renderedAccent_ = renderedAccent_.interpolatedWith(target.accent,

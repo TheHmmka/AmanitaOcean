@@ -8,6 +8,9 @@
 
 namespace
 {
+static_assert(std::atomic<std::uint32_t>::is_always_lock_free);
+static_assert(std::atomic<float>::is_always_lock_free);
+
 constexpr auto algorithmId = "algorithm";
 constexpr auto mixId = "mix";
 constexpr auto decayId = "decay";
@@ -176,6 +179,16 @@ void AmanitaOceanAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     reverb_.setParameters(readDspParameters());
     reverb_.process(buffer.getWritePointer(0), buffer.getWritePointer(1), buffer.getNumSamples());
+
+    const auto& currentFrame = reverb_.getCurrentFieldFrame();
+    // Acquire on the opening revision prevents the following field stores
+    // from becoming visible before readers can observe the odd revision.
+    currentVisualRevision_.fetch_add(1, std::memory_order_acq_rel);
+    currentVisualFlowX_.store(currentFrame.flowX, std::memory_order_relaxed);
+    currentVisualFlowY_.store(currentFrame.flowY, std::memory_order_relaxed);
+    currentVisualStrength_.store(reverb_.getCurrentFieldStrength(),
+                                 std::memory_order_relaxed);
+    currentVisualRevision_.fetch_add(1, std::memory_order_release);
 }
 
 juce::AudioProcessorEditor* AmanitaOceanAudioProcessor::createEditor()
@@ -242,6 +255,28 @@ AmanitaOceanAudioProcessor::getParameterState() const noexcept
     return state_;
 }
 
+AmanitaOceanAudioProcessor::CurrentVisualSnapshot
+AmanitaOceanAudioProcessor::getCurrentVisualSnapshot() const noexcept
+{
+    CurrentVisualSnapshot snapshot;
+    for (;;)
+    {
+        const auto revisionBefore =
+            currentVisualRevision_.load(std::memory_order_acquire);
+        if ((revisionBefore & 1u) != 0u)
+            continue;
+
+        snapshot.flowX = currentVisualFlowX_.load(std::memory_order_relaxed);
+        snapshot.flowY = currentVisualFlowY_.load(std::memory_order_relaxed);
+        snapshot.strength =
+            currentVisualStrength_.load(std::memory_order_relaxed);
+        const auto revisionAfter =
+            currentVisualRevision_.load(std::memory_order_acquire);
+        if (revisionBefore == revisionAfter)
+            return snapshot;
+    }
+}
+
 juce::AudioProcessorValueTreeState::ParameterLayout
 AmanitaOceanAudioProcessor::createParameterLayout()
 {
@@ -250,7 +285,7 @@ AmanitaOceanAudioProcessor::createParameterLayout()
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID { algorithmId, 1 }, "Character",
-        juce::StringArray { "Default", "Bloom", "Drift", "Veil" }, 0));
+        juce::StringArray { "Default", "Bloom", "Drift", "Veil", "Current" }, 0));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { mixId, 1 }, "Mix",
         juce::NormalisableRange<float> { 0.0f, 100.0f, 0.1f }, 35.0f,
@@ -321,6 +356,9 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
             break;
         case 3:
             parameters.mode = amanita::dsp::ReverbMode::veil;
+            break;
+        case 4:
+            parameters.mode = amanita::dsp::ReverbMode::current;
             break;
         default:
             parameters.mode = amanita::dsp::ReverbMode::defaultMode;

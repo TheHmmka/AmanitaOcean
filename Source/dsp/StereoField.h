@@ -23,6 +23,14 @@ public:
         const std::array<float, numDelayLines>& delayOutputs) noexcept;
     [[nodiscard]] static Frame decodeLegacy(
         const std::array<float, numDelayLines>& delayOutputs) noexcept;
+    [[nodiscard]] static Frame decodeCurrentLegacy(
+        const std::array<float, numDelayLines>& delayOutputs,
+        const std::array<float, numDelayLines>& fieldPosition,
+        float depth) noexcept;
+    [[nodiscard]] static Frame decodeCurrentMonoSafe(
+        const std::array<float, numDelayLines>& delayOutputs,
+        const std::array<float, numDelayLines>& fieldPosition,
+        float depth) noexcept;
     [[nodiscard]] Frame applyWidth(float left, float right, float width) noexcept;
     [[nodiscard]] static Frame applyLegacyWidth(float left, float right,
                                                 float width) noexcept;

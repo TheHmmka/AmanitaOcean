@@ -39,6 +39,8 @@ add_library(AmanitaOceanDSP STATIC
     Source/dsp/BloomCharacter.h
     Source/dsp/CharacterExcitationNormalizer.cpp
     Source/dsp/CharacterExcitationNormalizer.h
+    Source/dsp/CurrentField.cpp
+    Source/dsp/CurrentField.h
     Source/dsp/DriftCharacter.cpp
     Source/dsp/DriftCharacter.h
     Source/dsp/FDNReverb.cpp
