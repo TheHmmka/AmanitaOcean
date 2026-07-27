@@ -37,6 +37,8 @@ FetchContent_MakeAvailable(clap_juce_extensions)
 add_library(AmanitaOceanDSP STATIC
     Source/dsp/BloomCharacter.cpp
     Source/dsp/BloomCharacter.h
+    Source/dsp/CharacterExcitationNormalizer.cpp
+    Source/dsp/CharacterExcitationNormalizer.h
     Source/dsp/DriftCharacter.cpp
     Source/dsp/DriftCharacter.h
     Source/dsp/FDNReverb.cpp

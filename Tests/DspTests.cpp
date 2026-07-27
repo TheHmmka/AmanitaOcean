@@ -1,3 +1,5 @@
+#include "dsp/BloomCharacter.h"
+#include "dsp/CharacterExcitationNormalizer.h"
 #include "dsp/FDNReverb.h"
 #include "dsp/DriftCharacter.h"
 #include "dsp/HarmonicTail.h"
@@ -130,6 +132,8 @@ void operator delete[](void* memory, std::size_t, std::align_val_t) noexcept
 
 namespace
 {
+using amanita::dsp::BloomCharacter;
+using amanita::dsp::CharacterExcitationNormalizer;
 using amanita::dsp::FDNReverb;
 using amanita::dsp::DriftCharacter;
 using amanita::dsp::HarmonicAnalyzer;
@@ -461,6 +465,199 @@ void testVeilImpulseSofteningAndEnergy()
             "Veil changes late reverb energy excessively");
     require(normalisedDifference > 0.10, "Veil is too similar to Default");
     require(veilShape.peak < 4.0f, "Veil impulse exceeded the safety range");
+}
+
+void testCharacterExcitationNormalisation()
+{
+    constexpr std::array<double, 4> sampleRates {
+        44100.0, 48000.0, 88200.0, 96000.0
+    };
+    constexpr std::array<float, 5> amounts { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+    auto minimumBloomDb = 100.0;
+    auto maximumBloomDb = -100.0;
+    auto minimumVeilDb = 100.0;
+    auto maximumVeilDb = -100.0;
+
+    require(std::abs(CharacterExcitationNormalizer::gain(0.0f, 0.0f) - 1.0f)
+                < 1.0e-7f,
+            "Character excitation normalisation changes Default/Drift");
+    require(std::abs(CharacterExcitationNormalizer::gain(1.0f, 0.0f)
+                     - 1.1175711f)
+                < 1.0e-5f,
+            "Bloom endpoint normalisation gain changed unexpectedly");
+    require(CharacterExcitationNormalizer::gain(0.0f, 0.5f) > 1.17f,
+            "Veil midpoint is not perceptually compensated");
+
+    for (const auto sampleRate : sampleRates)
+    {
+        for (const auto amount : amounts)
+        {
+            BloomCharacter bloom;
+            VeilCharacter veil;
+            bloom.prepare(sampleRate);
+            veil.prepare(sampleRate);
+
+            const auto warmupSamples = static_cast<int>(sampleRate);
+            const auto measurementSamples = static_cast<int>(sampleRate * 2.0);
+            const auto totalSamples = warmupSamples + measurementSamples;
+            std::uint32_t leftNoise = 0x243f6a88u;
+            std::uint32_t rightNoise = 0x85a308d3u;
+            auto inputEnergy = 0.0;
+            auto bloomEnergy = 0.0;
+            auto veilEnergy = 0.0;
+            const auto bloomGain = CharacterExcitationNormalizer::gain(amount, 0.0f);
+            const auto veilGain = CharacterExcitationNormalizer::gain(0.0f, amount);
+
+            for (auto sample = 0; sample < totalSamples; ++sample)
+            {
+                leftNoise = leftNoise * 1664525u + 1013904223u;
+                rightNoise = rightNoise * 22695477u + 1u;
+                const auto left = 0.05f
+                    * static_cast<float>(static_cast<std::int32_t>(leftNoise))
+                    / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+                const auto right = 0.05f
+                    * static_cast<float>(static_cast<std::int32_t>(rightNoise))
+                    / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+                const auto bloomFrame = bloom.processExcitation(left, right);
+                const auto veilFrame = veil.processExcitation(left, right);
+                const auto normalisedBloomLeft = bloomGain
+                    * (left + amount * (bloomFrame.left - left));
+                const auto normalisedBloomRight = bloomGain
+                    * (right + amount * (bloomFrame.right - right));
+                const auto normalisedVeilLeft = veilGain
+                    * (left + amount * (veilFrame.left - left));
+                const auto normalisedVeilRight = veilGain
+                    * (right + amount * (veilFrame.right - right));
+
+                require(std::isfinite(normalisedBloomLeft)
+                            && std::isfinite(normalisedBloomRight)
+                            && std::isfinite(normalisedVeilLeft)
+                            && std::isfinite(normalisedVeilRight),
+                        "Character excitation normalisation produced NaN/Inf");
+                if (sample >= warmupSamples)
+                {
+                    inputEnergy += static_cast<double>(left) * left
+                                 + static_cast<double>(right) * right;
+                    bloomEnergy += static_cast<double>(normalisedBloomLeft)
+                                       * normalisedBloomLeft
+                                 + static_cast<double>(normalisedBloomRight)
+                                       * normalisedBloomRight;
+                    veilEnergy += static_cast<double>(normalisedVeilLeft)
+                                      * normalisedVeilLeft
+                                + static_cast<double>(normalisedVeilRight)
+                                      * normalisedVeilRight;
+                }
+            }
+
+            const auto bloomDb = 10.0 * std::log10(
+                bloomEnergy / std::max(inputEnergy, 1.0e-20));
+            const auto veilDb = 10.0 * std::log10(
+                veilEnergy / std::max(inputEnergy, 1.0e-20));
+            minimumBloomDb = std::min(minimumBloomDb, bloomDb);
+            maximumBloomDb = std::max(maximumBloomDb, bloomDb);
+            minimumVeilDb = std::min(minimumVeilDb, veilDb);
+            maximumVeilDb = std::max(maximumVeilDb, veilDb);
+            require(bloomDb >= -1.10 && bloomDb <= 0.20,
+                    "Bloom excitation loudness is not energy matched");
+            require(veilDb >= -1.60 && veilDb <= 0.20,
+                    "Veil excitation loudness left the conservative matched range");
+        }
+    }
+
+    for (const auto bloomAmount : { -1.0f, 0.0f, 0.5f, 1.0f, 2.0f })
+    {
+        for (const auto veilAmount : { -1.0f, 0.0f, 0.5f, 1.0f, 2.0f })
+        {
+            const auto gain = CharacterExcitationNormalizer::gain(
+                bloomAmount, veilAmount);
+            require(std::isfinite(gain)
+                        && gain >= 0.75f
+                        && gain <= CharacterExcitationNormalizer::maximumGain,
+                    "Character excitation gain is invalid outside its nominal range");
+        }
+    }
+
+    std::cout << "[METRIC] Character excitation match: Bloom="
+              << minimumBloomDb << ".." << maximumBloomDb
+              << " dB, Veil=" << minimumVeilDb << ".." << maximumVeilDb
+              << " dB\n";
+}
+
+void testCharacterEvolutionLoudnessNormalisation()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr std::array<float, 5> evolutions { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f };
+    constexpr std::array modes { ReverbMode::bloom, ReverbMode::veil };
+
+    for (const auto mode : modes)
+    {
+        std::array<double, evolutions.size()> wetRms {};
+        for (std::size_t evolutionIndex = 0;
+             evolutionIndex < evolutions.size();
+             ++evolutionIndex)
+        {
+            ReverbParameters parameters;
+            parameters.mode = mode;
+            parameters.mix = 1.0f;
+            parameters.decaySeconds = 3.0f;
+            parameters.size = 1.0f;
+            parameters.preDelayMs = 0.0f;
+            parameters.lowCutHz = 20.0f;
+            parameters.highDampingHz = 20000.0f;
+            parameters.evolution = evolutions[evolutionIndex];
+            parameters.width = 0.0f;
+            parameters.ducking = 0.0f;
+            parameters.harmony = 0.0f;
+
+            FDNReverb reverb;
+            reverb.setParameters(parameters);
+            reverb.prepare(sampleRate, 512);
+
+            const auto warmupSamples = static_cast<int>(sampleRate * 7.0);
+            const auto measurementSamples = static_cast<int>(sampleRate * 2.0);
+            const auto totalSamples = warmupSamples + measurementSamples;
+            std::uint32_t leftNoise = 0x9e3779b9u;
+            std::uint32_t rightNoise = 0x7f4a7c15u;
+            auto outputEnergy = 0.0;
+            auto peak = 0.0f;
+            for (auto sample = 0; sample < totalSamples; ++sample)
+            {
+                leftNoise = leftNoise * 1664525u + 1013904223u;
+                rightNoise = rightNoise * 22695477u + 1u;
+                auto left = 0.025f
+                    * static_cast<float>(static_cast<std::int32_t>(leftNoise))
+                    / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+                auto right = 0.025f
+                    * static_cast<float>(static_cast<std::int32_t>(rightNoise))
+                    / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+                reverb.processSample(left, right);
+                require(std::isfinite(left) && std::isfinite(right),
+                        "Character loudness render produced NaN/Inf");
+                peak = std::max({ peak, std::abs(left), std::abs(right) });
+                if (sample >= warmupSamples)
+                    outputEnergy += static_cast<double>(left) * left
+                                  + static_cast<double>(right) * right;
+            }
+
+            wetRms[evolutionIndex] = std::sqrt(
+                outputEnergy / (2.0 * static_cast<double>(measurementSamples)));
+            require(wetRms[evolutionIndex] > 1.0e-7,
+                    "Character loudness render is silent");
+            require(peak < 4.0f,
+                    "Character loudness render exceeded the safety range");
+        }
+
+        const auto [minimum, maximum] = std::minmax_element(
+            wetRms.begin(), wetRms.end());
+        const auto spreadDb = 20.0 * std::log10(*maximum / *minimum);
+        std::cout << "[METRIC] Character Evolution wet RMS mode="
+                  << static_cast<int>(mode) << ": "
+                  << wetRms[0] << '/' << wetRms[1] << '/'
+                  << wetRms[2] << '/' << wetRms[3] << '/'
+                  << wetRms[4] << ", spread=" << spreadDb << " dB\n";
+        require(spreadDb <= 1.0,
+                "Evolution changes sustained Character loudness excessively");
+    }
 }
 
 void testFeedbackMatrix()
@@ -6389,6 +6586,10 @@ int main(int argc, char** argv)
         NamedTest { "Veil disperser kernel", testVeilDisperserKernel },
         NamedTest { "Veil impulse softening and energy",
                     testVeilImpulseSofteningAndEnergy },
+        NamedTest { "Character excitation covariance normalisation",
+                    testCharacterExcitationNormalisation },
+        NamedTest { "Character Evolution loudness normalisation",
+                    testCharacterEvolutionLoudnessNormalisation },
         NamedTest { "delay geometry and sample rates", testDelayGeometryAndSampleRates },
         NamedTest { "minimum Size sample rates and stability",
                     testMinimumSizeSampleRatesAndStability },
@@ -6461,6 +6662,8 @@ int main(int argc, char** argv)
         && std::strcmp(argv[1], "--test-stereo-field") == 0;
     const auto wantsModeSwitchTestsOnly = argc == 2
         && std::strcmp(argv[1], "--test-mode-switching") == 0;
+    const auto wantsCharacterNormalisationTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-character-normalisation") == 0;
     auto failures = 0;
     for (const auto& test : tests)
     {
@@ -6486,6 +6689,10 @@ int main(int argc, char** argv)
             continue;
         if (wantsModeSwitchTestsOnly
             && std::strstr(test.name, "mode switching") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
+        if (wantsCharacterNormalisationTestsOnly
+            && std::strstr(test.name, "normalisation") == nullptr
             && std::strcmp(test.name, "no allocations in process") != 0)
             continue;
         try

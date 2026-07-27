@@ -1,4 +1,5 @@
 #include "FDNReverb.h"
+#include "CharacterExcitationNormalizer.h"
 #include "LateralDecay.h"
 
 #include <algorithm>
@@ -17,6 +18,7 @@ constexpr float bloomFreezeFeedback = 0.9985f;
 constexpr float maximumPreDelaySeconds = 0.25f;
 constexpr float maximumDelayMotionSeconds = 0.00065f;
 constexpr float dcGuardFrequencyHz = 3.0f;
+constexpr double characterModeMorphSeconds = 0.20;
 constexpr float decayNormalisationReferenceSeconds = 5.0f;
 constexpr float minimumDecayInjectionGain = 0.55f;
 constexpr float maximumDecayInjectionGain = 1.35f;
@@ -269,7 +271,6 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
     (void) maximumBlockSize;
     sampleRate_ = std::isfinite(sampleRate) && sampleRate > 1000.0 ? sampleRate : 48000.0;
     dcGuardCoefficient_ = onePoleCoefficient(dcGuardFrequencyHz, sampleRate_);
-
     for (std::size_t index = 0; index < numDelayLines; ++index)
     {
         const auto scaled = static_cast<int>(std::round(
@@ -317,11 +318,11 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
     veil_.prepare(sampleRate_);
     spatialDucker_.prepare(sampleRate_, parameters_.ducking);
     stereoField_.prepare(sampleRate_);
-    bloomAmount_.prepare(sampleRate_, 0.20,
+    bloomAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                          parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
-    driftAmount_.prepare(sampleRate_, 0.20,
+    driftAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                          parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
-    veilAmount_.prepare(sampleRate_, 0.20,
+    veilAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                         parameters_.mode == ReverbMode::veil ? 1.0f : 0.0f);
     mix_.prepare(sampleRate_, 0.02, parameters_.mix);
     size_.prepare(sampleRate_, 0.25, parameters_.size);
@@ -360,11 +361,11 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
 
 void FDNReverb::reset() noexcept
 {
-    bloomAmount_.prepare(sampleRate_, 0.20,
+    bloomAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                          parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
-    driftAmount_.prepare(sampleRate_, 0.20,
+    driftAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                          parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
-    veilAmount_.prepare(sampleRate_, 0.20,
+    veilAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                         parameters_.mode == ReverbMode::veil ? 1.0f : 0.0f);
     monoSafeStereoAmount_.prepare(sampleRate_, 0.03,
                                   parameters_.monoSafeStereo ? 1.0f : 0.0f);
@@ -604,6 +605,10 @@ void FDNReverb::processSample(float& left, float& right) noexcept
         excitationLeft += effectiveVeilAmount * (veilExcitation.left - diffusedLeft);
         excitationRight += effectiveVeilAmount * (veilExcitation.right - diffusedRight);
     }
+    const auto characterExcitationGain = CharacterExcitationNormalizer::gain(
+        effectiveBloomAmount, effectiveVeilAmount);
+    excitationLeft = sanitise(excitationLeft * characterExcitationGain);
+    excitationRight = sanitise(excitationRight * characterExcitationGain);
 
     const auto size = size_.next();
     const auto motionSeconds = defaultAmount

@@ -23,6 +23,8 @@ Ambient и Downtempo. Текущая версия `0.20.0` — проверяе�
 - Veil lossless AP6 disperser, превращающий атаки в плотное ~90-ms облако;
 - mode-aware Evolution, согласованно управляющий силой Character и движением
   дробных delay lines;
+- статическая perceptual-нормализация Bloom/Veil excitation, удерживающая
+  интегральную энергию заметно ровнее при изменении Evolution без RMS/AGC;
 - RT60-derived gain каждой feedback-линии;
 - Lateral Decay без отдельной ручки: Width и Evolution слегка удлиняют
   RT60 боковой группы линий, не сокращая центральное mono-ядро;
@@ -88,6 +90,7 @@ stereo input
        -> Bloom: Evolution blend -> causal rising-tap FIR -> second L/R AP4 diffusion
        -> Veil: Evolution blend -> decorrelated L/R AP6 transient disperser
     -> smoothed Character morph
+    -> shared-L/R static covariance compensation (maximum gain 1.25)
     -> two orthogonal excitation vectors
     -> 8 Evolution-modulated fractional delay lines (+ Bloom slow per-line drift)
     -> low-cut + high-frequency damping
@@ -264,6 +267,25 @@ Default/Bloom/Drift↔Veil интерполируются за `200 ms` без �
 до `100%` по smoothstep-кривой; сам convex blend пассивен и не может усилить
 стационарную частоту. AP6 остаётся фиксированным и не создаёт chorus или pitch
 wobble.
+
+### Character excitation normalisation
+
+После Evolution-morph путей Bloom и Veil, но до двух ортогональных injection
+vectors FDN, применяется `CharacterExcitationNormalizer`. Он оценивает
+интегральную broadband-энергию по фиксированной covariance-матрице
+`Default/Bloom/Veil`, полученной из неизменяемых FIR/AP-ядер. Это
+signal-independent расчёт: в audio thread нет RMS-окна, envelope follower,
+AGC или реакции на текущий материал, поэтому компенсация не создаёт pumping и
+не меняет транзиенты вслед за входной громкостью.
+
+Один и тот же коэффициент умножает L и R, сохраняя исходную stereo-геометрию.
+Bloom использует мягкую fourth-root компенсацию (`power^-1/4`), чтобы вернуть
+часть перераспределённой энергии, но не отменить намеренно смягчённую атаку.
+По мере увеличения доли Veil показатель плавно растёт максимум до `1/3`,
+компенсируя более глубокую энергетическую впадину промежуточного AP6-morph.
+Итоговый gain ограничен `1.25`; это не позволяет редким когерентным тонам или
+переходу Bloom↔Veil получить полную математическую компенсацию ценой
+нежелательного усиления. Для Default и Drift коэффициент точно равен единице.
 
 ### Stereo Field и Sub Anchor
 
@@ -667,6 +689,8 @@ clap-validator validate \
 
 ./build/AmanitaOceanDSPTests --test-mode-switching
 
+./build/AmanitaOceanDSPTests --test-character-normalisation
+
 ./build/AmanitaOceanDSPTests \
   --render-harmony-ab pad ./build/harmony
 
@@ -735,6 +759,10 @@ Harmony A/B renderer создаёт пары `*-off.wav` / `*-on.wav` с одн�
 - независимые L/R spectral trajectories и in-loop imprint Drift;
 - сохранение энергии, L/R decorrelation и sample-rate timing AP6 Veil;
 - настоящее размытие импульса Veil: leading energy, crest, centroid и NRMS;
+- статическую covariance-нормализацию Bloom/Veil excitation на
+  `44.1/48/88.2/96 kHz`: perceptual gain endpoints, диапазон Evolution,
+  общую L/R-компенсацию, finite bounds `0.75–1.25` и отсутствие
+  audio-thread allocations;
 - повторяющийся kick+bass pattern при 190 BPM с четырёхполосным анализом;
 - Perceptual Ducking при centered/hard-left/hard-right входе на всех sample
   rate: band selectivity, реальный dry/wet masking conflict и sample-exact 0%;
