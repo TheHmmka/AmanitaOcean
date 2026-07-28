@@ -19,6 +19,16 @@ rules match production. WebGL2 is used when available; the page retains a CSS
 fallback and readable content when graphics acceleration is unavailable or
 reduced motion is requested.
 
+## Analytics
+
+Production page views and deliberate product interactions are recorded by the
+self-hosted Umami instance at `https://stats.amanita.music/`. The site uses the
+Ocean-specific website ID `257cbc84-9b4b-4b59-862d-b915599c4b4f`.
+
+Tracked events cover the main hero actions, character selection, the Freeze
+demonstration, each platform download, and the SHA-256 manifest. Do not reuse
+this website ID for another Amanita product.
+
 ## Upload
 
 The production site is published at <https://ocean.amanita.music/>. Upload the
@@ -34,7 +44,7 @@ downloads/
 js/
 ```
 
-Release archives live under a versioned path such as `downloads/0.20.0/`.
+Release archives live under a versioned path such as `downloads/0.21.0/`.
 Keep `SHA256SUMS.txt` beside the archives and never replace an already-published
 version in place; publish a new versioned directory instead.
 
@@ -43,7 +53,7 @@ version in place; publish a new versioned directory instead.
 `deploy/ocean.Caddyfile` is a production-oriented example with compression,
 cache policy, security headers, and log rotation. It serves
 `ocean.amanita.music` from `/var/www/ocean.amanita.music/current`, matching the
-atomic `releases/<version>` and `current` symlink layout used by the other
+atomic `releases/<deployment-id>` and `current` symlink layout used by the other
 Amanita sites. Caddy provisions and renews HTTPS automatically.
 
 ## Refresh the plugin image
@@ -53,10 +63,10 @@ utility, so it always reflects the current editor:
 
 ```sh
 ./build-release/AmanitaOceanStateTests \
-  --render-ui site/assets/amanita-ocean-plugin.png 0 1440 0
+  --render-ui site/assets/amanita-ocean-plugin.png 4 1440 0
 ```
 
-The final arguments select Default, request a 1440-point editor width, and leave
+The final arguments select Current, request a 1440-point editor width, and leave
 Freeze disabled. Mono Safe remains at its default Off state. The renderer writes
 a `2880 × 1920` Retina-resolution PNG; keep the matching intrinsic dimensions
 and a versioned cache-buster in `index.html`.

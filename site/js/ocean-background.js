@@ -7,6 +7,7 @@
         [0xc8 / 255, 0x9c / 255, 0x83 / 255],
         [0x82 / 255, 0x9d / 255, 0xe0 / 255],
         [0xb3 / 255, 0xa6 / 255, 0xc4 / 255],
+        [0x74 / 255, 0xc6 / 255, 0xa8 / 255],
     ];
 
     const vertexShaderSource = `#version 300 es
@@ -36,6 +37,9 @@ uniform float uFocus;
 uniform float uDirectOutput;
 uniform vec3 uAccent;
 uniform vec4 uCharacterBlend;
+uniform float uCurrentBlend;
+uniform vec2 uCurrentFlow;
+uniform float uCurrentStrength;
 
 float hash21(vec2 p)
 {
@@ -78,30 +82,51 @@ void main()
     float evolution = clamp(uEvolution, 0.0, 1.0);
     float focus = clamp(uFocus, 0.0, 1.0);
     vec4 character = max(uCharacterBlend, vec4(0.0));
-    character /= max(dot(character, vec4(1.0)), 0.0001);
+    float currentBlend = max(uCurrentBlend, 0.0);
+    float characterWeight = max(dot(character, vec4(1.0))
+                                + currentBlend,
+                                0.0001);
+    character /= characterWeight;
+    currentBlend /= characterWeight;
 
-    float scaleFactor = dot(character, vec4(1.00, 0.78, 1.08, 0.84))
+    vec2 currentVector = clamp(uCurrentFlow, vec2(-1.0), vec2(1.0));
+    float currentDepth = currentBlend
+                       * clamp(uCurrentStrength, 0.0, 1.0);
+
+    float scaleFactor = (dot(character, vec4(1.00, 0.78, 1.08, 0.84))
+                      + currentBlend * 0.94)
                       * mix(0.97, 1.05, evolution);
     vec2 anisotropy;
-    anisotropy.x = dot(character, vec4(1.00, 1.00, 1.35, 0.76));
-    anisotropy.y = dot(character, vec4(1.00, 1.08, 0.78, 1.32));
-    float warpFactor = dot(character, vec4(1.00, 0.90, 1.08, 1.20));
-    float speedFactor = dot(character, vec4(0.72, 0.54, 1.24, 0.46));
-    float densityFactor = dot(character, vec4(1.15, 1.28, 1.08, 0.88));
-    float maskFactor = dot(character, vec4(0.88, 1.18, 1.02, 0.58));
+    anisotropy.x = dot(character, vec4(1.00, 1.00, 1.35, 0.76))
+                 + currentBlend * 1.48;
+    anisotropy.y = dot(character, vec4(1.00, 1.08, 0.78, 1.32))
+                 + currentBlend * 0.72;
+    float warpFactor = dot(character, vec4(1.00, 0.90, 1.08, 1.20))
+                     + currentBlend * 1.28;
+    float speedFactor = dot(character, vec4(0.72, 0.54, 1.24, 0.46))
+                      + currentBlend * 0.82;
+    float densityFactor = dot(character, vec4(1.15, 1.28, 1.08, 0.88))
+                        + currentBlend * 1.12;
+    float maskFactor = dot(character, vec4(0.88, 1.18, 1.02, 0.58))
+                     + currentBlend * 0.90;
     float time = uTime * speedFactor * mix(0.68, 1.12, evolution);
 
     vec2 q = p * anisotropy * scaleFactor;
+    q += currentVector * currentDepth * 0.16;
     vec2 warp;
     warp.x = flowFbm(q * 0.78
                      + time * vec2(0.008, -0.006));
     warp.y = flowFbm(q * 0.78 + vec2(7.31, -4.17)
                      + time * vec2(-0.006, 0.009));
     warp = warp * 2.0 - 1.0;
+    warp += currentDepth
+          * vec2(currentVector.y, -currentVector.x) * 0.12;
 
     vec2 flow = q
               + warp * mix(0.34, 0.76, evolution) * warpFactor
               + time * vec2(-0.006, 0.004);
+    flow += currentDepth
+          * (currentVector * 0.22 + vec2(-p.y, p.x) * 0.06);
     float body = flowFbm(flow * 0.94);
     float undercurrent = flowFbm(
         mat2(0.78, -0.63, 0.63, 0.78) * flow * 1.46
@@ -205,6 +230,7 @@ uniform float uEvolution;
 uniform float uFocus;
 uniform vec3 uAccent;
 uniform vec4 uCharacterBlend;
+uniform float uCurrentBlend;
 
 void main()
 {
@@ -214,17 +240,24 @@ void main()
     float evolution = clamp(uEvolution, 0.0, 1.0);
     float focus = clamp(uFocus, 0.0, 1.0);
     vec4 character = max(uCharacterBlend, vec4(0.0));
-    character /= max(dot(character, vec4(1.0)), 0.0001);
+    float currentBlend = max(uCurrentBlend, 0.0);
+    float characterWeight = max(dot(character, vec4(1.0))
+                                + currentBlend,
+                                0.0001);
+    character /= characterWeight;
+    currentBlend /= characterWeight;
 
     vec3 accent = clamp(uAccent, vec3(0.0), vec3(1.0));
     float luminance = dot(accent, vec3(0.2126, 0.7152, 0.0722));
     accent = mix(vec3(luminance), accent, 0.74);
     vec3 glowTint = mix(vec3(0.040, 0.125, 0.138), accent, 0.70);
 
-    float coreGain = dot(character, vec4(0.068, 0.086, 0.081, 0.041))
+    float coreGain = (dot(character, vec4(0.068, 0.086, 0.081, 0.041))
+                    + currentBlend * 0.052)
                    * mix(0.55, 1.15, evolution)
                    * mix(0.88, 1.12, focus);
-    float haloGain = dot(character, vec4(0.44, 0.63, 0.49, 0.55))
+    float haloGain = (dot(character, vec4(0.44, 0.63, 0.49, 0.55))
+                    + currentBlend * 0.56)
                    * mix(0.68, 1.25, evolution)
                    * mix(1.12, 1.00, focus);
     float light = scene.a * coreGain
@@ -258,6 +291,7 @@ void main()
             this.frameRequest = 0;
             this.lastFrameSeconds = 0;
             this.animationTime = 19.73;
+            this.currentFieldTime = 19.73;
             this.motion = 1;
             this.destroyed = false;
             this.failed = false;
@@ -270,9 +304,14 @@ void main()
             this.targetEvolution = 0.35;
             this.targetFocus = 1;
             this.targetFrozen = false;
-            this.characterBlend = new Float32Array([1, 0, 0, 0]);
+            this.characterBlend = new Float32Array([1, 0, 0, 0, 0]);
+            this.legacyCharacterBlend = new Float32Array([1, 0, 0, 0]);
             this.renderedEvolution = this.targetEvolution;
             this.renderedFocus = this.targetFocus;
+            this.targetCurrentFlow = new Float32Array(2);
+            this.renderedCurrentFlow = new Float32Array(2);
+            this.targetCurrentStrength = 0;
+            this.renderedCurrentStrength = 0;
             this.renderedAccent = new Float32Array(characterAccents[0]);
 
             this.reducedMotionQuery = window.matchMedia
@@ -408,7 +447,7 @@ void main()
         setCharacter(index) {
             const numericIndex = Number(index);
             this.targetCharacter = Number.isFinite(numericIndex)
-                ? Math.min(3, Math.max(0, Math.round(numericIndex)))
+                ? Math.min(4, Math.max(0, Math.round(numericIndex)))
                 : 0;
             this.requestFrame();
             return this;
@@ -732,8 +771,16 @@ void main()
                 this.lastFrameSeconds = nowSeconds;
 
                 if (this.reducedMotion) {
+                    this.updateCurrentFieldTargets();
                     this.snapToTargets();
                 } else {
+                    this.currentFieldTime += elapsedSeconds;
+                    if (!Number.isFinite(this.currentFieldTime)) {
+                        this.currentFieldTime = 19.73;
+                    } else if (this.currentFieldTime >= 4096) {
+                        this.currentFieldTime %= 4096;
+                    }
+                    this.updateCurrentFieldTargets();
                     this.advanceState(elapsedSeconds);
                     this.animationTime += elapsedSeconds * this.motion;
                     if (!Number.isFinite(this.animationTime)) {
@@ -747,7 +794,11 @@ void main()
 
                 if (
                     !this.reducedMotion
-                    && (!this.targetFrozen || this.stateIsMoving())
+                    && (
+                        !this.targetFrozen
+                        || this.targetCharacter === 4
+                        || this.stateIsMoving()
+                    )
                 ) {
                     this.requestFrame();
                 }
@@ -761,6 +812,8 @@ void main()
             this.characterBlend[this.targetCharacter] = 1;
             this.renderedEvolution = this.targetEvolution;
             this.renderedFocus = this.targetFocus;
+            this.renderedCurrentFlow.set(this.targetCurrentFlow);
+            this.renderedCurrentStrength = this.targetCurrentStrength;
             this.motion = this.targetFrozen ? 0 : 1;
             const accent = characterAccents[this.targetCharacter];
             this.renderedAccent[0] = accent[0];
@@ -796,6 +849,15 @@ void main()
             this.renderedFocus += (
                 this.targetFocus - this.renderedFocus
             ) * controlAmount;
+            for (let axis = 0; axis < 2; ++axis) {
+                this.renderedCurrentFlow[axis] += (
+                    this.targetCurrentFlow[axis]
+                    - this.renderedCurrentFlow[axis]
+                ) * controlAmount;
+            }
+            this.renderedCurrentStrength += (
+                this.targetCurrentStrength - this.renderedCurrentStrength
+            ) * controlAmount;
 
             const targetAccent = characterAccents[this.targetCharacter];
             const colourAmount = smoothingAmount(elapsedSeconds, 0.42);
@@ -825,7 +887,31 @@ void main()
                 return true;
             }
 
-            for (let index = 0; index < 4; ++index) {
+            if (
+                Math.abs(
+                    this.renderedCurrentStrength
+                    - this.targetCurrentStrength
+                ) > 0.001
+            ) {
+                return true;
+            }
+
+            for (let axis = 0; axis < 2; ++axis) {
+                if (
+                    Math.abs(
+                        this.renderedCurrentFlow[axis]
+                        - this.targetCurrentFlow[axis]
+                    ) > 0.001
+                ) {
+                    return true;
+                }
+            }
+
+            for (
+                let index = 0;
+                index < this.characterBlend.length;
+                ++index
+            ) {
                 const target = index === this.targetCharacter ? 1 : 0;
                 if (Math.abs(this.characterBlend[index] - target) > 0.001) {
                     return true;
@@ -839,6 +925,9 @@ void main()
             const gl = this.gl;
             const { scene, horizontal, vertical } = this.targets;
             const character = this.characterBlend;
+            for (let index = 0; index < 4; ++index) {
+                this.legacyCharacterBlend[index] = character[index];
+            }
 
             gl.disable(gl.DEPTH_TEST);
             gl.disable(gl.SCISSOR_TEST);
@@ -880,7 +969,23 @@ void main()
                     this.programs.scene,
                     "uCharacterBlend"
                 ),
-                character
+                this.legacyCharacterBlend
+            );
+            this.uniform1f(
+                this.programs.scene,
+                "uCurrentBlend",
+                character[4]
+            );
+            this.uniform2f(
+                this.programs.scene,
+                "uCurrentFlow",
+                this.renderedCurrentFlow[0],
+                this.renderedCurrentFlow[1]
+            );
+            this.uniform1f(
+                this.programs.scene,
+                "uCurrentStrength",
+                this.renderedCurrentStrength
             );
             gl.drawArrays(gl.TRIANGLES, 0, 3);
 
@@ -888,7 +993,8 @@ void main()
                 character[0] * 1.00
                 + character[1] * 1.25
                 + character[2] * 0.86
-                + character[3] * 1.35;
+                + character[3] * 1.35
+                + character[4] * 1.18;
             const blurRadius =
                 2.65
                 * characterRadius
@@ -947,7 +1053,12 @@ void main()
                     this.programs.composite,
                     "uCharacterBlend"
                 ),
-                character
+                this.legacyCharacterBlend
+            );
+            this.uniform1f(
+                this.programs.composite,
+                "uCurrentBlend",
+                character[4]
             );
             gl.drawArrays(gl.TRIANGLES, 0, 3);
 
@@ -992,6 +1103,28 @@ void main()
                 x,
                 y
             );
+        }
+
+        updateCurrentFieldTargets() {
+            const phaseA = Math.PI * 2
+                * (0.13 + 0.0173 * this.currentFieldTime);
+            const phaseB = Math.PI * 2
+                * (0.61 + 0.0067 * this.currentFieldTime);
+            const currentIsActive = this.targetCharacter === 4;
+
+            this.targetCurrentFlow[0] = currentIsActive
+                ? 0.78 * Math.cos(phaseA) + 0.22 * Math.cos(phaseB)
+                : 0;
+            this.targetCurrentFlow[1] = currentIsActive
+                ? 0.78 * Math.sin(phaseA) - 0.22 * Math.sin(phaseB)
+                : 0;
+
+            const evolution = clampUnit(this.targetEvolution);
+            const curvedEvolution =
+                evolution * evolution * (3 - 2 * evolution);
+            this.targetCurrentStrength = currentIsActive
+                ? 0.06 + 0.94 * curvedEvolution
+                : 0;
         }
 
         map(value, start, end) {

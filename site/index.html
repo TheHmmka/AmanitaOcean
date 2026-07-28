@@ -7,13 +7,13 @@
   <meta name="color-scheme" content="dark">
 
   <title>Amanita Ocean — Evolving Space Reverb</title>
-  <meta name="description" content="Amanita Ocean is an algorithmic reverb with four living characters, harmonic gravity, stereo-aware focus, natural long decays and an optional mono-safe stereo field.">
+  <meta name="description" content="Amanita Ocean is an algorithmic reverb with five living characters, coherent Current Field motion, harmonic gravity, stereo-aware focus and natural long decays.">
   <meta name="keywords" content="algorithmic reverb, VST3 reverb, AU reverb, CLAP plugin, ambient reverb, psytrance reverb, music production">
   <link rel="canonical" href="https://ocean.amanita.music/">
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="Amanita Ocean — Evolving Space Reverb">
-  <meta property="og:description" content="A reverb whose tail keeps becoming. Four living characters, Harmonic Gravity, stereo-aware Focus and a new Mono Safe field.">
+  <meta property="og:description" content="A reverb whose tail keeps becoming. Five living characters, coherent Current Field motion, Harmonic Gravity and stereo-aware Focus.">
   <meta property="og:url" content="https://ocean.amanita.music/">
   <meta property="og:image" content="https://ocean.amanita.music/assets/amanita-ocean-social.png">
   <meta property="og:image:width" content="1729">
@@ -26,7 +26,12 @@
   <meta name="twitter:image" content="https://ocean.amanita.music/assets/amanita-ocean-social.png">
 
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=0210-layout-2">
+  <script
+    defer
+    src="https://stats.amanita.music/script.js"
+    data-website-id="257cbc84-9b4b-4b59-862d-b915599c4b4f"
+  ></script>
 
   <script type="application/ld+json">
   {
@@ -37,15 +42,17 @@
     "image": "https://ocean.amanita.music/assets/amanita-ocean-social.png",
     "applicationCategory": "MultimediaApplication",
     "applicationSubCategory": "Audio effect plug-in",
-    "softwareVersion": "0.20.0",
+    "softwareVersion": "0.21.0",
     "operatingSystem": "macOS, Windows, Linux",
-    "description": "An algorithmic reverb with four evolving characters, harmonic gravity and stereo-aware masking relief.",
+    "description": "An algorithmic reverb with five evolving characters, coherent Current Field motion, harmonic gravity and stereo-aware masking relief.",
     "featureList": [
-      "Default, Bloom, Drift and Veil reverb characters",
+      "Default, Bloom, Drift, Veil and Current reverb characters",
+      "Coherent Current Field delay, damping and stereo motion",
       "Evolution character macro",
       "Harmonic Gravity",
       "Stereo-aware Focus",
-      "Constant FDN excitation across Decay",
+      "Natural Decay without decay-linked input attenuation",
+      "Evolution-linked Lateral Decay",
       "Mono Safe stereo field with a 145 Hz Sub Anchor",
       "Independent 3 Hz DC Guard during Freeze",
       "Freeze",
@@ -69,7 +76,7 @@
       </a>
 
       <nav class="site-nav" aria-label="Primary navigation">
-        <a href="#new-in-020">New in 0.20</a>
+        <a href="#new-in-021">New in 0.21</a>
         <a href="#characters">Characters</a>
         <a href="#macros">Motion</a>
         <a href="#controls">Controls</a>
@@ -77,9 +84,14 @@
         <a href="#downloads">Download</a>
       </nav>
 
-      <a class="header-version" href="#downloads" aria-label="Download Amanita Ocean 0.20.0">
+      <a
+        class="header-version"
+        href="#downloads"
+        aria-label="Download Amanita Ocean 0.21.0"
+        data-umami-event="open-downloads-header"
+      >
         <span class="status-dot" aria-hidden="true"></span>
-        v0.20.0
+        v0.21.0
       </a>
     </div>
   </header>
@@ -98,11 +110,19 @@
           </p>
 
           <div class="hero__actions">
-            <a class="button button--primary" href="#characters">
+            <a
+              class="button button--primary"
+              href="#characters"
+              data-umami-event="explore-characters-hero"
+            >
               Enter the ocean
               <span aria-hidden="true">↓</span>
             </a>
-            <a class="button button--quiet" href="#downloads">Download v0.20.0</a>
+            <a
+              class="button button--quiet"
+              href="#downloads"
+              data-umami-event="open-downloads-hero"
+            >Download v0.21.0</a>
           </div>
 
           <p class="format-line">
@@ -116,16 +136,12 @@
           <div class="product-halo" aria-hidden="true"></div>
           <figure class="plugin-frame">
             <img
-              src="assets/amanita-ocean-plugin.png?v=default-0200-mono-safe"
-              alt="Amanita Ocean plug-in interface showing the Default character"
+              src="assets/amanita-ocean-plugin.png?v=current-0210"
+              alt="Amanita Ocean plug-in interface showing the Current character"
               width="2880"
               height="1920"
               fetchpriority="high"
             >
-            <figcaption>
-              <span>Current build</span>
-              <span>Default / 68% Evolution</span>
-            </figcaption>
           </figure>
         </div>
       </div>
@@ -137,16 +153,16 @@
       </div>
     </section>
 
-    <section class="section release-highlights" id="new-in-020">
+    <section class="section release-highlights" id="new-in-021">
       <div class="page-width">
         <div class="section-heading release-highlights__heading" data-reveal>
-          <p class="eyebrow">New in 0.20</p>
-          <h2>Longer, safer,<br><em>better translated.</em></h2>
+          <p class="eyebrow">New in 0.21</p>
+          <h2>One field.<br><em>Every line in motion.</em></h2>
           <p>
-            Ocean 0.20 refines what happens when a tail becomes enormous.
-            Decay now grows without pulling back the first reflection, Freeze
-            remains protected at the edge of stability, and a second stereo
-            voicing lets the space survive beyond the studio sweet spot.
+            Ocean 0.21 introduces Current: eight FDN lines moving as parts of
+            one coherent liquid volume. Decay now grows without pulling back
+            the first reflection, while Lateral Decay lets the space open
+            around a stable mono core.
           </p>
         </div>
 
@@ -155,19 +171,18 @@
             <div class="release-card__copy">
               <div class="release-card__meta">
                 <span>01</span>
-                <b>Mono Safe</b>
+                <b>Current Field</b>
               </div>
-              <h3>Wide by choice.<br>Present in mono.</h3>
+              <h3>One current.<br>Eight moving lines.</h3>
               <p>
-                Mono Safe is a second complete stereo voicing. Leave it off for
-                Ocean’s original open orthogonal field, or turn it on for an
-                equal-power shared-sign decoder where every FDN line survives
-                mono summing.
+                A shared rank-2 field moves delay offset, damping and the full
+                L/R position of every line. The motion has one fluid cause,
+                instead of eight unrelated LFOs or an output chorus.
               </p>
               <ul class="release-points">
-                <li>Original open field remains the default</li>
-                <li>30&nbsp;ms click-free, automatable morph</li>
-                <li>Project state is saved with the voicing</li>
+                <li>Subtly alive even at 0% Evolution</li>
+                <li>Full Mid and Side movement in the open field</li>
+                <li>Shared-sign movement remains protected in Mono Safe</li>
               </ul>
             </div>
 
@@ -181,48 +196,48 @@
               <i class="stereo-translation__point stereo-translation__point--four"></i>
               <b class="stereo-translation__left">L</b>
               <b class="stereo-translation__right">R</b>
-              <small>145 Hz Sub Anchor</small>
+              <small>Delay · damping · full stereo position</small>
             </div>
 
             <p class="release-card__precision">
-              A gentle Sub Anchor gathers only the lowest Side energy toward
-              the centre. The upper tail stays spacious and alive.
+              The visual field uses the same Current geometry and flow law as
+              the DSP, so the background echoes movement inside the tail.
             </p>
           </article>
 
           <article class="release-card release-card--decay surface" data-reveal>
             <div class="release-card__meta">
               <span>02</span>
-              <b>Decay energy</b>
+              <b>Natural Decay</b>
             </div>
             <h3>Time grows.<br>The source stays present.</h3>
             <p>
-              FDN excitation remains constant as feedback time changes.
-              Extending Decay lengthens and naturally enriches the tail
-              without pulling the early Wet signal backward.
+              Decay remains a pure feedback-time control: no decay-linked
+              compensation turns the FDN input down. Longer settings preserve
+              the first Wet return and build density naturally inside the tail.
             </p>
             <div class="decay-readout" aria-hidden="true">
               <div><strong>5</strong><span>sec</span></div>
               <i></i>
               <div><strong>30</strong><span>sec</span></div>
-              <small>0 dB measured first-return change</small>
+              <small>No decay-linked input gain</small>
             </div>
           </article>
 
           <article class="release-card release-card--guard surface" data-reveal>
             <div class="release-card__meta">
               <span>03</span>
-              <b>DC Guard</b>
+              <b>Lateral Decay</b>
             </div>
-            <h3>Freeze the world.<br>Not the offset.</h3>
+            <h3>The centre holds.<br>The sides breathe longer.</h3>
             <p>
-              An independent 3&nbsp;Hz high-pass remains in the feedback path
-              while Freeze opens past the audible damping filters. Inaudible DC
-              cannot accumulate inside a very long held tail.
+              Width and Evolution can extend the lateral group of FDN lines
+              without shortening the central mono core. The space unfolds
+              around the source without a new control or output Side boost.
             </p>
             <div class="guard-seal" aria-hidden="true">
-              <span>3 Hz</span>
-              <small>always protected in Freeze</small>
+              <span>+14%</span>
+              <small>maximum lateral RT60 at 200% Width</small>
             </div>
           </article>
         </div>
@@ -232,7 +247,7 @@
     <section class="section characters" id="characters">
       <div class="page-width">
         <div class="section-heading" data-reveal>
-          <p class="eyebrow">Four currents, one ocean</p>
+          <p class="eyebrow">Five currents, one ocean</p>
           <h2>Choose how the space <em>moves.</em></h2>
           <p>
             Every character reshapes the same stable reverb core. Switching
@@ -250,6 +265,7 @@
               aria-selected="true"
               aria-controls="mode-panel-default"
               data-character="0"
+              data-umami-event="select-character-default"
             >
               <span class="mode-tab__number">01</span>
               <span class="mode-tab__name">Default</span>
@@ -264,6 +280,7 @@
               aria-controls="mode-panel-bloom"
               tabindex="-1"
               data-character="1"
+              data-umami-event="select-character-bloom"
             >
               <span class="mode-tab__number">02</span>
               <span class="mode-tab__name">Bloom</span>
@@ -278,6 +295,7 @@
               aria-controls="character-panel-drift"
               tabindex="-1"
               data-character="2"
+              data-umami-event="select-character-drift"
             >
               <span class="mode-tab__number">03</span>
               <span class="mode-tab__name">Drift</span>
@@ -292,10 +310,26 @@
               aria-controls="mode-panel-veil"
               tabindex="-1"
               data-character="3"
+              data-umami-event="select-character-veil"
             >
               <span class="mode-tab__number">04</span>
               <span class="mode-tab__name">Veil</span>
               <span class="mode-tab__descriptor">Soft / Cloud</span>
+            </button>
+            <button
+              class="mode-tab"
+              type="button"
+              role="tab"
+              id="mode-tab-current"
+              aria-selected="false"
+              aria-controls="mode-panel-current"
+              tabindex="-1"
+              data-character="4"
+              data-umami-event="select-character-current"
+            >
+              <span class="mode-tab__number">05</span>
+              <span class="mode-tab__name">Current</span>
+              <span class="mode-tab__descriptor">Coherent / Flow</span>
             </button>
           </div>
 
@@ -434,6 +468,40 @@
                 </div>
               </dl>
             </article>
+
+            <article
+              class="mode-panel"
+              id="mode-panel-current"
+              role="tabpanel"
+              aria-labelledby="mode-tab-current"
+              data-character-panel="4"
+              hidden
+            >
+              <div class="mode-panel__statement">
+                <p class="mode-kicker">One liquid field</p>
+                <h3>Not eight LFOs.<br>One moving volume.</h3>
+                <p>
+                  Current places every delay line inside a shared two-axis
+                  flow. Delay offset, damping and full stereo position move
+                  together, so the space turns and drifts without becoming an
+                  obvious chorus.
+                </p>
+              </div>
+              <dl class="mode-panel__facts">
+                <div>
+                  <dt>Field</dt>
+                  <dd>Coherent rank-2 motion</dd>
+                </div>
+                <div>
+                  <dt>Delay</dt>
+                  <dd>Up to 0.22&nbsp;ms</dd>
+                </div>
+                <div>
+                  <dt>Evolution</dt>
+                  <dd>6–100% current strength</dd>
+                </div>
+              </dl>
+            </article>
           </div>
         </div>
       </div>
@@ -444,7 +512,7 @@
         <div class="macro-feature macro-feature--evolution surface" data-reveal>
           <div class="macro-feature__copy">
             <p class="eyebrow">Evolution</p>
-            <h2>One gesture.<br><em>Four forms of motion.</em></h2>
+            <h2>One gesture.<br><em>Five forms of motion.</em></h2>
             <p>
               Evolution is not a generic modulation amount. It knows the
               selected character and moves the parameters that define its
@@ -457,12 +525,13 @@
               <li><b>Bloom</b><span>Swell, diffusion and slow drift</span></li>
               <li><b>Drift</b><span>Spectral span and kernel balance</span></li>
               <li><b>Veil</b><span>Cloud density and AP6 amount</span></li>
+              <li><b>Current</b><span>Coherent delay, damping and stereo flow</span></li>
             </ul>
           </div>
 
           <div class="macro-control" aria-label="Interactive Evolution demonstration">
             <div class="macro-control__orb" aria-hidden="true">
-              <span></span><i></i><b></b>
+              <span></span><i></i>
             </div>
             <div class="macro-control__readout">
               <span>Evolution</span>
@@ -595,7 +664,7 @@
           <article class="control-card" data-reveal>
             <span class="control-card__index">02</span>
             <h3>Decay</h3>
-            <p>Broadband RT60 with constant excitation: the early Wet level stays present while longer tails naturally gain density.</p>
+            <p>Broadband RT60 without decay-linked input compensation: the first Wet return stays present while longer tails naturally gain density.</p>
             <b>0.2–30 s</b>
           </article>
           <article class="control-card" data-reveal>
@@ -625,14 +694,20 @@
           <article class="control-card" data-reveal>
             <span class="control-card__index">07</span>
             <h3>Width</h3>
-            <p>Wet-only Mid/Side control, paired with either the original open field or the optional Mono Safe voicing.</p>
+            <p>Wet-only Mid/Side control. It also opens Lateral Decay; Mono Safe adds a gentle 145&nbsp;Hz Sub Anchor and a shared-sign decoder.</p>
             <b>0–200%</b>
           </article>
           <article class="control-card control-card--freeze" data-reveal>
             <span class="control-card__index">08</span>
             <h3>Freeze</h3>
             <p>Fades the input away, preserves fractional-delay motion and keeps the held loop protected by an independent 3 Hz DC Guard.</p>
-            <button class="freeze-demo" type="button" aria-pressed="false" data-ocean-freeze>
+            <button
+              class="freeze-demo"
+              type="button"
+              aria-pressed="false"
+              data-ocean-freeze
+              data-umami-event="toggle-freeze-demo"
+            >
               <span aria-hidden="true"></span>
               Hold the living tail
             </button>
@@ -670,7 +745,7 @@
           <div class="signal-node">
             <span>03</span>
             <b>Character</b>
-            <small>Bloom · Drift · Veil</small>
+            <small>Bloom · Drift · Veil · Current</small>
           </div>
           <i aria-hidden="true"></i>
           <div class="signal-node">
@@ -684,12 +759,12 @@
           <article data-reveal>
             <span>Feedback</span>
             <h3>Natural long decay</h3>
-            <p>Orthonormal mixing redistributes energy, while constant excitation keeps the onset present as RT60 grows.</p>
+            <p>Orthonormal mixing redistributes energy, while an unchanged input injection keeps the onset present as RT60 grows.</p>
           </article>
           <article data-reveal>
             <span>Time</span>
-            <h3>Fractional movement</h3>
-            <p>Ultra-slow interpolation creates life while runaway feedback, denormals and invalid values are contained.</p>
+            <h3>Coherent Current Field</h3>
+            <p>One ultra-slow field links delay, damping and full stereo movement while runaway feedback and invalid values remain contained.</p>
           </article>
           <article data-reveal>
             <span>Protection</span>
@@ -726,7 +801,7 @@
                 <span class="status-dot" aria-hidden="true"></span>
                 <strong>Preview release</strong>
               </div>
-              <span>v0.20.0</span>
+              <span>v0.21.0</span>
             </div>
 
             <div class="platform-list">
@@ -736,9 +811,10 @@
                 <p>VST3 · Audio Unit · CLAP</p>
                 <a
                   class="download-button"
-                  href="downloads/0.20.0/Amanita-Ocean-0.20.0-macOS-arm64.zip"
+                  href="downloads/0.21.0/Amanita-Ocean-0.21.0-macOS-arm64.zip"
                   download
-                  aria-label="Download Amanita Ocean 0.20.0 for macOS Apple Silicon"
+                  aria-label="Download Amanita Ocean 0.21.0 for macOS Apple Silicon"
+                  data-umami-event="download-macos-arm64"
                 >
                   <span>Download</span>
                   <small>ZIP</small>
@@ -750,9 +826,10 @@
                 <p>VST3 · CLAP</p>
                 <a
                   class="download-button"
-                  href="downloads/0.20.0/Amanita-Ocean-0.20.0-Windows-x64.zip"
+                  href="downloads/0.21.0/Amanita-Ocean-0.21.0-Windows-x64.zip"
                   download
-                  aria-label="Download Amanita Ocean 0.20.0 for Windows x64"
+                  aria-label="Download Amanita Ocean 0.21.0 for Windows x64"
+                  data-umami-event="download-windows-x64"
                 >
                   <span>Download</span>
                   <small>ZIP</small>
@@ -764,9 +841,10 @@
                 <p>VST3 · CLAP</p>
                 <a
                   class="download-button"
-                  href="downloads/0.20.0/Amanita-Ocean-0.20.0-Linux-x64.tar.gz"
+                  href="downloads/0.21.0/Amanita-Ocean-0.21.0-Linux-x64.tar.gz"
                   download
-                  aria-label="Download Amanita Ocean 0.20.0 for Linux x64"
+                  aria-label="Download Amanita Ocean 0.21.0 for Linux x64"
+                  data-umami-event="download-linux-x64"
                 >
                   <span>Download</span>
                   <small>TAR.GZ</small>
@@ -776,7 +854,10 @@
 
             <div class="release-foot">
               <p>Preview binaries · macOS ad-hoc signed · Windows unsigned</p>
-              <a href="downloads/0.20.0/SHA256SUMS.txt">SHA-256 checksums</a>
+              <a
+                href="downloads/0.21.0/SHA256SUMS.txt"
+                data-umami-event="download-sha256-manifest"
+              >SHA-256 checksums</a>
             </div>
           </div>
         </div>

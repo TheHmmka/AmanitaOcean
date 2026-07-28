@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const characterNames = ["default", "bloom", "drift", "veil"];
+  const characterNames = ["default", "bloom", "drift", "veil", "current"];
   const root = document.documentElement;
   const canvas = document.querySelector("#ocean-canvas");
   const background =
