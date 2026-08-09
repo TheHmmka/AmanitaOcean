@@ -1,0 +1,350 @@
+:root {
+  --accent: #81bfc7;
+  --accent-rgb: 129, 191, 199;
+  --paper: #f4f1e9;
+  --ink: #001013;
+  --muted: rgba(224, 233, 230, 0.64);
+  --safe-x: 72px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 1080px;
+  height: 1920px;
+  margin: 0;
+  overflow: hidden;
+  background: #001013;
+}
+
+body {
+  color: var(--paper);
+  font-family: "Avenir Next", Avenir, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.story {
+  position: relative;
+  isolation: isolate;
+  width: 1080px;
+  height: 1920px;
+  overflow: hidden;
+  background: #001013;
+}
+
+.story__background {
+  position: absolute;
+  z-index: -5;
+  inset: -18px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  filter: brightness(0.67) saturate(0.82) contrast(1.05);
+  transform: scale(1.02);
+}
+
+.story__wash {
+  position: absolute;
+  z-index: -4;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 8, 11, 0.78) 0%,
+      rgba(0, 11, 14, 0.56) 31%,
+      rgba(0, 12, 15, 0.18) 54%,
+      rgba(0, 10, 13, 0.67) 80%,
+      rgba(0, 7, 9, 0.91) 100%
+    ),
+    radial-gradient(circle at 50% 57%, rgba(var(--accent-rgb), 0.12), transparent 34%),
+    linear-gradient(90deg, rgba(0, 8, 11, 0.44), transparent 24%, transparent 76%, rgba(0, 8, 11, 0.44));
+}
+
+.story__grain {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.075;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.76' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.62'/%3E%3C/svg%3E");
+}
+
+.story__field {
+  position: absolute;
+  z-index: -1;
+  top: 692px;
+  left: -150px;
+  width: 1380px;
+  height: 850px;
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.story__field i {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border: 1px solid rgba(var(--accent-rgb), 0.15);
+  border-radius: 50%;
+  filter: drop-shadow(0 0 22px rgba(var(--accent-rgb), 0.08));
+  transform: scale(1, 0.42);
+}
+
+.story__field i:nth-child(2) {
+  inset: 80px 110px;
+  opacity: 0.73;
+}
+
+.story__field i:nth-child(3) {
+  inset: 165px 240px;
+  opacity: 0.58;
+}
+
+.masthead {
+  position: absolute;
+  top: 190px;
+  left: var(--safe-x);
+  right: var(--safe-x);
+  height: 102px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.34);
+}
+
+.brand__name {
+  display: flex;
+  gap: 15px;
+  align-items: baseline;
+  font-size: 29px;
+  font-weight: 650;
+  letter-spacing: 7px;
+  line-height: 1;
+}
+
+.brand__ocean {
+  color: var(--accent);
+}
+
+.brand p {
+  margin: 14px 0 0;
+  color: rgba(227, 235, 232, 0.52);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 3.4px;
+}
+
+.series {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: -4px;
+}
+
+.series__label {
+  color: rgba(227, 235, 232, 0.48);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 3.2px;
+}
+
+.series__count {
+  color: var(--accent);
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 32px;
+  font-style: italic;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+
+.character-copy {
+  position: absolute;
+  top: 340px;
+  left: var(--safe-x);
+  right: var(--safe-x);
+}
+
+.character-copy__eyebrow {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 4.2px;
+}
+
+.character-copy__rule {
+  width: 44px;
+  height: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.42);
+}
+
+.character-copy h1 {
+  margin: 22px 0 4px -5px;
+  color: var(--paper);
+  font-size: 116px;
+  font-weight: 450;
+  letter-spacing: -5px;
+  line-height: 0.88;
+}
+
+.character-copy__headline {
+  margin: 24px 0 0;
+  color: var(--accent);
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 50px;
+  font-style: italic;
+  line-height: 1;
+  letter-spacing: -1.4px;
+}
+
+.character-copy__body {
+  width: 850px;
+  margin: 21px 0 0;
+  color: rgba(234, 239, 235, 0.69);
+  font-size: 23px;
+  font-weight: 450;
+  line-height: 1.48;
+  letter-spacing: 0.1px;
+}
+
+.product-stage {
+  position: absolute;
+  top: 817px;
+  left: 58px;
+  width: 964px;
+  height: 675px;
+}
+
+.product-stage__aura {
+  position: absolute;
+  z-index: -1;
+  inset: 35px 78px 25px;
+  border-radius: 42%;
+  background: rgba(var(--accent-rgb), 0.15);
+  filter: blur(64px);
+}
+
+.product-stage__frame {
+  position: relative;
+  width: 964px;
+  height: 643px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--accent-rgb), 0.43);
+  border-radius: 15px;
+  background: rgba(0, 14, 17, 0.9);
+  box-shadow:
+    0 44px 85px rgba(0, 0, 0, 0.62),
+    0 0 0 1px rgba(234, 242, 238, 0.035) inset,
+    0 0 68px rgba(var(--accent-rgb), 0.1);
+}
+
+.product-stage__frame::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.055), transparent 20%, transparent 72%, rgba(var(--accent-rgb), 0.035)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 12%, transparent 85%, rgba(0, 0, 0, 0.13));
+}
+
+.product-stage img {
+  display: block;
+  width: 964px;
+  height: auto;
+}
+
+.product-stage__meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  height: 32px;
+  color: rgba(225, 234, 231, 0.55);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 2.6px;
+}
+
+.product-stage__meta-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.7);
+}
+
+.footer {
+  position: absolute;
+  top: 1544px;
+  left: var(--safe-x);
+  right: var(--safe-x);
+  height: 132px;
+  border-top: 1px solid rgba(var(--accent-rgb), 0.32);
+  padding-top: 31px;
+}
+
+.footer__line {
+  margin: 0;
+  color: rgba(239, 243, 237, 0.88);
+  font-size: 19px;
+  font-weight: 540;
+  letter-spacing: 5.2px;
+}
+
+.footer__bottom {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 23px;
+}
+
+.footer__formats {
+  color: rgba(229, 237, 234, 0.45);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 3.4px;
+}
+
+.footer__url {
+  color: var(--accent);
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 27px;
+  font-style: italic;
+  letter-spacing: 0.25px;
+}
+
+.safe-area {
+  display: none;
+  position: absolute;
+  z-index: 100;
+  top: 180px;
+  right: 48px;
+  bottom: 230px;
+  left: 48px;
+  border: 1px dashed rgba(255, 80, 80, 0.8);
+  pointer-events: none;
+}
+
+.story[data-guides="true"] .safe-area {
+  display: block;
+}
+
+/* The Bloom headline needs a little more room without changing the campaign grid. */
+.story[data-mode="bloom"] .character-copy__headline {
+  font-size: 48px;
+}
+
+/* The long Default label benefits from slightly tighter optical tracking. */
+.story[data-mode="default"] .character-copy h1 {
+  letter-spacing: -6px;
+}
