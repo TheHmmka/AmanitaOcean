@@ -360,7 +360,7 @@ main,
 
 .hero h1 {
   max-width: 720px;
-  font-size: clamp(52px, 5.1vw, 80px);
+  font-size: clamp(38px, 4.3vw, 64px);
   font-weight: 480;
   letter-spacing: -0.055em;
   line-height: 0.98;
@@ -369,7 +369,7 @@ main,
 .hero h1 em {
   display: inline-block;
   margin-top: 0.1em;
-  font-size: 1.08em;
+  font-size: 1em;
   letter-spacing: -0.045em;
 }
 
@@ -559,7 +559,7 @@ main,
 .section-heading h2,
 .macro-feature h2,
 .formats h2 {
-  font-size: clamp(42px, 5vw, 70px);
+  font-size: clamp(32px, 3.6vw, 50px);
   font-weight: 420;
   letter-spacing: -0.052em;
   line-height: 1.05;
@@ -1097,7 +1097,7 @@ main,
 
 .mode-panel h3 {
   max-width: 680px;
-  font-size: clamp(38px, 4vw, 57px);
+  font-size: clamp(34px, 4vw, 54px);
   font-weight: 420;
   letter-spacing: -0.045em;
   line-height: 1.05;
@@ -2044,10 +2044,6 @@ main,
     gap: 36px;
   }
 
-  .hero h1 {
-    font-size: clamp(50px, 6vw, 68px);
-  }
-
   .signal-chain {
     grid-template-columns: repeat(4, 1fr);
   }
@@ -2193,10 +2189,6 @@ main,
     padding-top: calc(var(--header-height) + 55px);
   }
 
-  .hero h1 {
-    font-size: clamp(43px, 13vw, 60px);
-  }
-
   .hero__lead {
     font-size: 16px;
   }
@@ -2230,12 +2222,6 @@ main,
     margin-bottom: 42px;
   }
 
-  .section-heading h2,
-  .macro-feature h2,
-  .formats h2 {
-    font-size: clamp(38px, 11.5vw, 52px);
-  }
-
   .mode-tab {
     min-height: 112px;
     padding: 20px;
@@ -2244,10 +2230,6 @@ main,
   .mode-panel {
     min-height: 0;
     padding: 34px 24px 40px;
-  }
-
-  .mode-panel h3 {
-    font-size: 36px;
   }
 
   .mode-panel__facts > div {
