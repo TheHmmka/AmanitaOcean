@@ -1,0 +1,322 @@
+:root {
+  --default: #81bfc7;
+  --bloom: #c89c83;
+  --drift: #829de0;
+  --veil: #b3a6c4;
+  --current: #74c6a8;
+  --paper: #f4f1e9;
+  --current-rgb: 116, 198, 168;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 1080px;
+  height: 1080px;
+  margin: 0;
+  overflow: hidden;
+  background: #001014;
+}
+
+body {
+  color: var(--paper);
+  font-family: "Avenir Next", Avenir, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.post {
+  position: relative;
+  isolation: isolate;
+  width: 1080px;
+  height: 1080px;
+  overflow: hidden;
+  background: #001014;
+}
+
+.post__background {
+  position: absolute;
+  z-index: -5;
+  inset: -12px;
+  background-image: url("backgrounds/amanita-ocean-square-campaign.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  filter: brightness(0.72) saturate(0.82) contrast(1.04);
+  transform: scale(1.018);
+}
+
+.post__wash {
+  position: absolute;
+  z-index: -4;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 8, 11, 0.88) 0%,
+      rgba(0, 9, 12, 0.76) 27%,
+      rgba(0, 11, 14, 0.36) 60%,
+      rgba(0, 8, 11, 0.74) 100%
+    ),
+    radial-gradient(circle at 50% 67%, rgba(var(--current-rgb), 0.12), transparent 39%),
+    linear-gradient(90deg, rgba(0, 8, 11, 0.42), transparent 28%, transparent 72%, rgba(0, 8, 11, 0.42));
+}
+
+.post__grain {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.07;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.76' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.62'/%3E%3C/svg%3E");
+}
+
+.masthead {
+  position: absolute;
+  top: 54px;
+  left: 62px;
+  right: 62px;
+  height: 72px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(129, 191, 199, 0.28);
+}
+
+.brand__name {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: 5.9px;
+  line-height: 1;
+}
+
+.brand__ocean {
+  color: var(--default);
+}
+
+.brand p {
+  margin: 10px 0 0;
+  color: rgba(227, 235, 232, 0.48);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 2.7px;
+}
+
+.masthead__edition {
+  margin: 4px 0 0;
+  color: rgba(227, 235, 232, 0.42);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 2.8px;
+}
+
+.campaign-copy {
+  position: absolute;
+  top: 151px;
+  left: 62px;
+  right: 62px;
+}
+
+.campaign-copy h1 {
+  margin: 0;
+  font-weight: normal;
+  line-height: 0.9;
+}
+
+.campaign-copy h1 span {
+  display: block;
+  color: var(--paper);
+  font-size: 52px;
+  font-weight: 430;
+  letter-spacing: -2.6px;
+}
+
+.campaign-copy h1 em {
+  display: block;
+  margin-top: 7px;
+  color: var(--default);
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 64px;
+  font-weight: normal;
+  font-style: italic;
+  letter-spacing: -1.8px;
+}
+
+.campaign-copy__subline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 0;
+  color: rgba(231, 238, 235, 0.62);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 2.35px;
+}
+
+.campaign-copy__subline i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--current);
+  box-shadow: 0 0 10px rgba(var(--current-rgb), 0.7);
+}
+
+.characters {
+  position: absolute;
+  top: 319px;
+  left: 147px;
+  right: 147px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 620;
+  letter-spacing: 1.2px;
+}
+
+.characters i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(224, 233, 230, 0.28);
+}
+
+.characters__default { color: var(--default); }
+.characters__bloom { color: var(--bloom); }
+.characters__drift { color: var(--drift); }
+.characters__veil { color: var(--veil); }
+.characters__current { color: var(--current); }
+
+.product {
+  position: absolute;
+  top: 358px;
+  left: 90px;
+  width: 900px;
+  height: 600px;
+}
+
+.product__aura {
+  position: absolute;
+  z-index: -1;
+  inset: 26px 52px 12px;
+  border-radius: 42%;
+  background: rgba(var(--current-rgb), 0.14);
+  filter: blur(50px);
+}
+
+.product__frame {
+  position: relative;
+  width: 900px;
+  height: 600px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--current-rgb), 0.44);
+  border-radius: 14px;
+  background: rgba(0, 14, 17, 0.9);
+  box-shadow:
+    0 35px 68px rgba(0, 0, 0, 0.62),
+    0 0 0 1px rgba(234, 242, 238, 0.035) inset,
+    0 0 58px rgba(var(--current-rgb), 0.1);
+}
+
+.product__frame::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.05), transparent 20%, transparent 73%, rgba(var(--current-rgb), 0.03)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 14%, transparent 85%, rgba(0, 0, 0, 0.12));
+}
+
+.product img {
+  display: block;
+  width: 900px;
+  height: auto;
+}
+
+.features {
+  position: absolute;
+  top: 976px;
+  left: 62px;
+  right: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  color: rgba(234, 239, 236, 0.66);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 2.1px;
+}
+
+.features i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--default);
+  opacity: 0.65;
+}
+
+.footer {
+  position: absolute;
+  top: 1020px;
+  left: 62px;
+  right: 62px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.footer p {
+  margin: 0;
+}
+
+.footer__formats {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(226, 235, 231, 0.42);
+  font-size: 7px;
+  font-weight: 620;
+  letter-spacing: 1.25px;
+}
+
+.footer__formats span {
+  color: rgba(234, 239, 236, 0.7);
+}
+
+.footer__formats i {
+  width: 1px;
+  height: 12px;
+  margin: 0 4px;
+  background: rgba(129, 191, 199, 0.28);
+}
+
+.footer__url {
+  color: var(--default);
+  font-family: "Iowan Old Style", Baskerville, Georgia, serif;
+  font-size: 21px;
+  font-style: italic;
+  letter-spacing: 0.1px;
+}
+
+.safe-area {
+  display: none;
+  position: absolute;
+  z-index: 100;
+  inset: 46px;
+  border: 1px dashed rgba(255, 80, 80, 0.82);
+  pointer-events: none;
+}
+
+.post[data-guides="true"] .safe-area {
+  display: block;
+}
