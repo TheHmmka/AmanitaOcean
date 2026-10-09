@@ -1,0 +1,3140 @@
+{
+ "schema": "amanita-ocean.undertow-validation/1",
+ "date": "2026-10-09",
+ "status": "Local development model in the working tree. Not a release: version unchanged, nothing installed, published or signed, nothing listened to. DSP only: the layer, the engine that carries it, the plug-in's routing, the tests, the offline renderer and the scores. Editor, processor and state are a colleague's work.",
+ "document": "docs/UNDERTOW.md",
+ "character": {
+  "name": "Undertow",
+  "index": 6,
+  "reverbMode": "ReverbMode::undertow (Source/dsp/FDNReverb.h)",
+  "engineInterface": "Source/dsp/FathomEngine.h: Layer::undertow, setTransport, setReferenceArithmetic, setClockOriginsForTesting",
+  "layer": "Source/dsp/UndertowLayer.h",
+  "evolution": "the knob itself drives the three voice gains; at 0 the Character is Fathom at Evolution 0 to the bit",
+  "mix": "Ocean's own linear Mix, as for Fathom; the reference's Mix law is in the offline renderer and the tests only"
+ },
+ "reference": {
+  "name": "Rev OCEAN",
+  "manufacturer": "Arturia",
+  "mode": "Macro Mode Abyss",
+  "recordings": "five attended sessions at 48 kHz in host blocks of 512 frames: D, E, F at 120 BPM; T90 at 90 BPM with the play head 0.25 s ahead; S90 at 90 BPM with the transport stopped",
+  "measuredAs": "A black box, from recorded audio alone. Its binaries and files were not inspected and no session was opened for this work.",
+  "namedIn": "documentation only"
+ },
+ "tools": {
+  "python": "3.12.10",
+  "numpy": "2.3.5",
+  "scipy": "1.16.1",
+  "compiler": "Apple clang 21.0.0 (clang-2100.3.34.2), arm64-apple-darwin25.6.0",
+  "cmake": "3.27.7",
+  "juce": "8.0.14",
+  "os": "macOS 26.7 (25G229)",
+  "machine": "Apple M4 Max"
+ },
+ "build": {
+  "folder": "build-undertow-dsp",
+  "configuration": "Release, arm64",
+  "installed": false,
+  "rendererSha256": "bfcc69d181c7f2e5d46d8eb7bb9bdebc077404a066247070ee0c9cd19bcd1ab4",
+  "note": "The scores were rendered before the review's two rules went in; 94 of the recordings were rendered again by the final renderer and give the same numbers."
+ },
+ "sourcesSha256": {
+  "Source/dsp/UndertowLayer.h": "d8b0810cce14239bf641c3ef16dbe3adb34f5e255fd13a5cb5aedae45bae81c7",
+  "Source/dsp/UndertowLayer.cpp": "08a64328b746b594a15523a99086e47eec118682cbba02e4baf46a6c31a3fb7e",
+  "Source/dsp/UndertowConstants.h": "6aad794f616947163a26c4b788672c86bf78014ab3d31048038f408324ade65b",
+  "Source/dsp/FathomEngine.h": "b7bdcadf7a4a6edb8daf205a8ee76f8841d439dc668d58a25285b9d412fc6146",
+  "Source/dsp/FathomEngine.cpp": "720bb97a1a35f32964c93025d74448ccbc3d1ecc27fb7e3ea689b69365855eeb",
+  "Source/dsp/FathomNetwork.h": "d6931257b2fab7c2c1669db88e8f310a54e1058046e855dc068d17688ee4e16e",
+  "Source/dsp/FathomNetwork.cpp": "cb66cb15081e98069e2e7dbb17839cded29c70097db33443049a53f0f2610eb9",
+  "Source/dsp/FathomConverter.h": "39f963b7dd190693ed22824c4541f4ae2c927a4cc6430ac11ed87f6bb00002ee",
+  "Source/dsp/FathomConverter.cpp": "79070f4a5dcc50ad6f172825e7630a6f3f0740679bb85bbc8ba8364808902d1a",
+  "Source/dsp/FathomEngineConstants.h": "6d1de1a71fbf33427abd0c9ae7ea147b4746efc8a043192b01ee45d2865b2c68",
+  "Source/dsp/FathomExactArithmetic.h": "5b2cfbf8fa64a30e9d23e23b880e159b93e7f2c8927275d8ce97b089619c0429",
+  "Source/dsp/FDNReverb.h": "fa926fa2eec432cc6f8a573521872171350ce69b2f5bcce214edebdac3af120e",
+  "Source/dsp/FDNReverb.cpp": "800c872cd1726128edf26ed749fe4c3ddbb79a8d28dcaf287b83a0bea2bbee1c",
+  "Tools/FathomRender.cpp": "23404607f011f69dc06a22dbb75bac81d1a315aa6795619e8ac7832195342c3d",
+  "Tests/DspTests.cpp": "d6b43bc41afdf350b7611457de05885bfb56a962cbf5ebce14ae1d7c1d2f8901",
+  "Tests/UndertowGoldenVectors.h": "7019b4b7102d4e53f51155599588df5e0f9e1ab1690059e3b048394f119770c9",
+  "CMakeLists.txt": "9e15a75b2ec8eec53faea736212643e96c72615d6e9feeb04938b05e85f79a87"
+ },
+ "campaignSha256": {
+  "Analyzer/Campaigns/RevOceanCharacterization/emit_undertow_header.py": "17beffa29e0547bf6d3e4ae6f4491d8b28f86c4fc3a87a1b972633d07fedfbf1",
+  "Analyzer/Campaigns/RevOceanCharacterization/score_undertow_engine.py": "ef966c6baef872ea23adb52ad6a8ad2a209c0e2508caeb9321424eccad415e8d",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/sessions.json": "9079679de403fa56d38ecd2e85afdd2a3281e5962f0e402514c08ef15a9c54f8"
+ },
+ "abyssFolder": {
+  "path": "Analyzer/Campaigns/RevOceanCharacterization/abyss/",
+  "what": "the campaign's own copies of the model, the findings and the session scripts, so that the generated headers can be made again from the tracked tree; the originals stay under Analyzer/Results/RevOceanCharacterization/work/abyss (not in Git), where the recordings are",
+  "copiedByteForByte": "everything but model/base.py, which differs from analysis3/tempo/model/base.py in where it finds the campaign and where it puts the compiled abyss_core.c and its table of oscillator states (Analyzer/Results/RevOceanCharacterization/work/abyss/model_build, ignored by Git); nothing computed differs",
+  "originalBaseSha256": "3c652f4b65452bf7acd47172329cc2ee42395d8e160687eaed1b809ff2670e25",
+  "regeneratedHeaders": "byte-identical to those made from the originals apart from the comment lines that name the paths and the hash of base.py"
+ },
+ "modelSha256": {
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/model/abyss_model.py": "73faae75fa4eef2eebe0e45adbb4f129250c5e19a9bff4d373b382fc6599a72f",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/model/hostclock.py": "45e6d5030d930647df91932fa14f705fc29753747da8ec446e22c936f366ecc8",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/model/abyss_core.c": "518f04da361a1f71d7e82aa5408c510407d81ba290e4ba173587507158227eca",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/model/base.py": "9b197bb67d8781809daea63e60fad56bdfb16b4aa705d59243f39a2c94b92c8e"
+ },
+ "findingsSha256": {
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/findings/ABYSS_FIRST_LOOK.md": "541a7ffc75d2efbd20983c4393a4f818ece512981f981c8b1a20766e19bb32f2",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/findings/ABYSS_STATE.md": "e0fdb5a4e8560e42ecafebddaec3cd42af6c1c3bcfcc061e193202cb60f05e5c",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/findings/model_structural.md": "372518f2d04ec096e4bb4a47d22a674d0fcf6f139573fcddb39411173eae3d8b",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/findings/score.md": "88b3a518969d5ea08ea8ee70f0e8825e34de31ce2497585d0dbf1289cafcf5ff",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/findings/tempo.md": "0f01f7e8f1ef2072b89990358e9d75d7a34401d40e2d53b3ce33c44981486933",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/findings/controls.md": "1e02f1daa9ae81a247cd36fbbdd3356c21683765e6ed506dba03ab5cbc2c5c60",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/findings/verification.md": "0b501bd9bbab4e854d2a86fcd22b153cf3fcbd3b686e5cecabc4eb9d78d140bb",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/findings/tempo_scores.json": "f0ca091b498b2032072a5ff6bd2ccee27f14949643ef368e4f2c8c318faebddc"
+ },
+ "sessionScriptsSha256": {
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/sessions/probe3.py": "c9ac9c81b415ada05780b903fd694b2c144c0823d294fa86315dc92f395d9a66",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/sessions/probe4.py": "17858ae6040a0bd73a2fe2c2fdc17344d7a5458be66317c7586ce8b2bae88fd6",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/sessions/probe5.py": "8ed67dfc9abcf860405847bbf03e08454675f536d38c7b116cb10fe52bbf16f6",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/sessions/probe7_tempo.py": "36848871b55c8f15ffb364a7ff4c2378c339a9f87abd88c4d0401fd0c14e45fe",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/sessions/tempo_quicklook.py": "3509b987e7fd163842e238001ea25f363d9cff71bec98b1e2f35e66a7f823941"
+ },
+ "scores": {
+  "convention": "null = 10 log10(sum (candidate - reference)^2 / sum reference^2) over the whole recording, both channels; no gain, delay or polarity fitted",
+  "portAgainstTheModel": {
+   "command": "emit_undertow_header.py --engine",
+   "wholeRendersDb": {
+    "impulses48000": {
+     "withTheLayer": -146.52,
+     "theBaseAlone": -147.71,
+     "theLayerAlone": -145.03
+    },
+    "burst48000": {
+     "withTheLayer": -147.2,
+     "theBaseAlone": -147.47,
+     "theLayerAlone": -146.53
+    },
+    "tone48000": {
+     "withTheLayer": -147.93,
+     "theBaseAlone": -148.2,
+     "theLayerAlone": -147.64
+    },
+    "stopped48000": {
+     "withTheLayer": -146.93,
+     "theBaseAlone": -147.71,
+     "theLayerAlone": -145.35
+    },
+    "late48000": {
+     "withTheLayer": -147.14,
+     "theBaseAlone": -147.42,
+     "theLayerAlone": -146.55
+    },
+    "impulses44100": {
+     "withTheLayer": -147.25,
+     "theBaseAlone": -147.03,
+     "theLayerAlone": -147.6
+    },
+    "burst44100": {
+     "withTheLayer": -147.28,
+     "theBaseAlone": -147.29,
+     "theLayerAlone": -147.27
+    },
+    "tone44100": {
+     "withTheLayer": -148.07,
+     "theBaseAlone": -148.05,
+     "theLayerAlone": -148.1
+    }
+   },
+   "goldenExcerpts": {
+    "count": 24,
+    "frames": 160,
+    "limitDb": -130.0,
+    "worstDb": -142.39
+   },
+   "limitedBy": "the engine's single-precision line memory (as without the layer) and the layer's single-precision input and recirculation memory; not by the layer's interpolation, which is the model's own"
+  },
+  "engineAgainstRecordings": {
+   "command": "score_undertow_engine.py",
+   "arithmetic": "the reference's",
+   "report": "Analyzer/Results/RevOceanCharacterization/work/abyss/engine/scores.json (not in Git; every row is under \"rows\" here)",
+   "modelScores": "Analyzer/Campaigns/RevOceanCharacterization/abyss/findings/tempo_scores.json",
+   "recordingsScoredByTheModelToo": 183,
+   "sameAsTheModelTo0p01Db": 183,
+   "largestDifferenceFromTheModelDb": 0.01,
+   "aboveMacro0OutsideTheStoppedScanDb": {
+    "worst": -56.29,
+    "best": -77.96,
+    "count": 170
+   },
+   "atMacro0Db": {
+    "worst": -96.87,
+    "best": -117.81,
+    "count": 12
+   },
+   "groups": {
+    "E": {
+     "recordings": 10,
+     "engineAboveMacro0Db": {
+      "worst": -60.25,
+      "best": -67.82,
+      "count": 9
+     },
+     "modelAboveMacro0Db": {
+      "worst": -60.25,
+      "best": -67.82,
+      "count": 9
+     },
+     "engineAtMacro0Db": {
+      "worst": -106.99,
+      "best": -106.99,
+      "count": 1
+     },
+     "largestDifferenceFromTheModelDb": 0.0
+    },
+    "D batch": {
+     "recordings": 16,
+     "engineAboveMacro0Db": {
+      "worst": -56.29,
+      "best": -77.79,
+      "count": 14
+     },
+     "modelAboveMacro0Db": {
+      "worst": -56.29,
+      "best": -77.79,
+      "count": 14
+     },
+     "engineAtMacro0Db": {
+      "worst": -110.06,
+      "best": -115.94,
+      "count": 2
+     },
+     "largestDifferenceFromTheModelDb": 0.0
+    },
+    "F part A, 99 probes": {
+     "recordings": 99,
+     "engineAboveMacro0Db": {
+      "worst": -66.86,
+      "best": -67.82,
+      "count": 99
+     },
+     "modelAboveMacro0Db": {
+      "worst": -66.86,
+      "best": -67.82,
+      "count": 99
+     },
+     "largestDifferenceFromTheModelDb": 0.0
+    },
+    "F part B, the batch again": {
+     "recordings": 16,
+     "engineAboveMacro0Db": {
+      "worst": -56.75,
+      "best": -77.96,
+      "count": 14
+     },
+     "modelAboveMacro0Db": {
+      "worst": -56.75,
+      "best": -77.96,
+      "count": 14
+     },
+     "engineAtMacro0Db": {
+      "worst": -108.82,
+      "best": -115.06,
+      "count": 2
+     },
+     "largestDifferenceFromTheModelDb": 0.0
+    },
+    "F anchors, maps, sweeps, tones": {
+     "recordings": 16,
+     "engineAboveMacro0Db": {
+      "worst": -58.21,
+      "best": -66.55,
+      "count": 11
+     },
+     "modelAboveMacro0Db": {
+      "worst": -58.21,
+      "best": -66.55,
+      "count": 11
+     },
+     "engineAtMacro0Db": {
+      "worst": -96.87,
+      "best": -117.81,
+      "count": 5
+     },
+     "largestDifferenceFromTheModelDb": 0.01
+    },
+    "T90": {
+     "recordings": 13,
+     "engineAboveMacro0Db": {
+      "worst": -59.47,
+      "best": -66.65,
+      "count": 12
+     },
+     "modelAboveMacro0Db": {
+      "worst": -59.47,
+      "best": -66.65,
+      "count": 12
+     },
+     "engineAtMacro0Db": {
+      "worst": -110.94,
+      "best": -110.94,
+      "count": 1
+     },
+     "largestDifferenceFromTheModelDb": 0.0
+    },
+    "S90 without the scan": {
+     "recordings": 12,
+     "engineAboveMacro0Db": {
+      "worst": -61.88,
+      "best": -66.52,
+      "count": 11
+     },
+     "modelAboveMacro0Db": {
+      "worst": -61.88,
+      "best": -66.52,
+      "count": 11
+     },
+     "engineAtMacro0Db": {
+      "worst": -105.45,
+      "best": -105.45,
+      "count": 1
+     },
+     "largestDifferenceFromTheModelDb": 0.01
+    },
+    "S90 scan of 486 s": {
+     "recordings": 1,
+     "engineAboveMacro0Db": {
+      "worst": -31.1,
+      "best": -31.1,
+      "count": 1
+     },
+     "modelAboveMacro0Db": {
+      "worst": -31.1,
+      "best": -31.1,
+      "count": 1
+     },
+     "largestDifferenceFromTheModelDb": 0.0
+    }
+   }
+  },
+  "macroInMotion": {
+   "recording": "session F, part S4: sixteen steps of Macro of 20.25 s under a running tone, one render",
+   "note": "nulls of the whole signal; the model file is not scored here because it smooths Macro in front of its ramps",
+   "macroHandedOverLaterMeanFirst250msDb": {
+    "0 frames (the engine)": -57.21,
+    "10": -59.29,
+    "18": -60.64,
+    "26": -61.36,
+    "36": -60.72
+   },
+   "steps": [
+    {
+     "case": "s4_steps_00_macro000",
+     "macroBehindTheStep": 0.0,
+     "wholeStepDb": -119.18,
+     "first250msDb": -120.41
+    },
+    {
+     "case": "s4_steps_01_macro007",
+     "macroBehindTheStep": 0.07,
+     "wholeStepDb": -74.29,
+     "first250msDb": -55.16
+    },
+    {
+     "case": "s4_steps_02_macro013",
+     "macroBehindTheStep": 0.13,
+     "wholeStepDb": -75.11,
+     "first250msDb": -56.15
+    },
+    {
+     "case": "s4_steps_03_macro017",
+     "macroBehindTheStep": 0.17,
+     "wholeStepDb": -78.54,
+     "first250msDb": -61.39
+    },
+    {
+     "case": "s4_steps_04_macro025",
+     "macroBehindTheStep": 0.25,
+     "wholeStepDb": -72.46,
+     "first250msDb": -55.72
+    },
+    {
+     "case": "s4_steps_05_macro035",
+     "macroBehindTheStep": 0.35,
+     "wholeStepDb": -69.7,
+     "first250msDb": -58.74
+    },
+    {
+     "case": "s4_steps_06_macro043",
+     "macroBehindTheStep": 0.43,
+     "wholeStepDb": -67.5,
+     "first250msDb": -57.25
+    },
+    {
+     "case": "s4_steps_07_macro048",
+     "macroBehindTheStep": 0.48,
+     "wholeStepDb": -72.07,
+     "first250msDb": -66.67
+    },
+    {
+     "case": "s4_steps_08_macro055",
+     "macroBehindTheStep": 0.55,
+     "wholeStepDb": -71.15,
+     "first250msDb": -74.99
+    },
+    {
+     "case": "s4_steps_09_macro065",
+     "macroBehindTheStep": 0.65,
+     "wholeStepDb": -70.69,
+     "first250msDb": -63.49
+    },
+    {
+     "case": "s4_steps_10_macro085",
+     "macroBehindTheStep": 0.85,
+     "wholeStepDb": -66.98,
+     "first250msDb": -49.1
+    },
+    {
+     "case": "s4_steps_11_macro100",
+     "macroBehindTheStep": 1.0,
+     "wholeStepDb": -67.44,
+     "first250msDb": -70.52
+    },
+    {
+     "case": "s4_steps_12_macro062",
+     "macroBehindTheStep": 0.62,
+     "wholeStepDb": -64.12,
+     "first250msDb": -46.09
+    },
+    {
+     "case": "s4_steps_13_macro030",
+     "macroBehindTheStep": 0.3,
+     "wholeStepDb": -71.9,
+     "first250msDb": -57.23
+    },
+    {
+     "case": "s4_steps_14_macro000",
+     "macroBehindTheStep": 0.0,
+     "wholeStepDb": -63.82,
+     "first250msDb": -44.87
+    },
+    {
+     "case": "s4_steps_15_macro100",
+     "macroBehindTheStep": 1.0,
+     "wholeStepDb": -63.36,
+     "first250msDb": -40.73
+    }
+   ]
+  },
+  "holdout": {
+   "what": "session_F/h1*, h2*, h3*: locked by the campaign; nothing was tuned on them; loaded once, after everything else was final",
+   "command": "score_undertow_engine.py --holdout",
+   "rows": [
+    {
+     "case": "h1_holdout_macro100_decay2_prog5151",
+     "processedSeconds": 7296.0,
+     "macro": 1.0,
+     "decaySeconds": 2.0,
+     "engineDb": -65.6
+    },
+    {
+     "case": "h2_holdout_macro60_decay4_prog6262",
+     "processedSeconds": 7340.0,
+     "macro": 0.6,
+     "decaySeconds": 4.0,
+     "engineDb": -71.02
+    },
+    {
+     "case": "h3_holdout_macro30_decay1_prog7373",
+     "processedSeconds": 7384.0,
+     "macro": 0.3,
+     "decaySeconds": 1.0,
+     "engineDb": -73.66
+    }
+   ]
+  },
+  "engineOwnArithmeticAgainstSessionD": {
+   "command": "score_undertow_engine.py --product D",
+   "note": "not an error of the port: another clock of the same grid, whose chunk boundaries lie up to a millisecond or two from the reference's; only the reference's arithmetic nulls above Macro 0",
+   "rowsDb": {
+    "D/c01_macro0_decay0p5_train": -110.06,
+    "D/c02_macro100_decay0p5_train": -1.08,
+    "D/c03_macro100_decay2_imp3": -0.05,
+    "D/c04_macro100_decay2_prog": 2.21,
+    "D/c05_macro100_decay2_noise": -0.92,
+    "D/c06_macro100_decay2_sine1k": 0.0,
+    "D/c07_macro100_decay2_sine220": 2.11,
+    "D/c08_macro50_decay2_imp3": -1.53,
+    "D/c09_macro25_decay2_imp3": -3.1,
+    "D/c10_macro75_decay2_imp3": -1.12,
+    "D/c11_macro100_decay2_imp3_again": 0.75,
+    "D/c12_macro100_decay2_size60_imp3": -0.96,
+    "D/c13_macro100_decay2_size150_imp3": -0.27,
+    "D/c14_macro100_decay8_imp3": 0.69,
+    "D/c16_macro0_decay2_prog_late": -115.94,
+    "D/c15_ringout_0": -2.99
+   }
+  },
+  "rows": {
+   "D/c01_macro0_decay0p5_train": {
+    "session": "D",
+    "case": "c01_macro0_decay0p5_train",
+    "seconds": 24.0,
+    "T": 3010.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -110.06,
+    "model": -110.06
+   },
+   "D/c01_macro0_decay0p5_train#product": {
+    "session": "D",
+    "case": "c01_macro0_decay0p5_train",
+    "seconds": 24.0,
+    "T": 3010.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -110.06,
+    "arithmetic": "product"
+   },
+   "D/c02_macro100_decay0p5_train": {
+    "session": "D",
+    "case": "c02_macro100_decay0p5_train",
+    "seconds": 24.0,
+    "T": 3044.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -62.28,
+    "model": -62.28
+   },
+   "D/c02_macro100_decay0p5_train#product": {
+    "session": "D",
+    "case": "c02_macro100_decay0p5_train",
+    "seconds": 24.0,
+    "T": 3044.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -1.08,
+    "arithmetic": "product"
+   },
+   "D/c03_macro100_decay2_imp3": {
+    "session": "D",
+    "case": "c03_macro100_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3078.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -57.76,
+    "model": -57.76
+   },
+   "D/c03_macro100_decay2_imp3#product": {
+    "session": "D",
+    "case": "c03_macro100_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3078.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -0.05,
+    "arithmetic": "product"
+   },
+   "D/c04_macro100_decay2_prog": {
+    "session": "D",
+    "case": "c04_macro100_decay2_prog",
+    "seconds": 30.0,
+    "T": 3118.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -65.32,
+    "model": -65.32
+   },
+   "D/c04_macro100_decay2_prog#product": {
+    "session": "D",
+    "case": "c04_macro100_decay2_prog",
+    "seconds": 30.0,
+    "T": 3118.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": 2.21,
+    "arithmetic": "product"
+   },
+   "D/c05_macro100_decay2_noise": {
+    "session": "D",
+    "case": "c05_macro100_decay2_noise",
+    "seconds": 30.0,
+    "T": 3158.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -60.32,
+    "model": -60.32
+   },
+   "D/c05_macro100_decay2_noise#product": {
+    "session": "D",
+    "case": "c05_macro100_decay2_noise",
+    "seconds": 30.0,
+    "T": 3158.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -0.92,
+    "arithmetic": "product"
+   },
+   "D/c06_macro100_decay2_sine1k": {
+    "session": "D",
+    "case": "c06_macro100_decay2_sine1k",
+    "seconds": 18.0,
+    "T": 3198.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -68.04,
+    "model": -68.04
+   },
+   "D/c06_macro100_decay2_sine1k#product": {
+    "session": "D",
+    "case": "c06_macro100_decay2_sine1k",
+    "seconds": 18.0,
+    "T": 3198.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": 0.0,
+    "arithmetic": "product"
+   },
+   "D/c07_macro100_decay2_sine220": {
+    "session": "D",
+    "case": "c07_macro100_decay2_sine220",
+    "seconds": 18.0,
+    "T": 3226.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.21,
+    "model": -67.21
+   },
+   "D/c07_macro100_decay2_sine220#product": {
+    "session": "D",
+    "case": "c07_macro100_decay2_sine220",
+    "seconds": 18.0,
+    "T": 3226.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": 2.11,
+    "arithmetic": "product"
+   },
+   "D/c08_macro50_decay2_imp3": {
+    "session": "D",
+    "case": "c08_macro50_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3254.0,
+    "macro": 0.5,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -65.74,
+    "model": -65.74
+   },
+   "D/c08_macro50_decay2_imp3#product": {
+    "session": "D",
+    "case": "c08_macro50_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3254.0,
+    "macro": 0.5,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -1.53,
+    "arithmetic": "product"
+   },
+   "D/c09_macro25_decay2_imp3": {
+    "session": "D",
+    "case": "c09_macro25_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3294.0,
+    "macro": 0.25,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -77.79,
+    "model": -77.79
+   },
+   "D/c09_macro25_decay2_imp3#product": {
+    "session": "D",
+    "case": "c09_macro25_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3294.0,
+    "macro": 0.25,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -3.1,
+    "arithmetic": "product"
+   },
+   "D/c10_macro75_decay2_imp3": {
+    "session": "D",
+    "case": "c10_macro75_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3334.0,
+    "macro": 0.75,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -68.22,
+    "model": -68.22
+   },
+   "D/c10_macro75_decay2_imp3#product": {
+    "session": "D",
+    "case": "c10_macro75_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3334.0,
+    "macro": 0.75,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -1.12,
+    "arithmetic": "product"
+   },
+   "D/c11_macro100_decay2_imp3_again": {
+    "session": "D",
+    "case": "c11_macro100_decay2_imp3_again",
+    "seconds": 30.0,
+    "T": 3374.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -66.11,
+    "model": -66.11
+   },
+   "D/c11_macro100_decay2_imp3_again#product": {
+    "session": "D",
+    "case": "c11_macro100_decay2_imp3_again",
+    "seconds": 30.0,
+    "T": 3374.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": 0.75,
+    "arithmetic": "product"
+   },
+   "D/c12_macro100_decay2_size60_imp3": {
+    "session": "D",
+    "case": "c12_macro100_decay2_size60_imp3",
+    "seconds": 30.0,
+    "T": 3414.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 60.0,
+    "engine": -60.15,
+    "model": -60.15
+   },
+   "D/c12_macro100_decay2_size60_imp3#product": {
+    "session": "D",
+    "case": "c12_macro100_decay2_size60_imp3",
+    "seconds": 30.0,
+    "T": 3414.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 60.0,
+    "engine": -0.96,
+    "arithmetic": "product"
+   },
+   "D/c13_macro100_decay2_size150_imp3": {
+    "session": "D",
+    "case": "c13_macro100_decay2_size150_imp3",
+    "seconds": 30.0,
+    "T": 3454.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 150.0,
+    "engine": -64.23,
+    "model": -64.23
+   },
+   "D/c13_macro100_decay2_size150_imp3#product": {
+    "session": "D",
+    "case": "c13_macro100_decay2_size150_imp3",
+    "seconds": 30.0,
+    "T": 3454.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 150.0,
+    "engine": -0.27,
+    "arithmetic": "product"
+   },
+   "D/c14_macro100_decay8_imp3": {
+    "session": "D",
+    "case": "c14_macro100_decay8_imp3",
+    "seconds": 30.0,
+    "T": 3494.0,
+    "macro": 1.0,
+    "decay": 8.0,
+    "size": 100.0,
+    "engine": -56.29,
+    "model": -56.29
+   },
+   "D/c14_macro100_decay8_imp3#product": {
+    "session": "D",
+    "case": "c14_macro100_decay8_imp3",
+    "seconds": 30.0,
+    "T": 3494.0,
+    "macro": 1.0,
+    "decay": 8.0,
+    "size": 100.0,
+    "engine": 0.69,
+    "arithmetic": "product"
+   },
+   "D/c15_ringout_0": {
+    "session": "D",
+    "case": "c15_ringout_0",
+    "seconds": 2.0,
+    "T": 3558.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -64.97,
+    "model": -64.97
+   },
+   "D/c15_ringout_0#product": {
+    "session": "D",
+    "case": "c15_ringout_0",
+    "seconds": 2.0,
+    "T": 3558.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -2.99,
+    "arithmetic": "product"
+   },
+   "D/c16_macro0_decay2_prog_late": {
+    "session": "D",
+    "case": "c16_macro0_decay2_prog_late",
+    "seconds": 14.0,
+    "T": 3534.0,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.94,
+    "model": -115.94
+   },
+   "D/c16_macro0_decay2_prog_late#product": {
+    "session": "D",
+    "case": "c16_macro0_decay2_prog_late",
+    "seconds": 14.0,
+    "T": 3534.0,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.94,
+    "arithmetic": "product"
+   },
+   "E/c01_macro0_decay0p5_train": {
+    "session": "E",
+    "case": "c01_macro0_decay0p5_train",
+    "seconds": 24.0,
+    "T": 12010.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -106.99,
+    "model": -106.99
+   },
+   "E/c02_macro100_decay0p5_train": {
+    "session": "E",
+    "case": "c02_macro100_decay0p5_train",
+    "seconds": 24.0,
+    "T": 12044.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -60.4,
+    "model": -60.4
+   },
+   "E/c03_macro100_decay2_imp3": {
+    "session": "E",
+    "case": "c03_macro100_decay2_imp3",
+    "seconds": 30.0,
+    "T": 12078.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.15,
+    "model": -67.15
+   },
+   "E/c05_macro100_decay2_noise": {
+    "session": "E",
+    "case": "c05_macro100_decay2_noise",
+    "seconds": 30.0,
+    "T": 12158.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -60.25,
+    "model": -60.25
+   },
+   "E/c06_macro100_decay2_sine1k": {
+    "session": "E",
+    "case": "c06_macro100_decay2_sine1k",
+    "seconds": 18.0,
+    "T": 12198.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.82,
+    "model": -67.82
+   },
+   "E/c10_macro75_decay2_imp3": {
+    "session": "E",
+    "case": "c10_macro75_decay2_imp3",
+    "seconds": 30.0,
+    "T": 12334.0,
+    "macro": 0.75,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -63.53,
+    "model": -63.53
+   },
+   "E/c12_macro100_decay2_size60_imp3": {
+    "session": "E",
+    "case": "c12_macro100_decay2_size60_imp3",
+    "seconds": 30.0,
+    "T": 12414.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 60.0,
+    "engine": -60.49,
+    "model": -60.49
+   },
+   "E/c14_macro100_decay8_imp3": {
+    "session": "E",
+    "case": "c14_macro100_decay8_imp3",
+    "seconds": 30.0,
+    "T": 12494.0,
+    "macro": 1.0,
+    "decay": 8.0,
+    "size": 100.0,
+    "engine": -67.64,
+    "model": -67.64
+   },
+   "E/x03_impulse_map_right_macro100_decay0p5": {
+    "session": "E",
+    "case": "x03_impulse_map_right_macro100_decay0p5",
+    "seconds": 300.0,
+    "T": 13290.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -61.3,
+    "model": -61.3
+   },
+   "E/x04_tone1k_120s_macro100_decay2": {
+    "session": "E",
+    "case": "x04_tone1k_120s_macro100_decay2",
+    "seconds": 140.0,
+    "T": 13600.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.53,
+    "model": -67.53
+   },
+   "F/c01_macro0_decay0p5_train": {
+    "session": "F",
+    "case": "c01_macro0_decay0p5_train",
+    "seconds": 24.0,
+    "T": 3010.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -108.82,
+    "model": -108.82
+   },
+   "F/c02_macro100_decay0p5_train": {
+    "session": "F",
+    "case": "c02_macro100_decay0p5_train",
+    "seconds": 24.0,
+    "T": 3044.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -62.36,
+    "model": -62.36
+   },
+   "F/c03_macro100_decay2_imp3": {
+    "session": "F",
+    "case": "c03_macro100_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3078.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -57.77,
+    "model": -57.77
+   },
+   "F/c04_macro100_decay2_prog": {
+    "session": "F",
+    "case": "c04_macro100_decay2_prog",
+    "seconds": 30.0,
+    "T": 3118.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -65.92,
+    "model": -65.92
+   },
+   "F/c05_macro100_decay2_noise": {
+    "session": "F",
+    "case": "c05_macro100_decay2_noise",
+    "seconds": 30.0,
+    "T": 3158.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -60.33,
+    "model": -60.33
+   },
+   "F/c06_macro100_decay2_sine1k": {
+    "session": "F",
+    "case": "c06_macro100_decay2_sine1k",
+    "seconds": 18.0,
+    "T": 3198.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.92,
+    "model": -67.92
+   },
+   "F/c07_macro100_decay2_sine220": {
+    "session": "F",
+    "case": "c07_macro100_decay2_sine220",
+    "seconds": 18.0,
+    "T": 3226.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.51,
+    "model": -67.51
+   },
+   "F/c08_macro50_decay2_imp3": {
+    "session": "F",
+    "case": "c08_macro50_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3254.0,
+    "macro": 0.5,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -65.39,
+    "model": -65.39
+   },
+   "F/c09_macro25_decay2_imp3": {
+    "session": "F",
+    "case": "c09_macro25_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3294.0,
+    "macro": 0.25,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -77.96,
+    "model": -77.96
+   },
+   "F/c10_macro75_decay2_imp3": {
+    "session": "F",
+    "case": "c10_macro75_decay2_imp3",
+    "seconds": 30.0,
+    "T": 3334.0,
+    "macro": 0.75,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -69.72,
+    "model": -69.72
+   },
+   "F/c11_macro100_decay2_imp3_again": {
+    "session": "F",
+    "case": "c11_macro100_decay2_imp3_again",
+    "seconds": 30.0,
+    "T": 3374.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -65.88,
+    "model": -65.88
+   },
+   "F/c12_macro100_decay2_size60_imp3": {
+    "session": "F",
+    "case": "c12_macro100_decay2_size60_imp3",
+    "seconds": 30.0,
+    "T": 3414.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 60.0,
+    "engine": -61.04,
+    "model": -61.04
+   },
+   "F/c13_macro100_decay2_size150_imp3": {
+    "session": "F",
+    "case": "c13_macro100_decay2_size150_imp3",
+    "seconds": 30.0,
+    "T": 3454.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 150.0,
+    "engine": -63.79,
+    "model": -63.79
+   },
+   "F/c14_macro100_decay8_imp3": {
+    "session": "F",
+    "case": "c14_macro100_decay8_imp3",
+    "seconds": 30.0,
+    "T": 3494.0,
+    "macro": 1.0,
+    "decay": 8.0,
+    "size": 100.0,
+    "engine": -56.75,
+    "model": -56.75
+   },
+   "F/c15_ringout_0": {
+    "session": "F",
+    "case": "c15_ringout_0",
+    "seconds": 2.0,
+    "T": 3558.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -64.99,
+    "model": -64.99
+   },
+   "F/c16_macro0_decay2_prog_late": {
+    "session": "F",
+    "case": "c16_macro0_decay2_prog_late",
+    "seconds": 14.0,
+    "T": 3534.0,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.06,
+    "model": -115.06
+   },
+   "F/h1_holdout_macro100_decay2_prog5151": {
+    "session": "F",
+    "case": "h1_holdout_macro100_decay2_prog5151",
+    "seconds": 32.0,
+    "T": 7296.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -65.6,
+    "holdout": true
+   },
+   "F/h2_holdout_macro60_decay4_prog6262": {
+    "session": "F",
+    "case": "h2_holdout_macro60_decay4_prog6262",
+    "seconds": 32.0,
+    "T": 7340.0,
+    "macro": 0.6,
+    "decay": 4.0,
+    "size": 100.0,
+    "engine": -71.02,
+    "holdout": true
+   },
+   "F/h3_holdout_macro30_decay1_prog7373": {
+    "session": "F",
+    "case": "h3_holdout_macro30_decay1_prog7373",
+    "seconds": 32.0,
+    "T": 7384.0,
+    "macro": 0.3,
+    "decay": 1.0,
+    "size": 100.0,
+    "engine": -73.66,
+    "holdout": true
+   },
+   "F/p001": {
+    "session": "F",
+    "case": "p001",
+    "seconds": 20.0,
+    "T": 40.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.45,
+    "model": -67.45
+   },
+   "F/p002": {
+    "session": "F",
+    "case": "p002",
+    "seconds": 20.0,
+    "T": 70.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.3,
+    "model": -67.3
+   },
+   "F/p003": {
+    "session": "F",
+    "case": "p003",
+    "seconds": 20.0,
+    "T": 100.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.33,
+    "model": -67.33
+   },
+   "F/p004": {
+    "session": "F",
+    "case": "p004",
+    "seconds": 20.0,
+    "T": 130.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.3,
+    "model": -67.3
+   },
+   "F/p005": {
+    "session": "F",
+    "case": "p005",
+    "seconds": 20.0,
+    "T": 160.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.36,
+    "model": -67.36
+   },
+   "F/p006": {
+    "session": "F",
+    "case": "p006",
+    "seconds": 20.0,
+    "T": 190.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.57,
+    "model": -67.57
+   },
+   "F/p007": {
+    "session": "F",
+    "case": "p007",
+    "seconds": 20.0,
+    "T": 220.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.48,
+    "model": -67.48
+   },
+   "F/p008": {
+    "session": "F",
+    "case": "p008",
+    "seconds": 20.0,
+    "T": 250.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.64,
+    "model": -67.64
+   },
+   "F/p009": {
+    "session": "F",
+    "case": "p009",
+    "seconds": 20.0,
+    "T": 280.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.54,
+    "model": -67.54
+   },
+   "F/p010": {
+    "session": "F",
+    "case": "p010",
+    "seconds": 20.0,
+    "T": 310.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.59,
+    "model": -67.59
+   },
+   "F/p011": {
+    "session": "F",
+    "case": "p011",
+    "seconds": 20.0,
+    "T": 340.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.55,
+    "model": -67.55
+   },
+   "F/p012": {
+    "session": "F",
+    "case": "p012",
+    "seconds": 20.0,
+    "T": 370.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.41,
+    "model": -67.41
+   },
+   "F/p013": {
+    "session": "F",
+    "case": "p013",
+    "seconds": 20.0,
+    "T": 400.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.32,
+    "model": -67.32
+   },
+   "F/p014": {
+    "session": "F",
+    "case": "p014",
+    "seconds": 20.0,
+    "T": 430.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.31,
+    "model": -67.31
+   },
+   "F/p015": {
+    "session": "F",
+    "case": "p015",
+    "seconds": 20.0,
+    "T": 460.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.28,
+    "model": -67.28
+   },
+   "F/p016": {
+    "session": "F",
+    "case": "p016",
+    "seconds": 20.0,
+    "T": 490.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.35,
+    "model": -67.35
+   },
+   "F/p017": {
+    "session": "F",
+    "case": "p017",
+    "seconds": 20.0,
+    "T": 520.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.19,
+    "model": -67.19
+   },
+   "F/p018": {
+    "session": "F",
+    "case": "p018",
+    "seconds": 20.0,
+    "T": 550.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.17,
+    "model": -67.17
+   },
+   "F/p019": {
+    "session": "F",
+    "case": "p019",
+    "seconds": 20.0,
+    "T": 580.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.18,
+    "model": -67.18
+   },
+   "F/p020": {
+    "session": "F",
+    "case": "p020",
+    "seconds": 20.0,
+    "T": 610.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.38,
+    "model": -67.38
+   },
+   "F/p021": {
+    "session": "F",
+    "case": "p021",
+    "seconds": 20.0,
+    "T": 640.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.32,
+    "model": -67.32
+   },
+   "F/p022": {
+    "session": "F",
+    "case": "p022",
+    "seconds": 20.0,
+    "T": 670.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.53,
+    "model": -67.53
+   },
+   "F/p023": {
+    "session": "F",
+    "case": "p023",
+    "seconds": 20.0,
+    "T": 700.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.52,
+    "model": -67.52
+   },
+   "F/p024": {
+    "session": "F",
+    "case": "p024",
+    "seconds": 20.0,
+    "T": 730.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.62,
+    "model": -67.62
+   },
+   "F/p025": {
+    "session": "F",
+    "case": "p025",
+    "seconds": 20.0,
+    "T": 760.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.58,
+    "model": -67.58
+   },
+   "F/p026": {
+    "session": "F",
+    "case": "p026",
+    "seconds": 20.0,
+    "T": 790.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.56,
+    "model": -67.56
+   },
+   "F/p027": {
+    "session": "F",
+    "case": "p027",
+    "seconds": 20.0,
+    "T": 820.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.26,
+    "model": -67.26
+   },
+   "F/p028": {
+    "session": "F",
+    "case": "p028",
+    "seconds": 20.0,
+    "T": 850.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.38,
+    "model": -67.38
+   },
+   "F/p029": {
+    "session": "F",
+    "case": "p029",
+    "seconds": 20.0,
+    "T": 880.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.17,
+    "model": -67.17
+   },
+   "F/p030": {
+    "session": "F",
+    "case": "p030",
+    "seconds": 20.0,
+    "T": 910.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.16,
+    "model": -67.16
+   },
+   "F/p031": {
+    "session": "F",
+    "case": "p031",
+    "seconds": 20.0,
+    "T": 940.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.24,
+    "model": -67.24
+   },
+   "F/p032": {
+    "session": "F",
+    "case": "p032",
+    "seconds": 20.0,
+    "T": 970.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.32,
+    "model": -67.32
+   },
+   "F/p033": {
+    "session": "F",
+    "case": "p033",
+    "seconds": 20.0,
+    "T": 1000.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.47,
+    "model": -67.47
+   },
+   "F/p034": {
+    "session": "F",
+    "case": "p034",
+    "seconds": 20.0,
+    "T": 1030.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.39,
+    "model": -67.39
+   },
+   "F/p035": {
+    "session": "F",
+    "case": "p035",
+    "seconds": 20.0,
+    "T": 1060.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.38,
+    "model": -67.38
+   },
+   "F/p036": {
+    "session": "F",
+    "case": "p036",
+    "seconds": 20.0,
+    "T": 1090.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.31,
+    "model": -67.31
+   },
+   "F/p037": {
+    "session": "F",
+    "case": "p037",
+    "seconds": 20.0,
+    "T": 1120.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.27,
+    "model": -67.27
+   },
+   "F/p038": {
+    "session": "F",
+    "case": "p038",
+    "seconds": 20.0,
+    "T": 1150.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.4,
+    "model": -67.4
+   },
+   "F/p039": {
+    "session": "F",
+    "case": "p039",
+    "seconds": 20.0,
+    "T": 1180.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.31,
+    "model": -67.31
+   },
+   "F/p040": {
+    "session": "F",
+    "case": "p040",
+    "seconds": 20.0,
+    "T": 1210.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.48,
+    "model": -67.48
+   },
+   "F/p041": {
+    "session": "F",
+    "case": "p041",
+    "seconds": 20.0,
+    "T": 1240.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.5,
+    "model": -67.5
+   },
+   "F/p042": {
+    "session": "F",
+    "case": "p042",
+    "seconds": 20.0,
+    "T": 1270.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.64,
+    "model": -67.64
+   },
+   "F/p043": {
+    "session": "F",
+    "case": "p043",
+    "seconds": 20.0,
+    "T": 1300.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.64,
+    "model": -67.64
+   },
+   "F/p044": {
+    "session": "F",
+    "case": "p044",
+    "seconds": 20.0,
+    "T": 1330.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.63,
+    "model": -67.63
+   },
+   "F/p045": {
+    "session": "F",
+    "case": "p045",
+    "seconds": 20.0,
+    "T": 1360.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.52,
+    "model": -67.52
+   },
+   "F/p046": {
+    "session": "F",
+    "case": "p046",
+    "seconds": 20.0,
+    "T": 1390.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.51,
+    "model": -67.51
+   },
+   "F/p047": {
+    "session": "F",
+    "case": "p047",
+    "seconds": 20.0,
+    "T": 1420.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.37,
+    "model": -67.37
+   },
+   "F/p048": {
+    "session": "F",
+    "case": "p048",
+    "seconds": 20.0,
+    "T": 1450.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.36,
+    "model": -67.36
+   },
+   "F/p049": {
+    "session": "F",
+    "case": "p049",
+    "seconds": 20.0,
+    "T": 1480.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.24,
+    "model": -67.24
+   },
+   "F/p050": {
+    "session": "F",
+    "case": "p050",
+    "seconds": 20.0,
+    "T": 1510.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.3,
+    "model": -67.3
+   },
+   "F/p051": {
+    "session": "F",
+    "case": "p051",
+    "seconds": 20.0,
+    "T": 1540.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.34,
+    "model": -67.34
+   },
+   "F/p052": {
+    "session": "F",
+    "case": "p052",
+    "seconds": 20.0,
+    "T": 1570.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.4,
+    "model": -67.4
+   },
+   "F/p053": {
+    "session": "F",
+    "case": "p053",
+    "seconds": 20.0,
+    "T": 1600.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.41,
+    "model": -67.41
+   },
+   "F/p054": {
+    "session": "F",
+    "case": "p054",
+    "seconds": 20.0,
+    "T": 1630.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.53,
+    "model": -67.53
+   },
+   "F/p055": {
+    "session": "F",
+    "case": "p055",
+    "seconds": 20.0,
+    "T": 1660.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.54,
+    "model": -67.54
+   },
+   "F/p056": {
+    "session": "F",
+    "case": "p056",
+    "seconds": 20.0,
+    "T": 1690.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.55,
+    "model": -67.55
+   },
+   "F/p057": {
+    "session": "F",
+    "case": "p057",
+    "seconds": 20.0,
+    "T": 1720.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.55,
+    "model": -67.55
+   },
+   "F/p058": {
+    "session": "F",
+    "case": "p058",
+    "seconds": 20.0,
+    "T": 1750.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.58,
+    "model": -67.58
+   },
+   "F/p059": {
+    "session": "F",
+    "case": "p059",
+    "seconds": 20.0,
+    "T": 1780.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.36,
+    "model": -67.36
+   },
+   "F/p060": {
+    "session": "F",
+    "case": "p060",
+    "seconds": 20.0,
+    "T": 1810.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.51,
+    "model": -67.51
+   },
+   "F/p061": {
+    "session": "F",
+    "case": "p061",
+    "seconds": 20.0,
+    "T": 1840.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.32,
+    "model": -67.32
+   },
+   "F/p062": {
+    "session": "F",
+    "case": "p062",
+    "seconds": 20.0,
+    "T": 1870.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.27,
+    "model": -67.27
+   },
+   "F/p063": {
+    "session": "F",
+    "case": "p063",
+    "seconds": 20.0,
+    "T": 1900.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.29,
+    "model": -67.29
+   },
+   "F/p064": {
+    "session": "F",
+    "case": "p064",
+    "seconds": 20.0,
+    "T": 1930.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.37,
+    "model": -67.37
+   },
+   "F/p065": {
+    "session": "F",
+    "case": "p065",
+    "seconds": 20.0,
+    "T": 1960.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.32,
+    "model": -67.32
+   },
+   "F/p066": {
+    "session": "F",
+    "case": "p066",
+    "seconds": 20.0,
+    "T": 1990.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.47,
+    "model": -67.47
+   },
+   "F/p067": {
+    "session": "F",
+    "case": "p067",
+    "seconds": 20.0,
+    "T": 2020.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.39,
+    "model": -67.39
+   },
+   "F/p068": {
+    "session": "F",
+    "case": "p068",
+    "seconds": 20.0,
+    "T": 2050.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.61,
+    "model": -67.61
+   },
+   "F/p069": {
+    "session": "F",
+    "case": "p069",
+    "seconds": 20.0,
+    "T": 2080.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.28,
+    "model": -67.28
+   },
+   "F/p070": {
+    "session": "F",
+    "case": "p070",
+    "seconds": 20.0,
+    "T": 2110.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -66.96,
+    "model": -66.96
+   },
+   "F/p071": {
+    "session": "F",
+    "case": "p071",
+    "seconds": 20.0,
+    "T": 2140.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.59,
+    "model": -67.59
+   },
+   "F/p072": {
+    "session": "F",
+    "case": "p072",
+    "seconds": 20.0,
+    "T": 2170.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.01,
+    "model": -67.01
+   },
+   "F/p073": {
+    "session": "F",
+    "case": "p073",
+    "seconds": 20.0,
+    "T": 2200.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.3,
+    "model": -67.3
+   },
+   "F/p074": {
+    "session": "F",
+    "case": "p074",
+    "seconds": 20.0,
+    "T": 2230.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.82,
+    "model": -67.82
+   },
+   "F/p075": {
+    "session": "F",
+    "case": "p075",
+    "seconds": 20.0,
+    "T": 2260.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.17,
+    "model": -67.17
+   },
+   "F/p076": {
+    "session": "F",
+    "case": "p076",
+    "seconds": 20.0,
+    "T": 2290.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.64,
+    "model": -67.64
+   },
+   "F/p077": {
+    "session": "F",
+    "case": "p077",
+    "seconds": 20.0,
+    "T": 2320.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.71,
+    "model": -67.71
+   },
+   "F/p078": {
+    "session": "F",
+    "case": "p078",
+    "seconds": 20.0,
+    "T": 2350.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.18,
+    "model": -67.18
+   },
+   "F/p079": {
+    "session": "F",
+    "case": "p079",
+    "seconds": 20.0,
+    "T": 2380.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.67,
+    "model": -67.67
+   },
+   "F/p080": {
+    "session": "F",
+    "case": "p080",
+    "seconds": 20.0,
+    "T": 2410.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.37,
+    "model": -67.37
+   },
+   "F/p081": {
+    "session": "F",
+    "case": "p081",
+    "seconds": 20.0,
+    "T": 2440.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -66.86,
+    "model": -66.86
+   },
+   "F/p082": {
+    "session": "F",
+    "case": "p082",
+    "seconds": 20.0,
+    "T": 2470.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.61,
+    "model": -67.61
+   },
+   "F/p083": {
+    "session": "F",
+    "case": "p083",
+    "seconds": 20.0,
+    "T": 2500.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.09,
+    "model": -67.09
+   },
+   "F/p084": {
+    "session": "F",
+    "case": "p084",
+    "seconds": 20.0,
+    "T": 2530.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.08,
+    "model": -67.08
+   },
+   "F/p085": {
+    "session": "F",
+    "case": "p085",
+    "seconds": 20.0,
+    "T": 2560.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.65,
+    "model": -67.65
+   },
+   "F/p086": {
+    "session": "F",
+    "case": "p086",
+    "seconds": 20.0,
+    "T": 2590.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.03,
+    "model": -67.03
+   },
+   "F/p087": {
+    "session": "F",
+    "case": "p087",
+    "seconds": 20.0,
+    "T": 2620.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.6,
+    "model": -67.6
+   },
+   "F/p088": {
+    "session": "F",
+    "case": "p088",
+    "seconds": 20.0,
+    "T": 2650.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.7,
+    "model": -67.7
+   },
+   "F/p089": {
+    "session": "F",
+    "case": "p089",
+    "seconds": 20.0,
+    "T": 2680.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.29,
+    "model": -67.29
+   },
+   "F/p090": {
+    "session": "F",
+    "case": "p090",
+    "seconds": 20.0,
+    "T": 2710.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.77,
+    "model": -67.77
+   },
+   "F/p091": {
+    "session": "F",
+    "case": "p091",
+    "seconds": 20.0,
+    "T": 2740.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.64,
+    "model": -67.64
+   },
+   "F/p092": {
+    "session": "F",
+    "case": "p092",
+    "seconds": 20.0,
+    "T": 2770.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.31,
+    "model": -67.31
+   },
+   "F/p093": {
+    "session": "F",
+    "case": "p093",
+    "seconds": 20.0,
+    "T": 2800.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.78,
+    "model": -67.78
+   },
+   "F/p094": {
+    "session": "F",
+    "case": "p094",
+    "seconds": 20.0,
+    "T": 2830.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.21,
+    "model": -67.21
+   },
+   "F/p095": {
+    "session": "F",
+    "case": "p095",
+    "seconds": 20.0,
+    "T": 2860.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.21,
+    "model": -67.21
+   },
+   "F/p096": {
+    "session": "F",
+    "case": "p096",
+    "seconds": 20.0,
+    "T": 2890.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.8,
+    "model": -67.8
+   },
+   "F/p097": {
+    "session": "F",
+    "case": "p097",
+    "seconds": 20.0,
+    "T": 2920.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.02,
+    "model": -67.02
+   },
+   "F/p098": {
+    "session": "F",
+    "case": "p098",
+    "seconds": 20.0,
+    "T": 2950.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.53,
+    "model": -67.53
+   },
+   "F/p099": {
+    "session": "F",
+    "case": "p099",
+    "seconds": 20.0,
+    "T": 2980.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -67.72,
+    "model": -67.72
+   },
+   "F/s1_burst_map_macro100_decay0p5": {
+    "session": "F",
+    "case": "s1_burst_map_macro100_decay0p5",
+    "seconds": 596.0,
+    "T": 3652.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -60.73,
+    "model": -60.73
+   },
+   "F/s3_impulse_map_right_macro100_decay0p5": {
+    "session": "F",
+    "case": "s3_impulse_map_right_macro100_decay0p5",
+    "seconds": 592.0,
+    "T": 4784.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -60.89,
+    "model": -60.89
+   },
+   "F/s4_steps_00_macro000": {
+    "session": "F",
+    "case": "s4_steps_00_macro000",
+    "seconds": 20.2,
+    "T": 5940.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -119.18,
+    "engine_first_250ms": -120.41
+   },
+   "F/s4_steps_01_macro007": {
+    "session": "F",
+    "case": "s4_steps_01_macro007",
+    "seconds": 20.2,
+    "T": 5960.2,
+    "macro": 0.07,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -74.29,
+    "engine_first_250ms": -55.16
+   },
+   "F/s4_steps_02_macro013": {
+    "session": "F",
+    "case": "s4_steps_02_macro013",
+    "seconds": 20.2,
+    "T": 5980.5,
+    "macro": 0.13,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -75.11,
+    "engine_first_250ms": -56.15
+   },
+   "F/s4_steps_03_macro017": {
+    "session": "F",
+    "case": "s4_steps_03_macro017",
+    "seconds": 20.2,
+    "T": 6000.8,
+    "macro": 0.17,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -78.54,
+    "engine_first_250ms": -61.39
+   },
+   "F/s4_steps_04_macro025": {
+    "session": "F",
+    "case": "s4_steps_04_macro025",
+    "seconds": 20.2,
+    "T": 6021.0,
+    "macro": 0.25,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -72.46,
+    "engine_first_250ms": -55.72
+   },
+   "F/s4_steps_05_macro035": {
+    "session": "F",
+    "case": "s4_steps_05_macro035",
+    "seconds": 20.2,
+    "T": 6041.2,
+    "macro": 0.35,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -69.7,
+    "engine_first_250ms": -58.74
+   },
+   "F/s4_steps_06_macro043": {
+    "session": "F",
+    "case": "s4_steps_06_macro043",
+    "seconds": 20.2,
+    "T": 6061.5,
+    "macro": 0.43,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -67.5,
+    "engine_first_250ms": -57.25
+   },
+   "F/s4_steps_07_macro048": {
+    "session": "F",
+    "case": "s4_steps_07_macro048",
+    "seconds": 20.2,
+    "T": 6081.8,
+    "macro": 0.48,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -72.07,
+    "engine_first_250ms": -66.67
+   },
+   "F/s4_steps_08_macro055": {
+    "session": "F",
+    "case": "s4_steps_08_macro055",
+    "seconds": 20.2,
+    "T": 6102.0,
+    "macro": 0.55,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -71.15,
+    "engine_first_250ms": -74.99
+   },
+   "F/s4_steps_09_macro065": {
+    "session": "F",
+    "case": "s4_steps_09_macro065",
+    "seconds": 20.2,
+    "T": 6122.2,
+    "macro": 0.65,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -70.69,
+    "engine_first_250ms": -63.49
+   },
+   "F/s4_steps_10_macro085": {
+    "session": "F",
+    "case": "s4_steps_10_macro085",
+    "seconds": 20.2,
+    "T": 6142.5,
+    "macro": 0.85,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.98,
+    "engine_first_250ms": -49.1
+   },
+   "F/s4_steps_11_macro100": {
+    "session": "F",
+    "case": "s4_steps_11_macro100",
+    "seconds": 20.2,
+    "T": 6162.8,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -67.44,
+    "engine_first_250ms": -70.52
+   },
+   "F/s4_steps_12_macro062": {
+    "session": "F",
+    "case": "s4_steps_12_macro062",
+    "seconds": 20.2,
+    "T": 6183.0,
+    "macro": 0.62,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -64.12,
+    "engine_first_250ms": -46.09
+   },
+   "F/s4_steps_13_macro030": {
+    "session": "F",
+    "case": "s4_steps_13_macro030",
+    "seconds": 20.2,
+    "T": 6203.2,
+    "macro": 0.3,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -71.9,
+    "engine_first_250ms": -57.23
+   },
+   "F/s4_steps_14_macro000": {
+    "session": "F",
+    "case": "s4_steps_14_macro000",
+    "seconds": 20.2,
+    "T": 6223.5,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -63.82,
+    "engine_first_250ms": -44.87
+   },
+   "F/s4_steps_15_macro100": {
+    "session": "F",
+    "case": "s4_steps_15_macro100",
+    "seconds": 20.2,
+    "T": 6243.8,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -63.36,
+    "engine_first_250ms": -40.73
+   },
+   "F/s5_impulse_map_left_macro100_decay0p5": {
+    "session": "F",
+    "case": "s5_impulse_map_left_macro100_decay0p5",
+    "seconds": 592.0,
+    "T": 6404.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -60.4,
+    "model": -60.4
+   },
+   "F/s6_sweep_left_up_macro100_decay0p5": {
+    "session": "F",
+    "case": "s6_sweep_left_up_macro100_decay0p5",
+    "seconds": 132.0,
+    "T": 7008.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -64.99,
+    "model": -64.99
+   },
+   "F/s6_sweep_right_down_macro100_decay0p5": {
+    "session": "F",
+    "case": "s6_sweep_right_down_macro100_decay0p5",
+    "seconds": 132.0,
+    "T": 7152.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -64.9,
+    "model": -64.9
+   },
+   "F/s7_tone_pair_120s_macro100_decay0p5": {
+    "session": "F",
+    "case": "s7_tone_pair_120s_macro100_decay0p5",
+    "seconds": 128.0,
+    "T": 7476.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.55,
+    "model": -66.55
+   },
+   "F/z1_anchor_macro0_train": {
+    "session": "F",
+    "case": "z1_anchor_macro0_train",
+    "seconds": 12.0,
+    "T": 4260.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -111.1,
+    "model": -111.1
+   },
+   "F/z1_anchor_macro100_train": {
+    "session": "F",
+    "case": "z1_anchor_macro100_train",
+    "seconds": 12.0,
+    "T": 4284.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -60.31,
+    "model": -60.31
+   },
+   "F/z2_anchor_macro0_train": {
+    "session": "F",
+    "case": "z2_anchor_macro0_train",
+    "seconds": 12.0,
+    "T": 5388.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -112.45,
+    "model": -112.45
+   },
+   "F/z2_anchor_macro100_train": {
+    "session": "F",
+    "case": "z2_anchor_macro100_train",
+    "seconds": 12.0,
+    "T": 5412.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -58.21,
+    "model": -58.21
+   },
+   "F/z3_anchor_macro0_train": {
+    "session": "F",
+    "case": "z3_anchor_macro0_train",
+    "seconds": 12.0,
+    "T": 6356.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -109.79,
+    "model": -109.79
+   },
+   "F/z3_anchor_macro100_train": {
+    "session": "F",
+    "case": "z3_anchor_macro100_train",
+    "seconds": 12.0,
+    "T": 6380.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -60.04,
+    "model": -60.04
+   },
+   "F/z4_anchor_macro0_train": {
+    "session": "F",
+    "case": "z4_anchor_macro0_train",
+    "seconds": 12.0,
+    "T": 7428.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -117.81,
+    "model": -117.81
+   },
+   "F/z4_anchor_macro100_train": {
+    "session": "F",
+    "case": "z4_anchor_macro100_train",
+    "seconds": 12.0,
+    "T": 7452.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -61.93,
+    "model": -61.93
+   },
+   "F/z5_anchor_macro0_train": {
+    "session": "F",
+    "case": "z5_anchor_macro0_train",
+    "seconds": 12.0,
+    "T": 8224.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -96.87,
+    "model": -96.86
+   },
+   "F/z5_anchor_macro100_train": {
+    "session": "F",
+    "case": "z5_anchor_macro100_train",
+    "seconds": 12.0,
+    "T": 8248.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -62.02,
+    "model": -62.02
+   },
+   "S90/t01_macro0_decay0p5_train": {
+    "session": "S90",
+    "case": "t01_macro0_decay0p5_train",
+    "seconds": 24.0,
+    "T": 100.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -105.45,
+    "model": -105.45
+   },
+   "S90/t02_macro100_decay0p5_train": {
+    "session": "S90",
+    "case": "t02_macro100_decay0p5_train",
+    "seconds": 24.0,
+    "T": 134.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -61.88,
+    "model": -61.88
+   },
+   "S90/t03_tone_macro100_decay0p5_00": {
+    "session": "S90",
+    "case": "t03_tone_macro100_decay0p5_00",
+    "seconds": 16.0,
+    "T": 168.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.52,
+    "model": -66.52
+   },
+   "S90/t03_tone_macro100_decay0p5_01": {
+    "session": "S90",
+    "case": "t03_tone_macro100_decay0p5_01",
+    "seconds": 16.0,
+    "T": 184.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.15,
+    "model": -66.15
+   },
+   "S90/t03_tone_macro100_decay0p5_02": {
+    "session": "S90",
+    "case": "t03_tone_macro100_decay0p5_02",
+    "seconds": 16.0,
+    "T": 200.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.11,
+    "model": -66.11
+   },
+   "S90/t03_tone_macro100_decay0p5_03": {
+    "session": "S90",
+    "case": "t03_tone_macro100_decay0p5_03",
+    "seconds": 16.0,
+    "T": 216.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.08,
+    "model": -66.08
+   },
+   "S90/t03_tone_macro100_decay0p5_04": {
+    "session": "S90",
+    "case": "t03_tone_macro100_decay0p5_04",
+    "seconds": 16.0,
+    "T": 232.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.12,
+    "model": -66.12
+   },
+   "S90/t03_tone_macro100_decay0p5_05": {
+    "session": "S90",
+    "case": "t03_tone_macro100_decay0p5_05",
+    "seconds": 16.0,
+    "T": 248.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -65.97,
+    "model": -65.97
+   },
+   "S90/t03_tone_macro100_decay0p5_06": {
+    "session": "S90",
+    "case": "t03_tone_macro100_decay0p5_06",
+    "seconds": 16.0,
+    "T": 264.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.18,
+    "model": -66.18
+   },
+   "S90/t03_tone_macro100_decay0p5_07": {
+    "session": "S90",
+    "case": "t03_tone_macro100_decay0p5_07",
+    "seconds": 16.0,
+    "T": 280.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.06,
+    "model": -66.07
+   },
+   "S90/t03_tone_macro100_decay0p5_tail": {
+    "session": "S90",
+    "case": "t03_tone_macro100_decay0p5_tail",
+    "seconds": 6.0,
+    "T": 296.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -62.68,
+    "model": -62.68
+   },
+   "S90/t04_scan_macro100_decay0p5": {
+    "session": "S90",
+    "case": "t04_scan_macro100_decay0p5",
+    "seconds": 486.0,
+    "T": 312.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -31.1,
+    "model": -31.1
+   },
+   "S90/t05_end_probe": {
+    "session": "S90",
+    "case": "t05_end_probe",
+    "seconds": 20.0,
+    "T": 808.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -65.58,
+    "model": -65.58
+   },
+   "T90/t01_macro0_decay0p5_train": {
+    "session": "T90",
+    "case": "t01_macro0_decay0p5_train",
+    "seconds": 24.0,
+    "T": 130.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -110.94,
+    "model": -110.94
+   },
+   "T90/t02_macro100_decay0p5_train": {
+    "session": "T90",
+    "case": "t02_macro100_decay0p5_train",
+    "seconds": 24.0,
+    "T": 164.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -60.25,
+    "model": -60.25
+   },
+   "T90/t03_tone_macro100_decay0p5_00": {
+    "session": "T90",
+    "case": "t03_tone_macro100_decay0p5_00",
+    "seconds": 16.0,
+    "T": 198.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.65,
+    "model": -66.65
+   },
+   "T90/t03_tone_macro100_decay0p5_01": {
+    "session": "T90",
+    "case": "t03_tone_macro100_decay0p5_01",
+    "seconds": 16.0,
+    "T": 214.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.28,
+    "model": -66.28
+   },
+   "T90/t03_tone_macro100_decay0p5_02": {
+    "session": "T90",
+    "case": "t03_tone_macro100_decay0p5_02",
+    "seconds": 16.0,
+    "T": 230.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.18,
+    "model": -66.18
+   },
+   "T90/t03_tone_macro100_decay0p5_03": {
+    "session": "T90",
+    "case": "t03_tone_macro100_decay0p5_03",
+    "seconds": 16.0,
+    "T": 246.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.17,
+    "model": -66.17
+   },
+   "T90/t03_tone_macro100_decay0p5_04": {
+    "session": "T90",
+    "case": "t03_tone_macro100_decay0p5_04",
+    "seconds": 16.0,
+    "T": 262.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.12,
+    "model": -66.12
+   },
+   "T90/t03_tone_macro100_decay0p5_05": {
+    "session": "T90",
+    "case": "t03_tone_macro100_decay0p5_05",
+    "seconds": 16.0,
+    "T": 278.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.27,
+    "model": -66.27
+   },
+   "T90/t03_tone_macro100_decay0p5_06": {
+    "session": "T90",
+    "case": "t03_tone_macro100_decay0p5_06",
+    "seconds": 16.0,
+    "T": 294.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.35,
+    "model": -66.35
+   },
+   "T90/t03_tone_macro100_decay0p5_07": {
+    "session": "T90",
+    "case": "t03_tone_macro100_decay0p5_07",
+    "seconds": 16.0,
+    "T": 310.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -66.06,
+    "model": -66.06
+   },
+   "T90/t03_tone_macro100_decay0p5_tail": {
+    "session": "T90",
+    "case": "t03_tone_macro100_decay0p5_tail",
+    "seconds": 6.0,
+    "T": 326.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -62.27,
+    "model": -62.27
+   },
+   "T90/t04_scan_macro100_decay0p5": {
+    "session": "T90",
+    "case": "t04_scan_macro100_decay0p5",
+    "seconds": 486.0,
+    "T": 342.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -59.47,
+    "model": -59.47
+   },
+   "T90/t05_end_probe": {
+    "session": "T90",
+    "case": "t05_end_probe",
+    "seconds": 20.0,
+    "T": 838.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -66.64,
+    "model": -66.64
+   }
+  }
+ },
+ "tests": {
+  "dspExecutable": {
+   "binary": "build-undertow-dsp/AmanitaOceanDSPTests",
+   "passed": 89,
+   "failed": 0,
+   "exitCode": 0,
+   "seconds": 67.3,
+   "olderTests": 77,
+   "newTests": 12,
+   "newTestsAlone": "--test-undertow",
+   "olderMetricLines": "every [METRIC] line of the 77 older tests equals that of the build before the layer",
+   "existingTestChanged": "'Fathom sample rates and stability': the mode that does not exist is undertow + 1 (it was fathom + 1); asked for by the lead"
+  },
+  "stateExecutable": {
+   "binary": "build-undertow-dsp/AmanitaOceanStateTests",
+   "result": "passed",
+   "exitCode": 0,
+   "seconds": 7.7,
+   "owner": "the colleague's file; run, not edited"
+  },
+  "fathomRendererBitIdentity": "nine renders with the Tide layer (44.1, 48, 96 kHz; Macro 0, 70, 100 %; with and without the outer laws) are the same bytes from the renderer of before the layer and from the final one",
+  "newTests": [
+   "Undertow engine golden vectors",
+   "Undertow at Evolution 0",
+   "Undertow engine determinism, clocks, reset and Freeze",
+   "Undertow independence of the host's block length",
+   "Undertow transport start, stop, jump, loop and tempo",
+   "Undertow tempo ramps and steps in host blocks of any length",
+   "Undertow position that tells nothing",
+   "Undertow Macro steps",
+   "Undertow long run stays on the grid",
+   "Undertow silence, denormals and hostile input",
+   "Undertow engine allocation-free processing",
+   "Undertow routing, crossfades and return through the plug-in"
+  ],
+  "clickMeasure": {
+   "definition": "largest second difference of what the layer adds to two steady tones (220 and 330 Hz, 0.5 each) at Macro 100 %",
+   "runningTransport": {
+    "44100": 0.00495554,
+    "48000": 0.00490123
+   },
+   "worstUnderAnyEvent": {
+    "44100": 0.00495554,
+    "48000": 0.00495555
+   },
+   "worstRatioToTheRunningValue": 1.0111,
+   "limit": "1.5 times the running value",
+   "withTheFadeOfACutChunkTakenOut": 0.0544142
+  },
+  "tempoInHostBlocksOfAnyLength": {
+   "hostBlockFrames": [
+    64,
+    512,
+    2400,
+    8192
+   ],
+   "hostRates": [
+    44100,
+    48000
+   ],
+   "rampFrom120To180BpmInThreeSeconds": {
+    "readerRestarts": 0,
+    "levelAgainstASteadyTempoDb": [
+     -0.34,
+     -0.33
+    ],
+    "followsTheHost": true
+   },
+   "theSameRampInStairsOfATenthOfASecond": {
+    "readerRestarts": 0,
+    "levelAgainstASteadyTempoDb": [
+     -0.32,
+     -0.27
+    ],
+    "followsTheHost": true
+   },
+   "stepFrom120To87Bpm": {
+    "readerRestarts": 3,
+    "secondsBehindTheStep": [
+     0.25,
+     0.72
+    ]
+   }
+  },
+  "positionThatTellsNothing": {
+   "hostBlockFrames": [
+    64,
+    512,
+    2400,
+    8192
+   ],
+   "hostRates": [
+    44100,
+    48000
+   ],
+   "scenarios": [
+    "a position that stands while the transport runs",
+    "another position at every block",
+    "a position at 90 BPM without a tempo"
+   ],
+   "readerRestarts": 9,
+   "followsTheHostAtTheEnd": false,
+   "levelAgainstTheStoppedTransportDb": [
+    -1.3e-07,
+    3.8e-09
+   ],
+   "largestDistanceFromTheStoppedTransportOfItsPeak": 3.3e-07,
+   "positionAt97And103PercentOfTheTempo": "followed, no reader restart, level -0.47 to -0.94 dB against a running transport",
+   "positionAt95And105PercentOfTheTempo": "left after three jumps",
+   "returnForAPositionInOrderFrom2Seconds": {
+    "followedAgainAtSeconds": [
+     3.0,
+     3.34
+    ],
+    "readerRestartsAtTheReturn": 3
+   },
+   "oneJumpAndTwoInARow": "the readers begin anew, the layer stays on the host"
+  },
+  "gridInSamples": {
+   "atTheStart": 1.93207e-10,
+   "afterAnHoursRun": 7.41914e-08,
+   "fourteenHoursIntoTheTimeline": 0.0,
+   "theReferencesArithmeticThere": 199.253
+  },
+  "sanitizers": {
+   "folder": "build-undertow-sanitize",
+   "configuration": "Debug, arm64, -fsanitize=address,undefined -fno-omit-frame-pointer",
+   "ran": "AmanitaOceanDSPTests --test-undertow, built from the final sources (one comment in UndertowLayer.h was reworded afterwards)",
+   "passed": 13,
+   "failed": 0,
+   "exitCode": 0,
+   "sanitizerReports": 0,
+   "seconds": 579.6,
+   "notRun": "the 77 older tests and the state tests"
+  },
+  "buildWarnings": 0
+ },
+ "cpu": {
+  "machine": "one core of an Apple M4 Max, stereo, Release, 20 s of noise per figure, best of three with other work on the machine",
+  "percentOfOneCore": {
+   "engineWithTideAtMacro100": {
+    "44100": 1.34,
+    "48000": 1.48,
+    "96000": 1.54
+   },
+   "engineWithUndertowAtMacro100": {
+    "44100": 1.65,
+    "48000": 1.7,
+    "96000": 1.78
+   },
+   "engineWithUndertowAtMacro0": {
+    "44100": 1.54,
+    "48000": 1.58,
+    "96000": 1.64
+   },
+   "advanceIdleWithTide": {
+    "44100": 0.06,
+    "48000": 0.07,
+    "96000": 0.08
+   },
+   "advanceIdleWithUndertow": {
+    "44100": 0.09,
+    "48000": 0.1,
+    "96000": 0.1
+   }
+  },
+  "layerMemoryMegabytes": 12.8,
+  "notMeasured": "the whole DSP of the plug-in in Undertow"
+ },
+ "measuredAndOwn": {
+  "measured": [
+   "base untouched, the layer added in front of the equaliser, left and right separate",
+   "chunk lengths 4/3, 2, 8/3 quarter notes as single-precision numbers (90 and 120 BPM)",
+   "mirror law of a chunk (537 copies within 0.01 sample)",
+   "windows are fixed shares of the chunk",
+   "recirculation delay of one chunk",
+   "pre-delay, filter, Width, level stage around the layer",
+   "the position read in single precision once per host block and per converter block",
+   "a stopped transport: the layer counts by itself at the host's tempo (one session)"
+  ],
+  "fitted": [
+   "the windows' numbers",
+   "the recirculation gain 0.198",
+   "the grain readers",
+   "the voice gains and the three ramps (120 BPM)",
+   "the one-pole of 10 ms on each gain",
+   "the drift of the stopped clock (arithmetic unknown)"
+  ],
+  "oceansOwn": [
+   "a start, a stop and a jump of the position (more than 2 ms, or 4 % of the time since the host's last word): new start at the next internal block, 5 ms fade of a cut chunk",
+   "the tempo: every change is followed at once; a change of more than 1 % with no other change within 0.25 s, nor at the host block before or behind it, is a step and begins the readers anew once, 0.25 s behind it; changes nearer to each other are a ramp and are only followed",
+   "a position that runs more than 4 % off the tempo counts as jumping (a sum of what it strays by, with a memory of 50 ms)",
+   "a position that tells nothing: after three jumps in a row (each less than 0.25 s behind the one before, or at the next host block) the layer keeps time itself as under a stopped transport; it follows the host again once the position has run for 1 s without a jump",
+   "no tempo is 120 BPM; tempi outside 20 to 999 BPM are the nearer end",
+   "the position in double precision on the input's own time",
+   "Low Cut, High Damping, Freeze, Focus, Harmony, Mono Safe, Ocean's Mix, as in Fathom"
+  ]
+ },
+ "deviationsFromTheSpecification": [
+  "setLayer takes effect at the next prepare(), not at reset(): the layer's memory is allocated there",
+  "a tempo change restarts the readers only when it is a step (more than 1 %, no other change within 0.25 s); a tempo that keeps changing is followed; decided over time, so the same in host blocks of any length",
+  "a position that keeps jumping is left after three jumps in a row; the layer keeps time itself until the position has run for 1 s",
+  "a chunk takes over at its first sample or now, whichever is later (the reference's law puts some first samples one sample in front of the block that decides on them; the window is zero or within -143 dB of it there)",
+  "the plug-in's amount of the two engines together is a ramp of its own, so Fathom and Undertow crossfade with nothing of the FDN between them"
+ ],
+ "limits": [
+  "The octave voices hold the null against the reference near -60 dB: the reference holds the read position of its reversed readers in single precision, the model and the engine do not.",
+  "The drift of the stopped clock is not understood; it is a fitted curve from one session and holds that session's long scan at -31 dB.",
+  "One tempo besides 120 was measured (90 BPM). That a chunk is a note value at any tempo is assumed.",
+  "The Macro law was measured at 120 BPM; of the three ramps only the knee at 30 % is pinned.",
+  "One host rate was recorded: 48 kHz in blocks of 512. The golden vectors at 44.1 kHz check the port against the model, not the model against the reference.",
+  "The plug-in's own arithmetic does not null against the reference above Evolution 0: it is another clock of the same grid.",
+  "Macro acts about 54 internal samples ahead of its input at 48 kHz where the reference fits 28 to 44, and with no lead at 44.1 kHz.",
+  "A host that reports a running position without a tempo is taken at 120 BPM; if its position runs more than 4 % off that, the layer leaves the position and keeps time itself at 120 BPM: it sounds, but not on the host's grid.",
+  "A tempo step begins the readers anew 0.25 s and up to two host blocks behind the host's word of it; stairs of a tempo curve more than 0.25 s apart and larger than 1 % are steps.",
+  "The numbers of Ocean's transport rules are choices held by tests on synthetic transports; no host was tried.",
+  "The layer adds level: +1.4 dB at 30 %, +2 dB at 60 %, +3.2 to +3.4 dB at 100 % in the reference; Undertow has no trim for it.",
+  "The reference's Brightness, Transients and Ducking above 0 % have no counterpart, as in Fathom."
+ ],
+ "reviewFollowUp": {
+  "date": "2026-10-09",
+  "what": "two rules of Ocean's own in UndertowLayer.cpp after the independent code review: the tempo rule decided over time instead of by the size of one host block's change, and the fallback for a position that tells nothing",
+  "constants": {
+   "tempoStep": 0.01,
+   "tempoSettleSeconds": 0.25,
+   "positionRate": 0.04,
+   "jumpBlocks": 2.0,
+   "distrustJumps": 3,
+   "jumpRowSeconds": 0.25,
+   "returnSeconds": 1.0
+  },
+  "nothingMeasuredMoved": {
+   "goldenVectorsWorstDb": -142.39,
+   "wholeRendersAgainstTheModelWorstDb": -145.03,
+   "recordingsScoredAgain": 94,
+   "groups": [
+    "D",
+    "E",
+    "F part B",
+    "F anchors",
+    "F part S4",
+    "T90",
+    "S90"
+   ],
+   "andAgainFromTheSelfContainedCampaign": {
+    "recordings": 78,
+    "groups": [
+     "D",
+     "E",
+     "F anchors",
+     "F part S4",
+     "T90",
+     "S90"
+    ],
+    "scoresChanged": 0
+   },
+   "scoresChanged": 0,
+   "olderMetricLinesChanged": 0,
+   "fathomRendersIdenticalToBeforeTheLayer": "9 of 9"
+  }
+ },
+ "notRun": [
+  "No listening test, no DAW, no plug-in validator; no plug-in bundle built or rendered here.",
+  "No build for x86_64, with GCC or MSVC, or with -ffp-contract=fast.",
+  "Sanitizers on the ten new tests only.",
+  "No recording of the reference at a host rate other than 48 kHz, at a tempo other than 90 and 120 BPM, or with a transport event under signal.",
+  "The long run is an hour of the layer keeping time and fourteen hours of position, not hours of sound.",
+  "Macro in motion was scored on one recording.",
+  "The level of Undertow against the other Characters was not measured on this build."
+ ]
+}

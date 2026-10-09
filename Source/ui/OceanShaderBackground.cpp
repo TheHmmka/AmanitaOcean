@@ -100,7 +100,8 @@ void OceanShaderBackground::setSnapshot(int algorithm,
     // Acquire on the opening revision keeps the payload writes behind the
     // visible odd revision; the closing release publishes one coherent frame.
     snapshotRevision_.fetch_add(1, std::memory_order_acq_rel);
-    algorithm_.store(juce::jlimit(0, 4, algorithm), std::memory_order_relaxed);
+    algorithm_.store(juce::jlimit(0, characterCount - 1, algorithm),
+                     std::memory_order_relaxed);
     evolution_.store(clampUnit(evolution), std::memory_order_relaxed);
     focus_.store(clampUnit(focus), std::memory_order_relaxed);
     frozen_.store(frozen, std::memory_order_relaxed);
@@ -118,6 +119,19 @@ void OceanShaderBackground::setSnapshot(int algorithm,
                            std::memory_order_relaxed);
     accentArgb_.store(static_cast<std::uint32_t>(accent.getARGB()),
                       std::memory_order_relaxed);
+    snapshotRevision_.fetch_add(1, std::memory_order_release);
+}
+
+void OceanShaderBackground::setLayout(juce::Point<float> focalPoint,
+                                      juce::Rectangle<float> calmRegion) noexcept
+{
+    snapshotRevision_.fetch_add(1, std::memory_order_acq_rel);
+    focalX_.store(clampUnit(focalPoint.x), std::memory_order_relaxed);
+    focalY_.store(clampUnit(focalPoint.y), std::memory_order_relaxed);
+    calmX_.store(clampUnit(calmRegion.getX()), std::memory_order_relaxed);
+    calmY_.store(clampUnit(calmRegion.getY()), std::memory_order_relaxed);
+    calmWidth_.store(clampUnit(calmRegion.getWidth()), std::memory_order_relaxed);
+    calmHeight_.store(clampUnit(calmRegion.getHeight()), std::memory_order_relaxed);
     snapshotRevision_.fetch_add(1, std::memory_order_release);
 }
 
@@ -263,11 +277,25 @@ void OceanShaderBackground::renderOpenGL()
                               characterBlend_[2],
                               characterBlend_[3]);
     sceneProgram_->setUniform("uCurrentBlend", characterBlend_[4]);
+    sceneProgram_->setUniform("uFathomBlend", characterBlend_[5]);
+    sceneProgram_->setUniform("uUndertowBlend", characterBlend_[6]);
     sceneProgram_->setUniform("uCurrentFlow",
                               renderedCurrentFlowX_,
                               renderedCurrentFlowY_);
     sceneProgram_->setUniform("uCurrentStrength",
                               renderedCurrentStrength_);
+    // The shader measures from the bottom left corner. An empty region gets
+    // an extent no pixel lies within.
+    const auto calmCentre = target.calmRegion.getCentre();
+    const auto calms = ! target.calmRegion.isEmpty();
+    sceneProgram_->setUniform("uFocalPoint",
+                              target.focalPoint.x,
+                              1.0f - target.focalPoint.y);
+    sceneProgram_->setUniform("uCalmRegion",
+                              calmCentre.x,
+                              1.0f - calmCentre.y,
+                              calms ? 0.5f * target.calmRegion.getWidth() : -1.0f,
+                              calms ? 0.5f * target.calmRegion.getHeight() : -1.0f);
 
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
@@ -286,7 +314,9 @@ void OceanShaderBackground::renderOpenGL()
           + characterBlend_[1] * 1.25f
           + characterBlend_[2] * 0.86f
           + characterBlend_[3] * 1.35f
-          + characterBlend_[4] * 1.18f;
+          + characterBlend_[4] * 1.18f
+          + characterBlend_[5] * 1.22f
+          + characterBlend_[6] * 1.26f;
         const auto blurRadius =
             2.65f * characterRadius
           * juce::jmap(renderedEvolution_, 0.88f, 1.22f)
@@ -344,6 +374,8 @@ void OceanShaderBackground::renderOpenGL()
                                   characterBlend_[2],
                                   characterBlend_[3]);
     compositeProgram_->setUniform("uCurrentBlend", characterBlend_[4]);
+    compositeProgram_->setUniform("uFathomBlend", characterBlend_[5]);
+    compositeProgram_->setUniform("uUndertowBlend", characterBlend_[6]);
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
     glActiveTexture(GL_TEXTURE1);
@@ -572,7 +604,7 @@ OceanShaderBackground::loadSnapshot() const noexcept
             continue;
 
         snapshot.algorithm = juce::jlimit(
-            0, 4, algorithm_.load(std::memory_order_relaxed));
+            0, characterCount - 1, algorithm_.load(std::memory_order_relaxed));
         snapshot.evolution = clampUnit(
             evolution_.load(std::memory_order_relaxed));
         snapshot.focus = clampUnit(focus_.load(std::memory_order_relaxed));
@@ -585,6 +617,12 @@ OceanShaderBackground::loadSnapshot() const noexcept
             currentStrength_.load(std::memory_order_relaxed));
         snapshot.accent = juce::Colour(
             accentArgb_.load(std::memory_order_relaxed));
+        snapshot.focalPoint = { focalX_.load(std::memory_order_relaxed),
+                                focalY_.load(std::memory_order_relaxed) };
+        snapshot.calmRegion = { calmX_.load(std::memory_order_relaxed),
+                                calmY_.load(std::memory_order_relaxed),
+                                calmWidth_.load(std::memory_order_relaxed),
+                                calmHeight_.load(std::memory_order_relaxed) };
 
         if (revisionBefore
             == snapshotRevision_.load(std::memory_order_acquire))

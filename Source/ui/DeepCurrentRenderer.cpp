@@ -82,6 +82,12 @@ void DeepCurrentRenderer::setCurrentFieldSnapshot(float flowX,
         : targetCurrentFieldStrength_;
 }
 
+void DeepCurrentRenderer::setFocalPoint(float normalisedX, float normalisedY) noexcept
+{
+    focalX_ = std::isfinite(normalisedX) ? juce::jlimit(0.0f, 1.0f, normalisedX) : focalX_;
+    focalY_ = std::isfinite(normalisedY) ? juce::jlimit(0.0f, 1.0f, normalisedY) : focalY_;
+}
+
 void DeepCurrentRenderer::setSize(int logicalWidth, int logicalHeight)
 {
     if (logicalWidth <= 0 || logicalHeight <= 0)
@@ -180,13 +186,15 @@ void DeepCurrentRenderer::render(juce::Colour accent)
     const auto unit = juce::jmin(width / 480.0f, height / 300.0f);
     const auto evolutionDepth = 0.12f + 0.88f * evolution_;
     const auto veilBlend = characterBlend_[3];
+    // Undertow lies a shade darker than the others in all it draws.
+    const auto undertowBlend = characterBlend_[6];
 
     const auto period43 = phaseForPeriod(timeSeconds_, 43.0);
     const auto period67 = phaseForPeriod(timeSeconds_, 67.0);
     const auto period89 = phaseForPeriod(timeSeconds_, 89.0);
     const auto glowColour = juce::Colour::fromRGB(42, 99, 104)
                                 .interpolatedWith(accent.darker(0.36f), 0.55f);
-    const auto glowAlpha = 0.038f * (1.0f - 0.12f * veilBlend);
+    const auto glowAlpha = 0.038f * (1.0f - 0.12f * veilBlend - 0.16f * undertowBlend);
     const auto glowScale = 0.96f + 0.08f * evolution_;
 
     drawRadialGlow(graphics,
@@ -270,16 +278,40 @@ void DeepCurrentRenderer::render(juce::Colour accent)
                 * (0.62f * currentFieldFlowY_
                    + 0.38f * fromCentre * primary);
 
+            // Fathom: every lane rides one long swell in step, and the lanes
+            // spread and close with a slower tide.
+            const auto fathomSwell = std::sin(normalisedX * 2.6f
+                                            - static_cast<float>(timeSeconds_ * 0.054));
+            const auto fathomTide = std::sin(static_cast<float>(timeSeconds_ * 0.037));
+            const auto fathomAmount = unit * (4.0f + 12.0f * evolutionDepth);
+            const auto fathomX = baseX + unit * 1.6f * secondary;
+            const auto fathomY = baseY
+                + fathomAmount * (0.78f * fathomSwell + 0.22f * primary)
+                + fromCentre * height * 0.055f * evolutionDepth * fathomTide;
+
+            // Undertow: Fathom's long swell, lower and slower, running back
+            // the way Fathom's came; no tide spreads the lanes.
+            const auto undertowSwell = std::sin(normalisedX * 2.6f
+                                              + static_cast<float>(timeSeconds_ * 0.041));
+            const auto undertowAmount = unit * (3.5f + 10.0f * evolutionDepth);
+            const auto undertowX = baseX + unit * 1.6f * secondary;
+            const auto undertowY = baseY
+                + undertowAmount * (0.82f * undertowSwell + 0.18f * primary);
+
             const auto x = characterBlend_[0] * defaultX
                          + characterBlend_[1] * bloomX
                          + characterBlend_[2] * driftX
                          + characterBlend_[3] * veilX
-                         + characterBlend_[4] * currentX;
+                         + characterBlend_[4] * currentX
+                         + characterBlend_[5] * fathomX
+                         + characterBlend_[6] * undertowX;
             const auto y = characterBlend_[0] * defaultY
                          + characterBlend_[1] * bloomY
                          + characterBlend_[2] * driftY
                          + characterBlend_[3] * veilY
-                         + characterBlend_[4] * currentY;
+                         + characterBlend_[4] * currentY
+                         + characterBlend_[5] * fathomY
+                         + characterBlend_[6] * undertowY;
             if (point == 0)
                 path.startNewSubPath(x, y);
             else
@@ -289,7 +321,7 @@ void DeepCurrentRenderer::render(juce::Colour accent)
         const auto edgeDistance = std::abs(lane - 0.5f) * 2.0f;
         const auto alpha = 0.054f
                          * (1.0f - 0.12f * edgeDistance)
-                         * (1.0f - 0.10f * veilBlend);
+                         * (1.0f - 0.10f * veilBlend - 0.16f * undertowBlend);
         graphics.setColour(flowColour.withAlpha(alpha * 0.18f));
         graphics.strokePath(path,
                             juce::PathStrokeType(5.4f * unit,
@@ -303,18 +335,24 @@ void DeepCurrentRenderer::render(juce::Colour accent)
     }
 
     const auto centre = juce::Point<float> {
-        width * static_cast<float>(0.50 + 0.035 * std::sin(period67 + 0.4)),
-        height * static_cast<float>(0.48 + 0.028 * std::cos(period89 + 1.2))
+        width * (focalX_ + static_cast<float>(0.035 * std::sin(period67 + 0.4))),
+        height * (focalY_ + static_cast<float>(0.028 * std::cos(period89 + 1.2)))
     };
     const auto lineColour = juce::Colour::fromRGB(48, 88, 92)
                                 .interpolatedWith(accent, 0.60f);
+    // From a focal point off the middle the rings spread wider, so that they
+    // pass the farthest side of the frame as they do from the middle.
+    const auto reach = std::max(std::max(focalX_, 1.0f - focalX_)
+                                    / std::max(middleFocalX, 1.0f - middleFocalX),
+                                std::max(focalY_, 1.0f - focalY_)
+                                    / std::max(middleFocalY, 1.0f - middleFocalY));
 
     for (auto contour = 0; contour < contourCount; ++contour)
     {
         const auto spread = static_cast<float>(contour)
                           / static_cast<float>(contourCount - 1);
-        const auto radiusX = width * (0.085f + 0.585f * spread);
-        const auto radiusY = height * (0.052f + 0.435f * spread);
+        const auto radiusX = width * (0.085f + 0.585f * reach * spread);
+        const auto radiusY = height * (0.052f + 0.435f * reach * spread);
         juce::Path path;
         for (auto point = 0; point <= pointsPerContour; ++point)
         {
@@ -363,16 +401,38 @@ void DeepCurrentRenderer::render(juce::Colour accent)
             const auto currentY = baseY + currentAmount
                 * (0.68f * currentFieldFlowY_ + 0.32f * fine);
 
+            // Fathom: the rings spread flat and draw back tall, the swell
+            // reaching the outer rings a little later.
+            const auto fathomSwell = std::sin(static_cast<float>(timeSeconds_ * 0.054)
+                                            - spread * 1.2f);
+            const auto fathomAmount = unit * (2.0f + 9.5f * spread) * evolutionDepth;
+            const auto fathomX = baseX + cosine * fathomAmount * fathomSwell;
+            const auto fathomY = baseY - sine * fathomAmount * 0.62f * fathomSwell
+                               + fathomAmount * 0.16f * fine;
+
+            // Undertow: Fathom's breath run backwards, the swell coming in
+            // from the outer rings and reaching the inner ones a little later.
+            const auto undertowSwell = std::sin(static_cast<float>(timeSeconds_ * 0.041)
+                                              + spread * 1.2f);
+            const auto undertowAmount = unit * (1.8f + 8.0f * spread) * evolutionDepth;
+            const auto undertowX = baseX + cosine * undertowAmount * undertowSwell;
+            const auto undertowY = baseY - sine * undertowAmount * 0.62f * undertowSwell
+                                 + undertowAmount * 0.16f * fine;
+
             const auto x = characterBlend_[0] * defaultX
                          + characterBlend_[1] * bloomX
                          + characterBlend_[2] * driftX
                          + characterBlend_[3] * veilX
-                         + characterBlend_[4] * currentX;
+                         + characterBlend_[4] * currentX
+                         + characterBlend_[5] * fathomX
+                         + characterBlend_[6] * undertowX;
             const auto y = characterBlend_[0] * defaultY
                          + characterBlend_[1] * bloomY
                          + characterBlend_[2] * driftY
                          + characterBlend_[3] * veilY
-                         + characterBlend_[4] * currentY;
+                         + characterBlend_[4] * currentY
+                         + characterBlend_[5] * fathomY
+                         + characterBlend_[6] * undertowY;
             if (point == 0)
                 path.startNewSubPath(x, y);
             else
@@ -382,7 +442,7 @@ void DeepCurrentRenderer::render(juce::Colour accent)
 
         const auto alpha = 0.056f
                          * (1.0f - 0.28f * spread)
-                         * (1.0f - 0.12f * veilBlend);
+                         * (1.0f - 0.12f * veilBlend - 0.16f * undertowBlend);
         graphics.setColour(lineColour.withAlpha(alpha * 0.24f));
         graphics.strokePath(path,
                             juce::PathStrokeType(2.5f * unit,

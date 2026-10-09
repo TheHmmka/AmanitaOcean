@@ -1,0 +1,1322 @@
+{
+ "internal_rate_hz": 44100,
+ "lines": {
+  "prime": [
+   [
+    1031,
+    1097,
+    1187,
+    1289,
+    1423,
+    1583,
+    1783,
+    2027,
+    2333,
+    2699,
+    3163,
+    3719,
+    4409,
+    5261,
+    6299,
+    7589
+   ],
+   [
+    1039,
+    1109,
+    1193,
+    1301,
+    1429,
+    1597,
+    1787,
+    2039,
+    2333,
+    2707,
+    3163,
+    3719,
+    4409,
+    5261,
+    6299,
+    7589
+   ]
+  ],
+  "width_flat": 0.272,
+  "width_flat_lines": 6
+ },
+ "oscillator": {
+  "rate_hz": 0.6,
+  "depth_ms": 0.88,
+  "phase_step_rad": 11.25
+ },
+ "input": {
+  "delay_samples": 44,
+  "equaliser": [
+   {
+    "kind": "peaking",
+    "frequency_hz": 200.0,
+    "gain_db": 0.5,
+    "q": 0.4
+   },
+   {
+    "kind": "peaking",
+    "frequency_hz": 1750.0,
+    "gain_db": -0.5,
+    "q": 0.4
+   }
+  ],
+  "gain": {
+   "first": 0.2439776309038969,
+   "last_over_first": 0.236,
+   "shape": 3.36
+  }
+ },
+ "feedback": {
+  "scale": 0.25,
+  "kernel": [
+   {
+    "kind": "low_shelf",
+    "frequency_hz": 1221.0,
+    "gain_db": -0.28,
+    "q": 0.484
+   },
+   {
+    "kind": "high_shelf",
+    "frequency_hz": 12840.0,
+    "gain_db": -0.12,
+    "q": 0.26
+   }
+  ]
+ },
+ "output": {
+  "delay_samples": 44,
+  "low_pass": {
+   "kind": "low_pass",
+   "frequency_hz": 20000.0,
+   "q": 1.0
+  },
+  "tap": {
+   "decay_low_seconds": 0.5,
+   "decay_knee_seconds": 6.0,
+   "first": [
+    0.46,
+    0.228
+   ],
+   "last": [
+    0.336,
+    0.428
+   ],
+   "last_decay_shape": -2.6,
+   "early_shape": 4.0,
+   "late_shape": 2.0
+  }
+ },
+ "converter": {
+  "cutoff": 0.9,
+  "zero_crossings": 17,
+  "kaiser_beta": 6.0,
+  "table_entries_per_sample": 4096,
+  "exact_entry_low_wing": {
+   "input": 1,
+   "output": -1
+  },
+  "input_delay_internal_samples": 26.5625,
+  "output_delay_host_samples": 126.47619047619048,
+  "output_low_wing_stops_early": true
+ },
+ "evidence": {
+  "fit": {
+   "freeSections": [
+    {
+     "round": {
+      "kind": "peaking",
+      "frequency_hz": 200.0,
+      "gain_db": 0.5,
+      "q": 0.4
+     },
+     "fitted": {
+      "kind": "peaking",
+      "frequency_hz": 199.99962431665227,
+      "gain_db": 0.4999998318823967,
+      "q": 0.3999972612990146
+     }
+    },
+    {
+     "round": {
+      "kind": "peaking",
+      "frequency_hz": 1750.0,
+      "gain_db": -0.5,
+      "q": 0.4
+     },
+     "fitted": {
+      "kind": "peaking",
+      "frequency_hz": 1749.9973874534091,
+      "gain_db": -0.49999926872709316,
+      "q": 0.40000101410789796
+     }
+    },
+    {
+     "round": {
+      "kind": "low_pass",
+      "frequency_hz": 20000.0,
+      "q": 1.0
+     },
+     "fitted": {
+      "kind": "low_pass",
+      "frequency_hz": 20000.002120233283,
+      "q": 0.9999993849704731
+     }
+    },
+    {
+     "round": {
+      "kind": "low_shelf",
+      "frequency_hz": 1221.0,
+      "gain_db": -0.28,
+      "q": 0.484
+     },
+     "fitted": {
+      "kind": "low_shelf",
+      "frequency_hz": 1220.9960098650695,
+      "gain_db": -0.28000057634706876,
+      "q": 0.48399949019746485
+     }
+    },
+    {
+     "round": {
+      "kind": "high_shelf",
+      "frequency_hz": 12840.0,
+      "gain_db": -0.12,
+      "q": 0.26
+     },
+     "fitted": {
+      "kind": "high_shelf",
+      "frequency_hz": 12840.098613719314,
+      "gain_db": -0.12000277610945448,
+      "q": 0.2599961761598603
+     }
+    }
+   ],
+   "freeGainLevel": [
+    0.24397768543463244,
+    0.20911275335215176,
+    0.1868373780229,
+    0.17260556015411851,
+    0.1635127471523704,
+    0.1577033315222639,
+    0.1539916707012462,
+    0.15162027166021574,
+    0.1499361657675059,
+    0.14756473907543163,
+    0.14385292888950177,
+    0.13804368645656515,
+    0.12895074071276125,
+    0.11471899933834788,
+    0.0924436486299243,
+    0.05757871629342354
+   ],
+   "freeGainLaw": {
+    "first": 0.243977660070452,
+    "last": 0.05757871782496809,
+    "last_over_first": 0.23599995921077946,
+    "shape": 3.359994480057867,
+    "largestRelativeResidual": 8.702885724768259e-07
+   },
+   "sumOfSquaredInputGainsOfAGroup": 0.251999652755707,
+   "tapOfLine9Spread": 3.7403752373155186e-07,
+   "freeTaps": {
+    "impulse L, Decay 2.0 s": [
+     [
+      0.3967273,
+      0.5909551,
+      0.6624077,
+      0.6886937,
+      0.6983636,
+      0.7080336,
+      0.7343195,
+      0.805772,
+      1.0,
+      0.845573,
+      0.7583654,
+      0.7091171,
+      0.6773599,
+      0.628112,
+      0.540904,
+      0.3864768
+     ],
+     [
+      0.3967274,
+      0.5909554,
+      0.6624077,
+      0.6886936,
+      0.6983637,
+      0.7080338,
+      0.7343198,
+      0.8057721,
+      1.0,
+      0.845573,
+      0.7583651,
+      0.7091172,
+      0.6773598,
+      0.6281119,
+      0.540904,
+      0.3864768
+     ]
+    ],
+    "impulse R, Decay 2.0 s": [
+     [
+      0.3967273,
+      0.5909552,
+      0.6624078,
+      0.6886936,
+      0.6983637,
+      0.7080337,
+      0.7343195,
+      0.805772,
+      1.0,
+      0.8455729,
+      0.7583651,
+      0.7091171,
+      0.6773599,
+      0.6281119,
+      0.5409041,
+      0.3864769
+     ],
+     [
+      0.3967273,
+      0.5909551,
+      0.6624077,
+      0.6886935,
+      0.6983636,
+      0.7080337,
+      0.7343195,
+      0.805772,
+      1.0,
+      0.8455729,
+      0.7583653,
+      0.7091171,
+      0.6773598,
+      0.6281118,
+      0.5409039,
+      0.3864766
+     ]
+    ],
+    "impulse L, Decay 8.0 s": [
+     [
+      0.228,
+      0.4765508,
+      0.5679877,
+      0.6016255,
+      0.614,
+      0.6263746,
+      0.6600124,
+      0.7514491,
+      1.0,
+      0.8560245,
+      0.7747191,
+      0.728804,
+      0.6991962,
+      0.6532815,
+      0.5719756,
+      0.428
+     ],
+     [
+      0.228,
+      0.476551,
+      0.5679876,
+      0.6016253,
+      0.614,
+      0.6263746,
+      0.6600125,
+      0.7514491,
+      1.0,
+      0.8560246,
+      0.774719,
+      0.7288041,
+      0.6991961,
+      0.6532813,
+      0.5719755,
+      0.4280001
+     ]
+    ],
+    "impulse R, Decay 8.0 s": [
+     [
+      0.2280001,
+      0.4765509,
+      0.5679877,
+      0.6016254,
+      0.614,
+      0.6263745,
+      0.6600125,
+      0.7514492,
+      1.0,
+      0.8560245,
+      0.774719,
+      0.728804,
+      0.6991962,
+      0.6532813,
+      0.5719757,
+      0.4280001
+     ],
+     [
+      0.2280001,
+      0.476551,
+      0.5679876,
+      0.6016254,
+      0.614,
+      0.6263747,
+      0.6600124,
+      0.7514491,
+      1.0,
+      0.8560245,
+      0.7747192,
+      0.7288041,
+      0.6991961,
+      0.6532813,
+      0.5719756,
+      0.428
+     ]
+    ],
+    "impulse L, Decay 20.0 s": [
+     [
+      0.2279999,
+      0.4765508,
+      0.5679877,
+      0.6016254,
+      0.614,
+      0.6263747,
+      0.6600124,
+      0.7514491,
+      1.0,
+      0.8560244,
+      0.774719,
+      0.7288039,
+      0.6991961,
+      0.6532814,
+      0.5719755,
+      0.4279999
+     ],
+     [
+      0.228,
+      0.4765509,
+      0.5679876,
+      0.6016253,
+      0.614,
+      0.6263747,
+      0.6600125,
+      0.7514491,
+      1.0,
+      0.8560245,
+      0.7747189,
+      0.728804,
+      0.699196,
+      0.6532812,
+      0.5719755,
+      0.428
+     ]
+    ],
+    "train L, Decay 0.5 s": [
+     [
+      0.46,
+      0.6338569,
+      0.6978153,
+      0.7213442,
+      0.73,
+      0.7386558,
+      0.7621846,
+      0.826143,
+      1.0,
+      0.8328676,
+      0.7384854,
+      0.685185,
+      0.6508155,
+      0.5975151,
+      0.5031327,
+      0.3359998
+     ],
+     [
+      0.4600002,
+      0.6338571,
+      0.6978154,
+      0.7213444,
+      0.7300003,
+      0.738656,
+      0.7621848,
+      0.8261432,
+      1.0,
+      0.8328677,
+      0.7384766,
+      0.6851852,
+      0.6508153,
+      0.5975157,
+      0.5031322,
+      0.3360002
+     ]
+    ],
+    "train R, Decay 0.5 s": [
+     [
+      0.4600001,
+      0.633857,
+      0.6978154,
+      0.7213443,
+      0.7300001,
+      0.7386559,
+      0.7621835,
+      0.8261431,
+      1.0,
+      0.8328677,
+      0.7384851,
+      0.6851851,
+      0.6508156,
+      0.5975153,
+      0.5031326,
+      0.3359999
+     ],
+     [
+      0.4600001,
+      0.633857,
+      0.6978153,
+      0.7213443,
+      0.7300001,
+      0.7386558,
+      0.7621848,
+      0.8261431,
+      1.0,
+      0.8328676,
+      0.7384679,
+      0.685185,
+      0.6508165,
+      0.5975159,
+      0.5031314,
+      0.3360001
+     ]
+    ]
+   },
+   "freeFitNullsDb": {
+    "impulse L, Decay 2.0 s": -109.44,
+    "impulse R, Decay 2.0 s": -112.76,
+    "impulse L, Decay 8.0 s": -105.01,
+    "impulse R, Decay 8.0 s": -107.84,
+    "impulse L, Decay 20.0 s": -103.82,
+    "train L, Decay 0.5 s": -107.32,
+    "train R, Decay 0.5 s": -96.19
+   },
+   "firstPerCase": {
+    "impulse L, Decay 2.0 s": 0.24397766925170328,
+    "impulse R, Decay 2.0 s": 0.24397767324025893,
+    "impulse L, Decay 8.0 s": 0.243977655031045,
+    "impulse R, Decay 8.0 s": 0.24397766549769054,
+    "impulse L, Decay 20.0 s": 0.24397762066354678,
+    "train L, Decay 0.5 s": 0.24397766396359385,
+    "train R, Decay 0.5 s": 0.2439774686797067
+   },
+   "roundModelNullsDb": {
+    "impulse L, Decay 2.0 s": -109.37,
+    "impulse R, Decay 2.0 s": -112.72,
+    "impulse L, Decay 8.0 s": -104.96,
+    "impulse R, Decay 8.0 s": -107.8,
+    "impulse L, Decay 20.0 s": -103.74,
+    "train L, Decay 0.5 s": -107.21,
+    "train R, Decay 0.5 s": -95.89
+   }
+  },
+  "workingCases": [
+   {
+    "sampleRate": 44100,
+    "decaySeconds": 1.3,
+    "sizePercent": 66.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -117.54,
+    "stretchesDb": [
+     -93.83,
+     -117.68,
+     -95.11,
+     -95.22
+    ]
+   },
+   {
+    "sampleRate": 44100,
+    "decaySeconds": 2.7,
+    "sizePercent": 149.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -113.64,
+    "stretchesDb": [
+     -99.04,
+     -113.73,
+     -103.72,
+     -101.73
+    ]
+   },
+   {
+    "sampleRate": 44100,
+    "decaySeconds": 0.9,
+    "sizePercent": 91.0,
+    "warmupSeconds": 11.3,
+    "overallDb": -118.16,
+    "stretchesDb": [
+     -114.58,
+     -118.16,
+     -113.33,
+     -101.91
+    ]
+   },
+   {
+    "sampleRate": 44100,
+    "decaySeconds": 6.6,
+    "sizePercent": 100.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -112.54,
+    "stretchesDb": [
+     -105.93,
+     -112.98,
+     -107.13,
+     -103.98
+    ]
+   },
+   {
+    "sampleRate": 48000,
+    "decaySeconds": 0.6,
+    "sizePercent": 100.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -116.63,
+    "stretchesDb": [
+     -109.14,
+     -116.63,
+     -116.54,
+     -101.46
+    ]
+   },
+   {
+    "sampleRate": 48000,
+    "decaySeconds": 2.4,
+    "sizePercent": 100.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -114.45,
+    "stretchesDb": [
+     -105.26,
+     -114.48,
+     -106.01,
+     -101.85
+    ]
+   },
+   {
+    "sampleRate": 48000,
+    "decaySeconds": 6.6,
+    "sizePercent": 100.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -113.04,
+    "stretchesDb": [
+     -103.97,
+     -113.55,
+     -107.17,
+     -104.09
+    ]
+   },
+   {
+    "sampleRate": 48000,
+    "decaySeconds": 1.3,
+    "sizePercent": 66.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -118.58,
+    "stretchesDb": [
+     -108.89,
+     -118.58,
+     -108.47,
+     -100.1
+    ]
+   },
+   {
+    "sampleRate": 48000,
+    "decaySeconds": 2.7,
+    "sizePercent": 149.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -115.39,
+    "stretchesDb": [
+     -110.5,
+     -115.47,
+     -105.8,
+     -102.07
+    ]
+   },
+   {
+    "sampleRate": 48000,
+    "decaySeconds": 0.9,
+    "sizePercent": 91.0,
+    "warmupSeconds": 11.3,
+    "overallDb": -119.13,
+    "stretchesDb": [
+     -116.05,
+     -119.13,
+     -115.12,
+     -101.65
+    ]
+   }
+  ],
+  "cornerCases": [
+   {
+    "sampleRate": 44100,
+    "decaySeconds": 1.0,
+    "sizePercent": 40.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -120.28,
+    "stretchesDb": [
+     -113.73,
+     -120.29,
+     -111.2,
+     -101.11
+    ]
+   },
+   {
+    "sampleRate": 44100,
+    "decaySeconds": 0.7,
+    "sizePercent": 30.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -119.29,
+    "stretchesDb": [
+     -115.66,
+     -119.29,
+     -115.71,
+     -102.81
+    ]
+   },
+   {
+    "sampleRate": 44100,
+    "decaySeconds": 3.0,
+    "sizePercent": 200.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -111.9,
+    "stretchesDb": [
+     -109.4,
+     -111.99,
+     -104.9,
+     -101.23
+    ]
+   },
+   {
+    "sampleRate": 48000,
+    "decaySeconds": 45.0,
+    "sizePercent": 100.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -110.6,
+    "stretchesDb": [
+     -103.27,
+     -113.17,
+     -107.85,
+     -104.78
+    ]
+   },
+   {
+    "sampleRate": 48000,
+    "decaySeconds": 1.5,
+    "sizePercent": 45.0,
+    "warmupSeconds": 3.7,
+    "overallDb": -117.92,
+    "stretchesDb": [
+     -110.54,
+     -117.92,
+     -108.43,
+     -100.39
+    ]
+   },
+   {
+    "sampleRate": 48000,
+    "decaySeconds": 0.5,
+    "sizePercent": 50.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -122.56,
+    "stretchesDb": [
+     -119.38,
+     -122.57,
+     -107.53,
+     -101.03
+    ]
+   },
+   {
+    "sampleRate": 48000,
+    "decaySeconds": 4.0,
+    "sizePercent": 150.0,
+    "warmupSeconds": 10.0,
+    "overallDb": -114.36,
+    "stretchesDb": [
+     -108.02,
+     -114.66,
+     -105.84,
+     -103.2
+    ]
+   }
+  ],
+  "converter": {
+   "caseRateDecaySize": [
+    48000,
+    2.4,
+    100.0
+   ],
+   "nullsDb": {
+    "model": {
+     "overallDb": -114.45,
+     "on an internal sample (phase 0)": -115.63,
+     "other exact table entries (phase a multiple of 5)": -114.62,
+     "all other output samples": -114.4
+    },
+    "low wing uses its last entry": {
+     "overallDb": -94.84,
+     "on an internal sample (phase 0)": -72.9,
+     "other exact table entries (phase a multiple of 5)": -114.62,
+     "all other output samples": -114.4
+    }
+   }
+  },
+  "lateResponse": {
+   "edgesSeconds": [
+    [
+     0.25,
+     0.5
+    ],
+    [
+     0.5,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     4
+    ],
+    [
+     4,
+     8
+    ],
+    [
+     8,
+     14
+    ],
+    [
+     14,
+     20
+    ],
+    [
+     20,
+     30
+    ]
+   ],
+   "Decay 2.0 s": {
+    "overallDb": -109.37,
+    "left": [
+     -112.27,
+     -102.96,
+     -101.42,
+     -100.79,
+     -99.84,
+     -98.12
+    ],
+    "right": [
+     -115.45,
+     -107.03,
+     -103.97,
+     -103.13,
+     -101.66,
+     -99.34
+    ]
+   },
+   "Decay 8.0 s": {
+    "overallDb": -104.96,
+    "left": [
+     -109.42,
+     -102.57,
+     -101.19,
+     -100.89,
+     -100.04,
+     -98.57,
+     -96.41
+    ],
+    "right": [
+     -114.59,
+     -106.13,
+     -103.83,
+     -102.98,
+     -101.79,
+     -99.79,
+     -97.01
+    ]
+   },
+   "Decay 20.0 s": {
+    "overallDb": -103.74,
+    "left": [
+     -109.01,
+     -102.46,
+     -101.13,
+     -100.81,
+     -99.88,
+     -98.35,
+     -96.21,
+     -93.59
+    ],
+    "right": [
+     -114.36,
+     -105.94,
+     -103.79,
+     -102.83,
+     -101.6,
+     -99.6,
+     -96.8,
+     -94.44
+    ]
+   }
+  },
+  "tapSweep": {
+   "rows": [
+    {
+     "decaySeconds": 0.5,
+     "line1": [
+      0.46,
+      0.46
+     ],
+     "line10": [
+      0.832868,
+      0.832868
+     ],
+     "line16": [
+      0.336,
+      0.335999
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 6.018554981612745e-07,
+     "lawLine1": 0.46,
+     "lawLine16": 0.336,
+     "nullFreeTapsDb": -115.74
+    },
+    {
+     "decaySeconds": 0.75,
+     "line1": [
+      0.449455,
+      0.449455
+     ],
+     "line10": [
+      0.835656,
+      0.835656
+     ],
+     "line16": [
+      0.347077,
+      0.347077
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 4.1202124556605213e-07,
+     "lawLine1": 0.449455,
+     "lawLine16": 0.347078,
+     "nullFreeTapsDb": -115.2
+    },
+    {
+     "decaySeconds": 1.0,
+     "line1": [
+      0.438909,
+      0.438909
+     ],
+     "line10": [
+      0.838133,
+      0.838133
+     ],
+     "line16": [
+      0.35692,
+      0.35692
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 3.6033881589681016e-07,
+     "lawLine1": 0.438909,
+     "lawLine16": 0.35692,
+     "nullFreeTapsDb": -114.83
+    },
+    {
+     "decaySeconds": 1.5,
+     "line1": [
+      0.417818,
+      0.417818
+     ],
+     "line10": [
+      0.842291,
+      0.842291
+     ],
+     "line16": [
+      0.373437,
+      0.373437
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 2.727406944735833e-07,
+     "lawLine1": 0.417818,
+     "lawLine16": 0.373437,
+     "nullFreeTapsDb": -114.3
+    },
+    {
+     "decaySeconds": 2.0,
+     "line1": [
+      0.396727,
+      0.396727
+     ],
+     "line10": [
+      0.845573,
+      0.845573
+     ],
+     "line16": [
+      0.386477,
+      0.386477
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 2.0802528966079592e-07,
+     "lawLine1": 0.396727,
+     "lawLine16": 0.386477,
+     "nullFreeTapsDb": -113.94
+    },
+    {
+     "decaySeconds": 3.0,
+     "line1": [
+      0.354546,
+      0.354545
+     ],
+     "line10": [
+      0.85021,
+      0.85021
+     ],
+     "line16": [
+      0.404899,
+      0.404899
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 1.4852094909478808e-07,
+     "lawLine1": 0.354545,
+     "lawLine16": 0.404899,
+     "nullFreeTapsDb": -113.47
+    },
+    {
+     "decaySeconds": 4.0,
+     "line1": [
+      0.312364,
+      0.312364
+     ],
+     "line10": [
+      0.8531,
+      0.8531
+     ],
+     "line16": [
+      0.416382,
+      0.416382
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 1.6338930763915016e-07,
+     "lawLine1": 0.312364,
+     "lawLine16": 0.416382,
+     "nullFreeTapsDb": -113.11
+    },
+    {
+     "decaySeconds": 5.0,
+     "line1": [
+      0.270182,
+      0.270182
+     ],
+     "line10": [
+      0.854902,
+      0.854902
+     ],
+     "line16": [
+      0.423539,
+      0.423539
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 1.832411608004847e-07,
+     "lawLine1": 0.270182,
+     "lawLine16": 0.423539,
+     "nullFreeTapsDb": -112.86
+    },
+    {
+     "decaySeconds": 5.75,
+     "line1": [
+      0.238546,
+      0.238545
+     ],
+     "line10": [
+      0.855791,
+      0.855791
+     ],
+     "line16": [
+      0.427074,
+      0.427074
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 1.3471118998076292e-07,
+     "lawLine1": 0.238545,
+     "lawLine16": 0.427074,
+     "nullFreeTapsDb": -112.68
+    },
+    {
+     "decaySeconds": 6.0,
+     "line1": [
+      0.228,
+      0.228
+     ],
+     "line10": [
+      0.856024,
+      0.856024
+     ],
+     "line16": [
+      0.428,
+      0.428
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 1.6268252311935072e-07,
+     "lawLine1": 0.228,
+     "lawLine16": 0.428,
+     "nullFreeTapsDb": -112.65
+    },
+    {
+     "decaySeconds": 6.5,
+     "line1": [
+      0.228,
+      0.228
+     ],
+     "line10": [
+      0.856024,
+      0.856024
+     ],
+     "line16": [
+      0.428,
+      0.428
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 1.9125280770193598e-07,
+     "lawLine1": 0.228,
+     "lawLine16": 0.428,
+     "nullFreeTapsDb": -112.57
+    },
+    {
+     "decaySeconds": 8.0,
+     "line1": [
+      0.228,
+      0.228
+     ],
+     "line10": [
+      0.856024,
+      0.856024
+     ],
+     "line16": [
+      0.428,
+      0.428
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 1.21323508572857e-07,
+     "lawLine1": 0.228,
+     "lawLine16": 0.428,
+     "nullFreeTapsDb": -112.34
+    },
+    {
+     "decaySeconds": 12.0,
+     "line1": [
+      0.228,
+      0.228
+     ],
+     "line10": [
+      0.856024,
+      0.856024
+     ],
+     "line16": [
+      0.428,
+      0.428
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 1.1512880448982798e-07,
+     "lawLine1": 0.228,
+     "lawLine16": 0.428,
+     "nullFreeTapsDb": -111.84
+    },
+    {
+     "decaySeconds": 30.0,
+     "line1": [
+      0.228,
+      0.228
+     ],
+     "line10": [
+      0.856024,
+      0.856025
+     ],
+     "line16": [
+      0.428,
+      0.428
+     ],
+     "line9Absolute": [
+      1.0,
+      1.0
+     ],
+     "largestDeviationFromLaw": 1.335290350512608e-07,
+     "lawLine1": 0.228,
+     "lawLine16": 0.428,
+     "nullFreeTapsDb": -110.79
+    }
+   ],
+   "largestDeviationFromLaw": 6.018554981612745e-07
+  },
+  "matrix": {
+   "left": {
+    "baseNullDb": -109.06,
+    "largestRelativeDeviation": 6.734566753000605e-06,
+    "rmsRelativeDeviation": 6.048163259580015e-07,
+    "bestNullWithOneSignFlippedDb": -27.74,
+    "worstNullWithOneSignFlippedDb": -13.35
+   },
+   "right": {
+    "baseNullDb": -113.32,
+    "largestRelativeDeviation": 1.3320907631603495e-06,
+    "rmsRelativeDeviation": 3.1571021217024683e-07,
+    "bestNullWithOneSignFlippedDb": -27.39,
+    "worstNullWithOneSignFlippedDb": -12.56
+   }
+  },
+  "ablations": {
+   "casesDecaySize": [
+    [
+     6.6,
+     100.0
+    ],
+    [
+     2.7,
+     149.0
+    ]
+   ],
+   "nullsDb": {
+    "model": [
+     -112.54,
+     -113.64
+    ],
+    "Hadamard rows in natural order (not reversed)": [
+     2.94,
+     1.69
+    ],
+    "loop kernel reduced to its direct gain 0.9911": [
+     -16.49,
+     -25.45
+    ],
+    "no loop kernel (gain 1)": [
+     -12.98,
+     -22.42
+    ],
+    "loop kernel coefficients rounded to single precision": [
+     -110.23,
+     -113.12
+    ],
+    "low shelf at 1220 Hz": [
+     -82.52,
+     -92.1
+    ],
+    "low shelf -0.3 dB": [
+     -37.74,
+     -45.99
+    ],
+    "low shelf Q 0.5": [
+     -50.27,
+     -59.93
+    ],
+    "high shelf at 12800 Hz": [
+     -81.1,
+     -91.08
+    ],
+    "high shelf -0.1 dB": [
+     -50.59,
+     -60.47
+    ],
+    "high shelf Q 0.25": [
+     -64.22,
+     -74.19
+    ],
+    "equaliser behind the lines": [
+     -68.21,
+     -71.43
+    ],
+    "first peaking section at 201 Hz": [
+     -76.3,
+     -75.85
+    ],
+    "second peaking section Q 0.41": [
+     -65.68,
+     -65.32
+    ],
+    "low-pass at 19900 Hz": [
+     -53.53,
+     -50.71
+    ],
+    "low-pass Q 0.99": [
+     -70.45,
+     -68.48
+    ],
+    "tap weights of Decay 0.5 s": [
+     -15.73,
+     -22.9
+    ],
+    "attenuation from the rounded length": [
+     -112.54,
+     -88.35
+    ],
+    "input gain: last / first 0.235": [
+     -61.1,
+     -62.59
+    ],
+    "input gain: shape 3.35": [
+     -69.5,
+     -69.31
+    ],
+    "input gain of line 1: 0.244": [
+     -80.76,
+     -80.76
+    ],
+    "late tap curve with the shape of the early one": [
+     -29.3,
+     -29.91
+    ],
+    "no cross feed at the line inputs": [
+     -9.48,
+     -9.63
+    ]
+   }
+  },
+  "lengthExpression": {
+   "samples": 5568,
+   "unclear": 0,
+   "oneStepOff": 5,
+   "rmsDistanceFromWholeSteps": 0.002190635969089535,
+   "oneStepOffWithFl32OfDoubleExpression": 151
+  }
+ }
+}

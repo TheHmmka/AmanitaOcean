@@ -13,6 +13,12 @@ class ParameterKnob final : public juce::Component
 public:
     using Formatter = std::function<juce::String(double)>;
 
+    // Design size of a hero control and of the dial at its top; its name and
+    // its value take the rest of the height.
+    static constexpr int heroWidth = 208;
+    static constexpr int heroHeight = 238;
+    static constexpr int heroDialSize = 194;
+
     ParameterKnob(juce::AudioProcessorValueTreeState& state,
                   const juce::String& parameterId,
                   const juce::String& displayName,
@@ -26,6 +32,9 @@ public:
     [[nodiscard]] juce::Slider& getSlider() noexcept;
     [[nodiscard]] const juce::Slider& getSlider() const noexcept;
     [[nodiscard]] juce::Label& getValueLabel() noexcept;
+    // The baseline of the value in this component's coordinates: the foot of
+    // its digits.
+    [[nodiscard]] float getValueBaseline();
 
 private:
     void updateDisplayedValue();

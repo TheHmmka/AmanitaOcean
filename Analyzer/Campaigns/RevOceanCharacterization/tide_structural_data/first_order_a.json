@@ -1,0 +1,289 @@
+{
+ "kernelWindowNullDb": [
+  -18.54,
+  -52.47,
+  -64.89
+ ],
+ "gainWindowNullDb": {
+  "L->L": -55.53,
+  "R->L": -54.17,
+  "L->R": -54.48,
+  "R->R": -55.44
+ },
+ "gridValidation": {
+  "L->L": -62.33,
+  "L->R": -63.22,
+  "R->L": -62.38,
+  "R->R": -61.78,
+  "overallDb": -62.17,
+  "worstResponseDb": -61.06,
+  "responses": 49
+ },
+ "offGridValidation0": {
+  "L->L": -63.18,
+  "L->R": -66.39,
+  "R->L": -63.55,
+  "R->R": -63.78,
+  "overallDb": -63.67,
+  "worstResponseDb": -61.6,
+  "responses": 59
+ },
+ "offGridValidation1": {
+  "L->L": -63.3,
+  "L->R": -66.78,
+  "R->L": -63.55,
+  "R->R": -63.91,
+  "overallDb": -63.8,
+  "worstResponseDb": -61.49,
+  "responses": 59
+ },
+ "constants": {
+  "lfoStartRad": 6.283189460518711,
+  "lfoStepRad": 1.3163743992512327,
+  "lfoOriginSteps": 440884,
+  "depthInternalSamples": 38.808,
+  "latencyInternalSamples": 187,
+  "primesLeft": [
+   1031,
+   1097,
+   1187,
+   1289,
+   1423,
+   1583,
+   1783,
+   2027,
+   2333
+  ],
+  "primesRight": [
+   1039,
+   1109,
+   1193,
+   1301,
+   1429,
+   1597,
+   1787,
+   2039,
+   2333
+  ],
+  "firstGain": [
+   [
+    [
+     1.0,
+     0.57233
+    ],
+    [
+     1.15683,
+     0.6621
+    ],
+    [
+     1.1063,
+     0.63316
+    ],
+    [
+     1.02328,
+     0.58565
+    ],
+    [
+     0.94062,
+     0.53834
+    ],
+    [
+     0.87314,
+     0.49972
+    ],
+    [
+     1.29916,
+     -0.0
+    ],
+    [
+     1.23249,
+     0.05193
+    ],
+    [
+     1.28393,
+     0.11296
+    ]
+   ],
+   [
+    [
+     0.57089,
+     0.99749
+    ],
+    [
+     0.65961,
+     1.15249
+    ],
+    [
+     0.63196,
+     1.1042
+    ],
+    [
+     0.58345,
+     1.01943
+    ],
+    [
+     0.53734,
+     0.93887
+    ],
+    [
+     0.49752,
+     0.86927
+    ],
+    [
+     1e-05,
+     1.29758
+    ],
+    [
+     0.05169,
+     1.22782
+    ],
+    [
+     0.11298,
+     1.28407
+    ]
+   ]
+  ],
+  "secondPass": [
+   {
+    "output": 0,
+    "source": 1,
+    "target": 1,
+    "gainFromLeft": 0.17931,
+    "gainFromRight": 0.10261
+   },
+   {
+    "output": 0,
+    "source": 2,
+    "target": 1,
+    "gainFromLeft": -0.1512,
+    "gainFromRight": -0.08653
+   },
+   {
+    "output": 0,
+    "source": 3,
+    "target": 1,
+    "gainFromLeft": -0.13139,
+    "gainFromRight": -0.07519
+   },
+   {
+    "output": 0,
+    "source": 4,
+    "target": 1,
+    "gainFromLeft": 0.11642,
+    "gainFromRight": 0.06663
+   },
+   {
+    "output": 0,
+    "source": 1,
+    "target": 2,
+    "gainFromLeft": 0.24231,
+    "gainFromRight": 0.13868
+   },
+   {
+    "output": 0,
+    "source": 2,
+    "target": 2,
+    "gainFromLeft": 0.20319,
+    "gainFromRight": 0.1163
+   },
+   {
+    "output": 0,
+    "source": 3,
+    "target": 2,
+    "gainFromLeft": -0.17616,
+    "gainFromRight": -0.10082
+   },
+   {
+    "output": 0,
+    "source": 1,
+    "target": 3,
+    "gainFromLeft": 0.25969,
+    "gainFromRight": 0.14863
+   },
+   {
+    "output": 0,
+    "source": 2,
+    "target": 3,
+    "gainFromLeft": -0.21734,
+    "gainFromRight": -0.12437
+   },
+   {
+    "output": 0,
+    "source": 1,
+    "target": 4,
+    "gainFromLeft": 0.25905,
+    "gainFromRight": 0.14827
+   },
+   {
+    "output": 1,
+    "source": 1,
+    "target": 1,
+    "gainFromLeft": 0.10201,
+    "gainFromRight": 0.17826
+   },
+   {
+    "output": 1,
+    "source": 2,
+    "target": 1,
+    "gainFromLeft": -0.08607,
+    "gainFromRight": -0.15037
+   },
+   {
+    "output": 1,
+    "source": 3,
+    "target": 1,
+    "gainFromLeft": -0.07481,
+    "gainFromRight": -0.13073
+   },
+   {
+    "output": 1,
+    "source": 4,
+    "target": 1,
+    "gainFromLeft": 0.06615,
+    "gainFromRight": 0.11562
+   },
+   {
+    "output": 1,
+    "source": 1,
+    "target": 2,
+    "gainFromLeft": 0.13774,
+    "gainFromRight": 0.24068
+   },
+   {
+    "output": 1,
+    "source": 2,
+    "target": 2,
+    "gainFromLeft": 0.11542,
+    "gainFromRight": 0.20163
+   },
+   {
+    "output": 1,
+    "source": 3,
+    "target": 2,
+    "gainFromLeft": -0.10024,
+    "gainFromRight": -0.17515
+   },
+   {
+    "output": 1,
+    "source": 1,
+    "target": 3,
+    "gainFromLeft": 0.14797,
+    "gainFromRight": 0.25853
+   },
+   {
+    "output": 1,
+    "source": 2,
+    "target": 3,
+    "gainFromLeft": -0.1237,
+    "gainFromRight": -0.21612
+   },
+   {
+    "output": 1,
+    "source": 1,
+    "target": 4,
+    "gainFromLeft": 0.14728,
+    "gainFromRight": 0.25734
+   }
+  ]
+ }
+}

@@ -3,16 +3,24 @@
 #include "dsp/CurrentField.h"
 #include "dsp/FDNReverb.h"
 #include "dsp/DriftCharacter.h"
+#include "dsp/FathomConverter.h"
+#include "dsp/FathomEngine.h"
+#include "dsp/FathomNetwork.h"
 #include "dsp/HarmonicTail.h"
 #include "dsp/LateralDecay.h"
 #include "dsp/SpatialDucker.h"
 #include "dsp/StereoField.h"
+#include "dsp/UndertowLayer.h"
 #include "dsp/VeilCharacter.h"
+
+#include "FathomGoldenVectors.h"
+#include "UndertowGoldenVectors.h"
 
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <bit>
+#include <cfenv>
 #include <cmath>
 #include <complex>
 #include <cstdint>
@@ -24,6 +32,7 @@
 #include <limits>
 #include <new>
 #include <numeric>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -138,6 +147,10 @@ using amanita::dsp::CharacterExcitationNormalizer;
 using amanita::dsp::CurrentField;
 using amanita::dsp::FDNReverb;
 using amanita::dsp::DriftCharacter;
+using amanita::dsp::FathomConverter;
+using amanita::dsp::FathomEngine;
+using amanita::dsp::FathomRateLattice;
+using amanita::dsp::FathomVoicePhase;
 using amanita::dsp::HarmonicAnalyzer;
 using amanita::dsp::HarmonicAnalysisFrame;
 using amanita::dsp::HarmonicTail;
@@ -1408,6 +1421,8 @@ void testCurrentMonoSafeVoicingSwitch()
 
 void testStereoFieldFdnIntegration()
 {
+    // Fathom is left out: this pins the FDN's shared-sign decoder and Lateral
+    // Decay.
     constexpr std::array modes {
         ReverbMode::defaultMode,
         ReverbMode::bloom,
@@ -2137,6 +2152,8 @@ void testDelayGeometryAndSampleRates()
 void testMinimumSizeSampleRatesAndStability()
 {
     constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
+    // Fathom is left out: the onset window is the FDN's shortest line at minimum
+    // Size.
     constexpr std::array modes {
         ReverbMode::defaultMode,
         ReverbMode::bloom,
@@ -2332,6 +2349,7 @@ void testNaturalDecayExcitation()
                 && sustainedThirtyToFiveDb <= 4.3,
             "Natural FDN energy does not grow as expected with Decay");
 
+    // Fathom is left out: the onset window is read from getNominalDelaySamples().
     constexpr std::array modes {
         ReverbMode::defaultMode,
         ReverbMode::bloom,
@@ -3492,6 +3510,3234 @@ void testCurrentSampleRatesFreezeAndStability()
                 "Current Freeze feedback energy grows over time");
         require(peak < 4.0f,
                 "Current stress test exceeded the safety range");
+    }
+}
+
+[[nodiscard]] bool sameBits(float first, float second) noexcept
+{
+    return std::bit_cast<std::uint32_t>(first) == std::bit_cast<std::uint32_t>(second);
+}
+
+[[nodiscard]] bool sameBits(double first, double second) noexcept
+{
+    return std::bit_cast<std::uint64_t>(first) == std::bit_cast<std::uint64_t>(second);
+}
+
+[[nodiscard]] float fathomNoise(int frame, int channel) noexcept
+{
+    auto state = static_cast<std::uint32_t>(frame) * 2654435761u
+               + static_cast<std::uint32_t>(channel) * 40503u + 0x0ebb5eedu;
+    state ^= state >> 15;
+    state *= 2246822519u;
+    state ^= state >> 13;
+    return static_cast<float>(static_cast<std::int32_t>(state)) / 2147483648.0f;
+}
+
+// Fathom with Ocean's own controls where they are out of its circuit, Width where
+// the reference's law is the identity and Mix at 100 %, where the wet passes
+// as it is.
+[[nodiscard]] ReverbParameters fathomNeutralParameters()
+{
+    ReverbParameters parameters;
+    parameters.mode = ReverbMode::fathom;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 4.0f;
+    parameters.size = 1.0f;
+    parameters.preDelayMs = 0.0f;
+    parameters.lowCutHz = 20.0f;
+    parameters.highDampingHz = 20000.0f;
+    parameters.evolution = 1.0f;
+    parameters.width = 1.0f;
+    parameters.ducking = 0.0f;
+    parameters.harmony = 0.0f;
+    parameters.autoHarmony = true;
+    return parameters;
+}
+
+// A programme for the plug-in level tests of Fathom: four bursts per second of a
+// C4 tone and noise on both sides, each with an onset of 2.5 ms that crosses
+// the threshold of the reference's level stage (0.5629) at `drive` 1.
+[[nodiscard]] FathomEngine::Frame fathomBursts(int frame, double sampleRate, float drive = 1.0f)
+{
+    const auto period = static_cast<int>(sampleRate * 0.25);
+    const auto position = frame % period;
+    if (position >= period / 2)
+        return {};
+
+    constexpr auto twoPi = 6.28318530717958647692;
+    const auto tone = static_cast<float>(
+        std::sin(twoPi * 261.6256 * static_cast<double>(frame) / sampleRate));
+    const auto onset = position < period / 100 ? 0.45f : 0.0f;
+    return { drive * (0.20f * tone + 0.10f * fathomNoise(frame, 20) + onset),
+             drive * (-0.15f * tone - 0.08f * fathomNoise(frame, 21)) };
+}
+
+// What FDNReverb hands the engine for a set of Ocean's parameters.
+[[nodiscard]] FathomEngine::Parameters fathomEngineParameters(
+    const ReverbParameters& parameters) noexcept
+{
+    FathomEngine::Parameters engineParameters;
+    engineParameters.decaySeconds = parameters.decaySeconds;
+    engineParameters.sizeScale = parameters.size;
+    engineParameters.preDelaySeconds = parameters.preDelayMs * 0.001f;
+    engineParameters.macro = parameters.evolution;
+    engineParameters.lowCutHz = parameters.lowCutHz;
+    engineParameters.highDampingHz = parameters.highDampingHz;
+    engineParameters.freeze = parameters.freeze;
+    return engineParameters;
+}
+
+// How this build of the DSP forms the sum of Ocean's Mix, dry + mix (wet -
+// dry): with the product fused into the addition, or rounded on its own
+// first. Read from Default while its pre-delay holds the wet at exact silence,
+// where the sum is dry + mix (0 - dry).
+[[nodiscard]] bool oceanMixSumIsFused()
+{
+    static const auto fused = []
+    {
+        constexpr auto mix = 0.3f;
+        ReverbParameters parameters;
+        parameters.mix = mix;
+        parameters.preDelayMs = 250.0f;
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(48000.0, 512);
+
+        auto fusedFrames = 0;
+        auto separateFrames = 0;
+        for (auto frame = 0; frame < 4000; ++frame)
+        {
+            const auto dry = fathomNoise(frame, 40);
+            auto left = dry;
+            auto right = dry;
+            reverb.processSample(left, right);
+
+            // The products pass through memory, so no build of this file
+            // fuses them with the addition.
+            volatile float product = mix * (0.0f - dry);
+            const float separateSum = dry + product;
+            const auto fusedSum = std::fma(mix, 0.0f - dry, dry);
+            if (sameBits(fusedSum, separateSum))
+                continue;
+            fusedFrames += sameBits(left, fusedSum) ? 1 : 0;
+            separateFrames += sameBits(left, separateSum) ? 1 : 0;
+        }
+        require(std::max(fusedFrames, separateFrames) > 100 && std::min(fusedFrames, separateFrames) == 0,
+                "Ocean's Mix sum is neither the fused nor the separately rounded form of its expression");
+        return fusedFrames > 0;
+    }();
+    return fused;
+}
+
+// Ocean's Mix of one channel as FDNReverb forms it for every Character: the
+// dry signal, under the bound of the FDN's input, crossfaded linearly into
+// the wet. At 100 % the wet of Fathom passes as it is.
+[[nodiscard]] float oceanMix(float dry, float wet, float mix)
+{
+    if (mix >= 1.0f)
+        return wet;
+
+    const auto boundedDry = std::clamp(dry, -4.0f, 4.0f);
+    volatile float difference = wet - boundedDry;
+    const float roundedDifference = difference;
+    if (oceanMixSumIsFused())
+        return std::fma(mix, roundedDifference, boundedDry);
+
+    volatile float product = mix * roundedDifference;
+    return boundedDry + product;
+}
+
+// The chain Fathom must reduce to while Ocean's own controls are neutral: the
+// engine with the parameters FDNReverb hands it, its level stage and the
+// reference's Width law, Ocean's Mix, the reference's clipper and the output
+// guard of a settled Fathom. Mono Safe adds the Sub Anchor behind the Width law.
+struct FathomReferenceChain
+{
+    FathomReferenceChain(const ReverbParameters& parameters, double sampleRate,
+                         std::uint64_t voiceSeed = FathomEngine::defaultVoiceSeed)
+        : mix(parameters.mix), width(parameters.width)
+    {
+        engine.setParameters(fathomEngineParameters(parameters));
+        engine.setVoiceSeed(voiceSeed);
+        engine.prepare(sampleRate);
+        levelStage.prepare(sampleRate);
+        subAnchor.prepare(sampleRate);
+    }
+
+    // The engine's wet through its level stage.
+    [[nodiscard]] FathomEngine::Frame wet(float dryLeft, float dryRight) noexcept
+    {
+        return levelStage.process(dryLeft, dryRight, engine.processSample(dryLeft, dryRight));
+    }
+
+    // A frame of time while another Character is selected.
+    void idle() noexcept
+    {
+        engine.advanceIdle();
+    }
+
+    [[nodiscard]] FathomEngine::Frame process(float dryLeft, float dryRight,
+                                              bool monoSafe = false) noexcept
+    {
+        auto widened = FathomEngine::applyWidth(wet(dryLeft, dryRight), width);
+        if (monoSafe)
+        {
+            const auto anchored = subAnchor.applyWidth(widened.left, widened.right, 1.0f);
+            widened = { anchored.left, anchored.right };
+        }
+        widenedWet = widened;
+        unclipped = { oceanMix(dryLeft, widened.left, mix), oceanMix(dryRight, widened.right, mix) };
+        return { guard(FathomEngine::clip(unclipped.left)),
+                 guard(FathomEngine::clip(unclipped.right)) };
+    }
+
+    [[nodiscard]] static float guard(float sample) noexcept
+    {
+        return std::abs(sample) < std::numeric_limits<float>::min()
+            ? 0.0f : std::clamp(sample, -8.0f, 8.0f);
+    }
+
+    FathomEngine engine;
+    FathomEngine::LevelStage levelStage;
+    StereoField subAnchor;
+    // The wet in front of the Mix and the sum in front of the clipper, for
+    // the last frame.
+    FathomEngine::Frame widenedWet;
+    FathomEngine::Frame unclipped;
+    float mix;
+    float width;
+};
+
+void testFathomRoutingAtNeutralControls()
+{
+    constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
+
+    for (const auto sampleRate : sampleRates)
+    {
+        for (const auto evolution : { 0.0f, 1.0f })
+        {
+            auto parameters = fathomNeutralParameters();
+            parameters.evolution = evolution;
+            parameters.preDelayMs = 12.3f;
+
+            FDNReverb reverb;
+            reverb.setParameters(parameters);
+            reverb.prepare(sampleRate, 512);
+            FathomReferenceChain chain(parameters, sampleRate);
+            // Shows the reduction of the level stage on a wet signal of one.
+            FathomEngine::LevelStage reduction;
+            reduction.prepare(sampleRate);
+
+            auto reducedFrames = 0;
+            auto wetPeak = 0.0f;
+            const auto frameCount = static_cast<int>(sampleRate * 0.75);
+            for (auto frame = 0; frame < frameCount; ++frame)
+            {
+                const auto input = fathomBursts(frame, sampleRate);
+                const auto expected = chain.wet(input.left, input.right);
+                if (reduction.process(input.left, input.right, { 1.0f, 1.0f }).left < 1.0f)
+                    ++reducedFrames;
+                wetPeak = std::max({ wetPeak, std::abs(expected.left), std::abs(expected.right) });
+
+                auto left = input.left;
+                auto right = input.right;
+                reverb.processSample(left, right);
+                require(sameBits(left, expected.left) && sameBits(right, expected.right),
+                        "Fathom is not the engine's wet through its level stage at "
+                            + std::to_string(static_cast<int>(sampleRate)) + " Hz, Evolution "
+                            + std::to_string(evolution) + ", frame " + std::to_string(frame));
+            }
+            require(reducedFrames > frameCount / 4 && wetPeak > 0.01f,
+                    "Fathom routing programme did not exercise the level stage and the engine");
+        }
+    }
+}
+
+// Low Cut and High Damping are the engine's own loop filters: the plug-in
+// hands both over when it is prepared and whenever they move, and reset()
+// returns Fathom and its outer stages to the state of a fresh instance.
+void testFathomLoopControlsAndResetReachTheEngine()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto movedFrame = 14000;
+    constexpr auto frameCount = 30000;
+
+    auto engaged = fathomNeutralParameters();
+    engaged.decaySeconds = 2.0f;
+    engaged.lowCutHz = 300.0f;
+    engaged.highDampingHz = 4000.0f;
+    auto moved = engaged;
+    moved.lowCutHz = 90.0f;
+    moved.highDampingHz = 9000.0f;
+    auto neutral = engaged;
+    neutral.lowCutHz = 20.0f;
+    neutral.highDampingHz = 20000.0f;
+
+    struct LoopCase
+    {
+        const char* name;
+        ReverbParameters atStart;
+        ReverbParameters afterTheMove;
+    };
+    auto lowCutAlone = neutral;
+    lowCutAlone.lowCutHz = engaged.lowCutHz;
+    auto dampingAlone = neutral;
+    dampingAlone.highDampingHz = engaged.highDampingHz;
+    const std::array loopCases {
+        LoopCase { "Low Cut and High Damping", engaged, moved },
+        LoopCase { "Low Cut alone", lowCutAlone, neutral },
+        LoopCase { "High Damping alone", dampingAlone, neutral }
+    };
+
+    for (const auto& loopCase : loopCases)
+    {
+        const auto label = std::string("Fathom with ") + loopCase.name;
+        FDNReverb reverb;
+        reverb.setParameters(loopCase.atStart);
+        reverb.prepare(sampleRate, 512);
+        FathomReferenceChain chain(loopCase.atStart, sampleRate);
+        FathomReferenceChain open(neutral, sampleRate);
+
+        double differenceEnergy = 0.0;
+        double openEnergy = 0.0;
+        for (auto frame = 0; frame < frameCount; ++frame)
+        {
+            if (frame == movedFrame)
+            {
+                reverb.setParameters(loopCase.afterTheMove);
+                chain.engine.setParameters(fathomEngineParameters(loopCase.afterTheMove));
+            }
+            const auto input = fathomBursts(frame, sampleRate);
+            const auto expected = chain.process(input.left, input.right);
+            const auto unfiltered = open.process(input.left, input.right);
+            auto left = input.left;
+            auto right = input.right;
+            reverb.processSample(left, right);
+            require(sameBits(left, expected.left) && sameBits(right, expected.right),
+                    label + " is not the engine with the same loop filters at frame "
+                        + std::to_string(frame));
+            if (frame < movedFrame)
+            {
+                differenceEnergy += static_cast<double>(left - unfiltered.left) * (left - unfiltered.left)
+                                  + static_cast<double>(right - unfiltered.right) * (right - unfiltered.right);
+                openEnergy += static_cast<double>(unfiltered.left) * unfiltered.left
+                            + static_cast<double>(unfiltered.right) * unfiltered.right;
+            }
+        }
+        const auto effect = std::sqrt(differenceEnergy / std::max(openEnergy, 1.0e-300));
+        std::cout << "[METRIC] " << label << ": NRMS against the open loop=" << effect << '\n';
+        require(effect > 0.01, label + " leaves the tail as the open loop has it");
+    }
+
+    // reset() in a loud passage, with the level stage turned down, the engine
+    // sounding and the Sub Anchor tracking: what follows is what a fresh
+    // instance returns. The programme behind the reset stays under the level
+    // stage, so a reduction that outlived the reset would show.
+    auto parameters = fathomNeutralParameters();
+    parameters.width = 1.5f;
+    parameters.monoSafeStereo = true;
+    FDNReverb used;
+    used.setParameters(parameters);
+    used.prepare(sampleRate, 512);
+    FathomEngine::LevelStage reduction;
+    reduction.prepare(sampleRate);
+    // Just behind the onset of the second burst.
+    constexpr auto resetFrame = 12200;
+    auto gainAtReset = 1.0f;
+    auto peakBeforeReset = 0.0f;
+    for (auto frame = 0; frame < resetFrame; ++frame)
+    {
+        const auto input = fathomBursts(frame, sampleRate, 4.0f);
+        gainAtReset = reduction.process(input.left, input.right, { 1.0f, 1.0f }).left;
+        auto left = input.left;
+        auto right = input.right;
+        used.processSample(left, right);
+        peakBeforeReset = std::max({ peakBeforeReset, std::abs(left), std::abs(right) });
+    }
+    std::cout << "[METRIC] Fathom at reset(): gain of the level stage=" << gainAtReset
+              << ", wet peak before=" << peakBeforeReset << '\n';
+    require(gainAtReset < 0.9f && peakBeforeReset > 0.05f,
+            "Fathom was not sounding under a working level stage when it was reset");
+    used.reset();
+
+    FDNReverb fresh;
+    fresh.setParameters(parameters);
+    fresh.prepare(sampleRate, 512);
+    auto peakAfterReset = 0.0f;
+    for (auto frame = 0; frame < frameCount; ++frame)
+    {
+        const auto input = fathomBursts(frame, sampleRate, 0.5f);
+        auto left = input.left;
+        auto right = input.right;
+        used.processSample(left, right);
+        auto freshLeft = input.left;
+        auto freshRight = input.right;
+        fresh.processSample(freshLeft, freshRight);
+        require(sameBits(left, freshLeft) && sameBits(right, freshRight),
+                "Fathom after reset() is not a fresh instance at frame " + std::to_string(frame));
+        peakAfterReset = std::max({ peakAfterReset, std::abs(left), std::abs(right) });
+    }
+    require(peakAfterReset > 0.01f, "Fathom is silent after reset()");
+}
+
+void testFathomWidthMixAndClipperRoutes()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto frameCount = 30000;
+    const auto threshold = static_cast<float>(std::pow(10.0, 8.0 / 20.0));
+    const auto ceiling = static_cast<float>(std::pow(10.0, 12.0 / 20.0));
+
+    struct RouteCase
+    {
+        const char* name;
+        float width;
+        float mix;
+        float drive;
+    };
+
+    // Width at mono, between, and at the end of its travel, where Ocean's
+    // 200 % is the reference's maximum; Mix at both ends, at the quarters, at
+    // Ocean's default and at two more points where the rounding of the sum
+    // shows. The driven cases reach 5.9 at the input, above the bound the
+    // FDN's input observes: at Mix 100 % the wet alone enters the knee of the
+    // clipper, below it the dry signal does, from the bound of 4 it enters
+    // the Mix under.
+    constexpr std::array routeCases {
+        RouteCase { "Width 0 %", 0.0f, 1.0f, 1.0f },
+        RouteCase { "Width 50 %", 0.5f, 1.0f, 1.0f },
+        RouteCase { "Width 200 %", 2.0f, 1.0f, 1.0f },
+        RouteCase { "Mix 0 %", 1.0f, 0.0f, 1.0f },
+        RouteCase { "Mix 25 %", 1.0f, 0.25f, 1.0f },
+        RouteCase { "Mix 30 %", 1.0f, 0.3f, 1.0f },
+        RouteCase { "Mix 35 %", 1.0f, 0.35f, 1.0f },
+        RouteCase { "Mix 50 %", 1.0f, 0.5f, 1.0f },
+        RouteCase { "Mix 70 %", 1.0f, 0.7f, 1.0f },
+        RouteCase { "Mix 75 %", 1.0f, 0.75f, 1.0f },
+        RouteCase { "the clipper at Mix 0 %", 1.0f, 0.0f, 8.0f },
+        RouteCase { "the clipper at Mix 20 %", 1.0f, 0.2f, 8.0f },
+        RouteCase { "the clipper at Mix 100 % and Width 200 %", 2.0f, 1.0f, 8.0f }
+    };
+
+    std::cout << "[METRIC] Ocean's Mix sum in this build: the product "
+              << (oceanMixSumIsFused() ? "fused into the addition" : "rounded on its own") << '\n';
+    for (const auto& routeCase : routeCases)
+    {
+        const auto label = std::string("Fathom route at ") + routeCase.name;
+        auto parameters = fathomNeutralParameters();
+        parameters.width = routeCase.width;
+        parameters.mix = routeCase.mix;
+        parameters.preDelayMs = 7.0f;
+
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 512);
+        FathomReferenceChain chain(parameters, sampleRate);
+
+        const auto dryShare = 1.0 - static_cast<double>(routeCase.mix);
+        const auto wetShare = static_cast<double>(routeCase.mix);
+        auto inputPeak = 0.0f;
+        auto outputPeak = 0.0f;
+        auto untouchedFrames = 0;
+        auto kneeFrames = 0;
+        auto ceilingFrames = 0;
+        for (auto frame = 0; frame < frameCount; ++frame)
+        {
+            const auto input = fathomBursts(frame, sampleRate, routeCase.drive);
+            const auto expected = chain.process(input.left, input.right);
+            auto left = input.left;
+            auto right = input.right;
+            reverb.processSample(left, right);
+            require(sameBits(left, expected.left) && sameBits(right, expected.right),
+                    label + " is not Ocean's Mix of the engine's wet at frame "
+                        + std::to_string(frame));
+
+            inputPeak = std::max({ inputPeak, std::abs(input.left), std::abs(input.right) });
+            outputPeak = std::max({ outputPeak, std::abs(left), std::abs(right) });
+            const auto sum = std::abs(chain.unclipped.left);
+            if (sum > 0.0f && sum <= threshold && sameBits(left, chain.unclipped.left))
+            {
+                ++untouchedFrames;
+                // The linear law itself: a dry share of 1 - Mix, a wet share
+                // of Mix, to the last place of single precision.
+                const auto linear = dryShare * static_cast<double>(std::clamp(input.left, -4.0f, 4.0f))
+                                  + wetShare * static_cast<double>(chain.widenedWet.left);
+                require(std::abs(static_cast<double>(left) - linear) <= 5.0e-7,
+                        label + " is not the linear Mix of dry and wet at frame "
+                            + std::to_string(frame));
+            }
+            else if (sum > threshold && std::abs(left) < ceiling)
+                ++kneeFrames;
+            else if (sameBits(std::abs(left), ceiling))
+                ++ceilingFrames;
+
+            if (sameBits(routeCase.width, 0.0f))
+                require(sameBits(left, right), label + " is not mono");
+            if (sameBits(routeCase.mix, 0.0f) && routeCase.drive <= 1.0f)
+                require(sameBits(left, input.left) && sameBits(right, input.right),
+                        label + " is not the input itself");
+        }
+
+        require(untouchedFrames > 1000, label + " never left the sum as it is");
+        if (routeCase.drive > 1.0f)
+        {
+            std::cout << "[METRIC] " << label << ": input peak=" << inputPeak
+                      << ", output peak=" << outputPeak
+                      << ", frames in the knee=" << kneeFrames
+                      << ", at the ceiling=" << ceilingFrames << '\n';
+            require(inputPeak > 5.0f, label + " did not drive the input above the FDN's bound");
+            require(kneeFrames > 100, label + " did not reach the knee of the clipper");
+            require(outputPeak <= ceiling, label + " went above +12 dBFS");
+            // Without the wet the loudest sample is the dry signal at the
+            // bound of the FDN's input, through the knee.
+            if (sameBits(routeCase.mix, 0.0f))
+                require(sameBits(outputPeak, FathomEngine::clip(4.0f)),
+                        label + " does not pass the dry signal from the bound of the FDN's input "
+                                "through the clipper");
+        }
+        else
+        {
+            require(kneeFrames == 0 && ceilingFrames == 0, label + " reached the clipper");
+        }
+    }
+}
+
+// Fathom leaves through the Mix of every Character, so its dry level is theirs.
+// With the longest Pre-delay no wet arrives for a quarter of a second: until
+// then Fathom, each other Character and a switch between the two in either
+// direction return the same samples at every Mix, the dry signal times
+// 1 - Mix.
+void testFathomDryLevelIsThatOfEveryCharacter()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto switchFrame = 600;
+    // The fade of a switch ends 9600 frames later; the first wet of either
+    // network needs 11999 frames or more from its first input.
+    constexpr auto frameCount = 11000;
+
+    struct OtherCharacter
+    {
+        const char* name;
+        ReverbMode mode;
+    };
+    constexpr std::array otherCharacters {
+        OtherCharacter { "Default", ReverbMode::defaultMode },
+        OtherCharacter { "Bloom", ReverbMode::bloom },
+        OtherCharacter { "Drift", ReverbMode::drift },
+        OtherCharacter { "Veil", ReverbMode::veil },
+        OtherCharacter { "Current", ReverbMode::current }
+    };
+
+    for (const auto mix : { 0.0f, 0.2f, 0.35f, 0.5f, 0.75f, 1.0f })
+    {
+        for (const auto& other : otherCharacters)
+        {
+            const auto label = std::string("Dry level of Fathom and ") + other.name + " at Mix "
+                             + std::to_string(mix);
+            auto fathomParameters = fathomNeutralParameters();
+            fathomParameters.mix = mix;
+            fathomParameters.preDelayMs = 250.0f;
+            auto otherParameters = fathomParameters;
+            otherParameters.mode = other.mode;
+
+            // Fathom, the other Character, and a switch each way.
+            std::array<FDNReverb, 4> reverbs;
+            const std::array startParameters { fathomParameters, otherParameters,
+                                               otherParameters, fathomParameters };
+            const std::array switchedParameters { fathomParameters, otherParameters,
+                                                  fathomParameters, otherParameters };
+            for (std::size_t index = 0; index < reverbs.size(); ++index)
+            {
+                reverbs[index].setParameters(startParameters[index]);
+                reverbs[index].prepare(sampleRate, 512);
+            }
+
+            auto dryEnergy = 0.0;
+            auto outputOnDry = 0.0;
+            for (auto frame = 0; frame < frameCount; ++frame)
+            {
+                if (frame == switchFrame)
+                    for (std::size_t index = 0; index < reverbs.size(); ++index)
+                        reverbs[index].setParameters(switchedParameters[index]);
+
+                const auto input = fathomBursts(frame, sampleRate);
+                std::array<FathomEngine::Frame, 4> outputs;
+                for (std::size_t index = 0; index < reverbs.size(); ++index)
+                {
+                    outputs[index] = input;
+                    reverbs[index].processSample(outputs[index].left, outputs[index].right);
+                }
+                for (std::size_t index = 1; index < outputs.size(); ++index)
+                    require(sameBits(outputs[index].left, outputs[0].left)
+                                && sameBits(outputs[index].right, outputs[0].right),
+                            label + " differs at frame " + std::to_string(frame)
+                                + (index == 1 ? " between the two Characters"
+                                              : index == 2 ? " on the way into Fathom"
+                                                           : " on the way out of Fathom"));
+
+                dryEnergy += static_cast<double>(input.left) * input.left
+                           + static_cast<double>(input.right) * input.right;
+                outputOnDry += static_cast<double>(outputs[0].left) * input.left
+                             + static_cast<double>(outputs[0].right) * input.right;
+            }
+
+            require(dryEnergy > 1.0, label + ": the programme is silent");
+            require(std::abs(outputOnDry / dryEnergy - (1.0 - static_cast<double>(mix))) <= 1.0e-6,
+                    label + " is not 1 - Mix: " + std::to_string(outputOnDry / dryEnergy));
+        }
+    }
+}
+
+// A voice seed handed to FDNReverb is the seed of its engine from the next
+// prepare() or reset() on and stays until another is handed over. It reaches
+// nothing but the voices: at Evolution 0 and in the other Characters every
+// sample is the same for any seed.
+void testFathomVoiceSeedThroughThePlugIn()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto frameCount = 24000;
+    constexpr std::uint64_t firstSeed = 0x0123456789abcdefULL;
+    constexpr std::uint64_t secondSeed = 0xfedcba9876543210ULL;
+
+    const auto parameters = fathomNeutralParameters();
+    const auto requireChain = [&](FDNReverb& reverb, FathomReferenceChain& chain, int firstFrame,
+                                  const std::string& label)
+    {
+        for (auto frame = firstFrame; frame < firstFrame + frameCount; ++frame)
+        {
+            const auto input = fathomBursts(frame, sampleRate);
+            const auto expected = chain.process(input.left, input.right);
+            auto left = input.left;
+            auto right = input.right;
+            reverb.processSample(left, right);
+            require(sameBits(left, expected.left) && sameBits(right, expected.right),
+                    label + " at frame " + std::to_string(frame));
+        }
+    };
+
+    FDNReverb reverb;
+    reverb.setParameters(parameters);
+    reverb.setFathomVoiceSeed(firstSeed);
+    reverb.prepare(sampleRate, 512);
+    FathomReferenceChain firstChain(parameters, sampleRate, firstSeed);
+    FathomReferenceChain defaultChain(parameters, sampleRate);
+    double differenceEnergy = 0.0;
+    double defaultEnergy = 0.0;
+    for (auto frame = 0; frame < frameCount; ++frame)
+    {
+        const auto input = fathomBursts(frame, sampleRate);
+        const auto expected = firstChain.process(input.left, input.right);
+        const auto withDefaultSeed = defaultChain.process(input.left, input.right);
+        auto left = input.left;
+        auto right = input.right;
+        reverb.processSample(left, right);
+        require(sameBits(left, expected.left) && sameBits(right, expected.right),
+                "A voice seed set before prepare() is not the seed of the engine at frame "
+                    + std::to_string(frame));
+        differenceEnergy += static_cast<double>(left - withDefaultSeed.left) * (left - withDefaultSeed.left)
+                          + static_cast<double>(right - withDefaultSeed.right) * (right - withDefaultSeed.right);
+        defaultEnergy += static_cast<double>(withDefaultSeed.left) * withDefaultSeed.left
+                       + static_cast<double>(withDefaultSeed.right) * withDefaultSeed.right;
+    }
+    const auto seedEffect = std::sqrt(differenceEnergy / std::max(defaultEnergy, 1.0e-300));
+    std::cout << "[METRIC] Fathom through FDNReverb with a voice seed of its own: NRMS against the default seed="
+              << seedEffect << '\n';
+    require(seedEffect > 0.01, "A voice seed handed to FDNReverb leaves Fathom as the default seed has it");
+
+    reverb.setFathomVoiceSeed(secondSeed);
+    requireChain(reverb, firstChain, frameCount, "A voice seed took effect before reset()");
+    reverb.reset();
+    FathomReferenceChain secondChain(parameters, sampleRate, secondSeed);
+    requireChain(reverb, secondChain, 0, "A voice seed is not the seed of the engine after reset()");
+
+    reverb.setFathomVoiceSeed(firstSeed);
+    reverb.prepare(sampleRate, 512);
+    FathomReferenceChain preparedChain(parameters, sampleRate, firstSeed);
+    requireChain(reverb, preparedChain, 0, "A voice seed is not the seed of the engine after prepare()");
+    reverb.reset();
+    FathomReferenceChain keptChain(parameters, sampleRate, firstSeed);
+    requireChain(reverb, keptChain, 0, "reset() did not start the phase of the same voice seed again");
+
+    struct SeedlessCase
+    {
+        const char* name;
+        ReverbMode mode;
+        float evolution;
+    };
+    constexpr std::array seedlessCases {
+        SeedlessCase { "Fathom at Evolution 0", ReverbMode::fathom, 0.0f },
+        SeedlessCase { "Default", ReverbMode::defaultMode, 1.0f },
+        SeedlessCase { "Bloom", ReverbMode::bloom, 1.0f },
+        SeedlessCase { "Drift", ReverbMode::drift, 1.0f },
+        SeedlessCase { "Veil", ReverbMode::veil, 1.0f },
+        SeedlessCase { "Current", ReverbMode::current, 1.0f }
+    };
+    for (const auto& seedlessCase : seedlessCases)
+    {
+        auto seedlessParameters = parameters;
+        seedlessParameters.mode = seedlessCase.mode;
+        seedlessParameters.evolution = seedlessCase.evolution;
+        std::array<FDNReverb, 2> seeded;
+        seeded[0].setFathomVoiceSeed(firstSeed);
+        seeded[1].setFathomVoiceSeed(secondSeed);
+        for (auto& instance : seeded)
+        {
+            instance.setParameters(seedlessParameters);
+            instance.prepare(sampleRate, 512);
+        }
+
+        auto peak = 0.0f;
+        for (auto frame = 0; frame < frameCount; ++frame)
+        {
+            const auto input = fathomBursts(frame, sampleRate);
+            auto firstOutput = input;
+            auto secondOutput = input;
+            seeded[0].processSample(firstOutput.left, firstOutput.right);
+            seeded[1].processSample(secondOutput.left, secondOutput.right);
+            require(sameBits(firstOutput.left, secondOutput.left)
+                        && sameBits(firstOutput.right, secondOutput.right),
+                    std::string("The voice seed changes ") + seedlessCase.name + " at frame "
+                        + std::to_string(frame));
+            peak = std::max({ peak, std::abs(firstOutput.left), std::abs(firstOutput.right) });
+        }
+        require(peak > 0.01f, std::string(seedlessCase.name) + " was silent under the voice seed test");
+    }
+}
+
+// Focus, Harmony and Mono Safe act on Fathom's wet behind the engine and its
+// level stage. Each of them changes the output while it is engaged and is out
+// of the circuit to the bit once it is back at its neutral position.
+void testFathomOceanOwnControls()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto engagedFrames = 36000;
+    // Longer than the slowest of the three smoothers, Harmony's 150 ms.
+    constexpr auto settlingFrames = 12000;
+    constexpr auto comparedFrames = 12000;
+
+    struct OwnCase
+    {
+        const char* name;
+        float focus;
+        float harmony;
+        bool monoSafe;
+        double minimumEffect;
+        double maximumEffect;
+    };
+
+    constexpr std::array ownCases {
+        OwnCase { "Focus", 1.0f, 0.0f, false, 0.02, 0.5 },
+        OwnCase { "Harmony", 0.0f, 1.0f, false, 0.02, 1.0 },
+        OwnCase { "Mono Safe", 0.0f, 0.0f, true, 0.01, 0.5 }
+    };
+
+    for (const auto& ownCase : ownCases)
+    {
+        const auto label = std::string("Fathom with ") + ownCase.name;
+        auto neutral = fathomNeutralParameters();
+        neutral.autoHarmony = false;
+        neutral.harmonyPitchClasses = harmonyWeights({ 0, 4, 7 });
+        neutral.harmonyConfidence = 1.0f;
+        auto engaged = neutral;
+        engaged.ducking = ownCase.focus;
+        engaged.harmony = ownCase.harmony;
+        engaged.monoSafeStereo = ownCase.monoSafe;
+
+        FDNReverb reverb;
+        reverb.setParameters(engaged);
+        reverb.prepare(sampleRate, 512);
+        FathomReferenceChain chain(neutral, sampleRate);
+
+        double differenceEnergy = 0.0;
+        double referenceEnergy = 0.0;
+        auto largestMidDifference = 0.0f;
+        auto peak = 0.0f;
+        for (auto frame = 0; frame < engagedFrames + settlingFrames + comparedFrames; ++frame)
+        {
+            if (frame == engagedFrames)
+                reverb.setParameters(neutral);
+
+            const auto input = fathomBursts(frame, sampleRate);
+            const auto expected = chain.process(input.left, input.right);
+            auto left = input.left;
+            auto right = input.right;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right), label + " produced NaN/Inf");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+
+            if (frame < engagedFrames)
+            {
+                differenceEnergy += static_cast<double>(left - expected.left) * (left - expected.left)
+                                  + static_cast<double>(right - expected.right) * (right - expected.right);
+                referenceEnergy += static_cast<double>(expected.left) * expected.left
+                                 + static_cast<double>(expected.right) * expected.right;
+                largestMidDifference = std::max(
+                    largestMidDifference,
+                    std::abs(0.5f * (left + right) - 0.5f * (expected.left + expected.right)));
+            }
+            else if (frame >= engagedFrames + settlingFrames)
+            {
+                require(sameBits(left, expected.left) && sameBits(right, expected.right),
+                        label + " back at neutral is not out of the circuit at frame "
+                            + std::to_string(frame));
+            }
+        }
+
+        const auto effect = std::sqrt(differenceEnergy / std::max(referenceEnergy, 1.0e-300));
+        std::cout << "[METRIC] " << label << ": NRMS against the neutral chain=" << effect
+                  << ", largest Mid difference=" << largestMidDifference
+                  << ", peak=" << peak << '\n';
+        require(effect >= ownCase.minimumEffect && effect <= ownCase.maximumEffect,
+                label + " has no effect or an excessive one: NRMS=" + std::to_string(effect));
+        require(peak < 4.0f, label + " exceeded the safety range");
+        // Of Mono Safe only the Sub Anchor acts on Fathom, and that leaves Mid
+        // alone.
+        if (ownCase.monoSafe)
+            require(largestMidDifference <= 1.0e-6f, label + " changed Mid");
+    }
+
+    // Mono Safe from the start is the Sub Anchor behind the reference's Width law.
+    {
+        auto parameters = fathomNeutralParameters();
+        parameters.width = 1.5f;
+        parameters.monoSafeStereo = true;
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 512);
+        FathomReferenceChain chain(parameters, sampleRate);
+        for (auto frame = 0; frame < engagedFrames; ++frame)
+        {
+            const auto input = fathomBursts(frame, sampleRate);
+            const auto expected = chain.process(input.left, input.right, true);
+            auto left = input.left;
+            auto right = input.right;
+            reverb.processSample(left, right);
+            require(std::abs(left - expected.left) <= 1.0e-6f
+                        && std::abs(right - expected.right) <= 1.0e-6f,
+                    "Fathom with Mono Safe is not the Sub Anchor behind the Width law at frame "
+                        + std::to_string(frame));
+        }
+    }
+
+    // Freeze holds Fathom's tail through the engine's own hold, whose level
+    // follows the moving voices, and gives it back to the Decay afterwards.
+    {
+        auto parameters = fathomNeutralParameters();
+        parameters.decaySeconds = 1.0f;
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 512);
+
+        const auto second = static_cast<int>(sampleRate);
+        const auto energyOver = [&](int frames, bool excite)
+        {
+            double energy = 0.0;
+            for (auto frame = 0; frame < frames; ++frame)
+            {
+                const auto input = excite ? fathomBursts(frame, sampleRate)
+                                          : FathomEngine::Frame {};
+                auto left = input.left;
+                auto right = input.right;
+                reverb.processSample(left, right);
+                require(std::isfinite(left) && std::isfinite(right),
+                        "Fathom Freeze in the plug-in produced NaN/Inf");
+                energy += static_cast<double>(left) * left + static_cast<double>(right) * right;
+            }
+            return energy;
+        };
+
+        static_cast<void>(energyOver(second / 2, true));
+        parameters.freeze = true;
+        reverb.setParameters(parameters);
+        static_cast<void>(energyOver(second, false));
+        const auto earlyEnergy = energyOver(second, false);
+        static_cast<void>(energyOver(3 * second, false));
+        const auto lateEnergy = energyOver(second, false);
+        parameters.freeze = false;
+        reverb.setParameters(parameters);
+        static_cast<void>(energyOver(2 * second, false));
+        const auto releasedEnergy = energyOver(second, false);
+
+        std::cout << "[METRIC] Fathom Freeze in the plug-in: held late/early="
+                  << lateEnergy / earlyEnergy << ", two seconds after release="
+                  << releasedEnergy / earlyEnergy << '\n';
+        require(earlyEnergy > 1.0e-8, "Fathom Freeze in the plug-in holds nothing");
+        require(lateEnergy >= 0.2 * earlyEnergy && lateEnergy <= 3.0 * earlyEnergy,
+                "Fathom Freeze in the plug-in does not hold its tail");
+        require(releasedEnergy <= 1.0e-4 * earlyEnergy,
+                "Fathom tail does not decay after Freeze is released");
+    }
+}
+
+void testFathomSampleRatesAndStability()
+{
+    constexpr std::array<double, 4> sampleRates { 44100.0, 48000.0, 88200.0, 96000.0 };
+
+    for (const auto sampleRate : sampleRates)
+    {
+        ReverbParameters parameters;
+        parameters.mode = ReverbMode::fathom;
+        parameters.mix = 1.0f;
+        parameters.decaySeconds = 30.0f;
+        parameters.size = 2.0f;
+        parameters.preDelayMs = 250.0f;
+        parameters.lowCutHz = 20.0f;
+        parameters.highDampingHz = 20000.0f;
+        parameters.evolution = 1.0f;
+        parameters.width = 2.0f;
+
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, 512);
+
+        std::uint32_t noiseState = 0x0ebb71deu;
+        auto peak = 0.0f;
+        const auto excitationSamples = static_cast<int>(sampleRate * 0.5);
+        for (auto sample = 0; sample < excitationSamples; ++sample)
+        {
+            noiseState = noiseState * 1664525u + 1013904223u;
+            const auto noise = static_cast<float>(static_cast<std::int32_t>(noiseState))
+                             / static_cast<float>(std::numeric_limits<std::int32_t>::max());
+            auto left = (sample == 0 ? 1.0f : 0.0f) + 0.01f * noise;
+            auto right = (sample == 0 ? -0.35f : 0.0f) - 0.007f * noise;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Fathom excitation produced NaN/Inf");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+        }
+
+        parameters.freeze = true;
+        reverb.setParameters(parameters);
+        const auto frozenSamples = static_cast<int>(sampleRate * 1.5);
+        for (auto sample = 0; sample < frozenSamples; ++sample)
+        {
+            auto left = 0.0f;
+            auto right = 0.0f;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Fathom Freeze produced NaN/Inf");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+        }
+
+        auto badLeft = std::numeric_limits<float>::quiet_NaN();
+        auto badRight = std::numeric_limits<float>::infinity();
+        reverb.processSample(badLeft, badRight);
+        require(std::isfinite(badLeft) && std::isfinite(badRight),
+                "Bad input was not sanitised in Fathom");
+        for (auto sample = 0; sample < 10000; ++sample)
+        {
+            auto left = 0.0f;
+            auto right = 0.0f;
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right),
+                    "Bad input contaminated Fathom's future state");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+        }
+
+        require(peak < 4.0f, "Fathom stress test exceeded the safety range");
+    }
+
+    FDNReverb reverb;
+    ReverbParameters lastKnown;
+    lastKnown.mode = ReverbMode::fathom;
+    reverb.setParameters(lastKnown);
+    require(reverb.getParameters().mode == ReverbMode::fathom,
+            "Fathom mode was not accepted");
+    ReverbParameters pastTheEnd;
+    pastTheEnd.mode = static_cast<ReverbMode>(static_cast<int>(ReverbMode::undertow) + 1);
+    reverb.setParameters(pastTheEnd);
+    require(reverb.getParameters().mode == ReverbMode::defaultMode,
+            "The value after the last mode did not fall back to Default");
+}
+
+// The amount of a Character over its 200-ms morph, as FDNReverb steps it.
+class FathomMorphRamp
+{
+public:
+    FathomMorphRamp(float from, float to, int frames) noexcept
+        : current_(from), target_(to), step_((to - from) / static_cast<float>(frames)),
+          remaining_(frames)
+    {
+    }
+
+    [[nodiscard]] float next() noexcept
+    {
+        if (remaining_ <= 0)
+            return current_;
+        current_ = --remaining_ == 0 ? target_ : current_ + step_;
+        return current_;
+    }
+
+private:
+    float current_;
+    float target_;
+    float step_;
+    int remaining_;
+};
+
+// A switch into or out of Fathom is a linear crossfade of 200 ms between two
+// renders that exist on their own. One is the FDN switching between the other
+// Character and Default, which is how it runs behind Fathom. The other is the
+// Fathom chain: it starts from silence when Fathom is entered and goes on for
+// the length of the fade when Fathom is left. With Ocean's own controls neutral
+// and Width and Mix at 100 % the output is that crossfade sample by sample, so
+// a switch can add neither a click nor a burst nor anything of an earlier
+// visit.
+void requireFathomCrossfade(ReverbMode otherMode, bool intoFathom, const std::string& label)
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto switchSample = 30000;
+    constexpr auto morphSamples = static_cast<int>(sampleRate * 0.20);
+    constexpr auto endSample = switchSample + morphSamples + 12000;
+
+    auto parameters = fathomNeutralParameters();
+    parameters.decaySeconds = 6.0f;
+    parameters.evolution = 0.8f;
+    auto switchedParameters = parameters;
+    switchedParameters.mode = intoFathom ? otherMode : ReverbMode::fathom;
+    auto fdnParameters = parameters;
+    fdnParameters.mode = intoFathom ? otherMode : ReverbMode::defaultMode;
+
+    FDNReverb switched;
+    FDNReverb fdnSide;
+    switched.setParameters(switchedParameters);
+    fdnSide.setParameters(fdnParameters);
+    switched.prepare(sampleRate, 64);
+    fdnSide.prepare(sampleRate, 64);
+    FathomReferenceChain fathomSide(parameters, sampleRate);
+    FathomMorphRamp fathomAmount(intoFathom ? 0.0f : 1.0f, intoFathom ? 1.0f : 0.0f, morphSamples);
+
+    auto largestDistance = 0.0f;
+    auto peak = 1.0e-3f;
+    double sideDifferenceEnergy = 0.0;
+    double sideEnergy = 0.0;
+    for (auto sample = 0; sample < endSample; ++sample)
+    {
+        if (sample == switchSample)
+        {
+            switchedParameters.mode = intoFathom ? ReverbMode::fathom : otherMode;
+            switched.setParameters(switchedParameters);
+            fdnParameters.mode = intoFathom ? ReverbMode::defaultMode : otherMode;
+            fdnSide.setParameters(fdnParameters);
+        }
+
+        // Quiet enough for the tails of the earlier bursts to stay in view.
+        const auto input = fathomBursts(sample, sampleRate, 0.5f);
+        auto left = input.left;
+        auto right = input.right;
+        switched.processSample(left, right);
+        auto fdnLeft = input.left;
+        auto fdnRight = input.right;
+        fdnSide.processSample(fdnLeft, fdnRight);
+        auto fathom = FathomEngine::Frame {};
+        if (intoFathom && sample < switchSample)
+            fathomSide.idle();
+        else
+            fathom = fathomSide.process(input.left, input.right);
+
+        if (sample < switchSample)
+        {
+            require(intoFathom ? sameBits(left, fdnLeft) && sameBits(right, fdnRight)
+                               : sameBits(left, fathom.left) && sameBits(right, fathom.right),
+                    label + " differs before the switch");
+            continue;
+        }
+
+        const auto amount = fathomAmount.next();
+        if (sample >= switchSample + morphSamples - 1)
+        {
+            require(intoFathom ? sameBits(left, fathom.left) && sameBits(right, fathom.right)
+                               : sameBits(left, fdnLeft) && sameBits(right, fdnRight),
+                    label + " is not the new Character alone after the crossfade, at sample "
+                        + std::to_string(sample));
+            continue;
+        }
+
+        largestDistance = std::max({
+            largestDistance,
+            std::abs(left - (fdnLeft + amount * (fathom.left - fdnLeft))),
+            std::abs(right - (fdnRight + amount * (fathom.right - fdnRight)))
+        });
+        peak = std::max({ peak, std::abs(fdnLeft), std::abs(fdnRight),
+                          std::abs(fathom.left), std::abs(fathom.right) });
+        sideDifferenceEnergy += static_cast<double>(fathom.left - fdnLeft) * (fathom.left - fdnLeft)
+                              + static_cast<double>(fathom.right - fdnRight)
+                                    * (fathom.right - fdnRight);
+        sideEnergy += 0.5 * (static_cast<double>(fathom.left) * fathom.left
+                             + static_cast<double>(fathom.right) * fathom.right
+                             + static_cast<double>(fdnLeft) * fdnLeft
+                             + static_cast<double>(fdnRight) * fdnRight);
+    }
+
+    std::cout << "[METRIC] " << label << ": largest distance from the crossfade="
+              << largestDistance << ", peak of its two sides=" << peak << '\n';
+    // The blends of FDNReverb round in the last place of the larger side.
+    require(largestDistance <= 4.0e-6f * peak,
+            label + " is not a crossfade of the two Characters: distance="
+                + std::to_string(largestDistance / peak) + " of the peak");
+    require(sideEnergy > 1.0e-8 && sideDifferenceEnergy > 0.25 * sideEnergy,
+            label + " crossfades two sides that do not differ");
+}
+
+// Fathom left for `framesAway` frames and selected again. A stay that outlasts
+// the fade ends the engine's tail: Fathom then returns as an engine that has only
+// kept time since it was prepared. A shorter stay never silences it, and the
+// tail that was sounding goes on.
+void requireFathomReturn(int framesAway, bool expectsRestart, const std::string& label)
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto leaveSample = 30000;
+    constexpr auto morphSamples = static_cast<int>(sampleRate * 0.20);
+    const auto returnSample = leaveSample + framesAway;
+    const auto settledSample = returnSample + morphSamples;
+
+    auto parameters = fathomNeutralParameters();
+    parameters.decaySeconds = 30.0f;
+    FDNReverb reverb;
+    reverb.setParameters(parameters);
+    reverb.prepare(sampleRate, 64);
+    FathomReferenceChain chain(parameters, sampleRate);
+
+    double tailEnergy = 0.0;
+    for (auto sample = 0; sample < settledSample + 12000; ++sample)
+    {
+        if (sample == leaveSample || sample == returnSample)
+        {
+            parameters.mode = sample == leaveSample ? ReverbMode::defaultMode : ReverbMode::fathom;
+            reverb.setParameters(parameters);
+        }
+
+        // A loud first visit, then silence until Fathom has settled again.
+        const auto input = sample < leaveSample ? fathomBursts(sample, sampleRate)
+                         : sample >= settledSample + 2400 ? fathomBursts(sample, sampleRate, 0.5f)
+                                                          : FathomEngine::Frame {};
+        auto left = input.left;
+        auto right = input.right;
+        reverb.processSample(left, right);
+        auto expected = FathomEngine::Frame {};
+        if (expectsRestart && sample < returnSample)
+            chain.idle();
+        else
+            expected = chain.process(input.left, input.right);
+
+        if (sample < settledSample)
+            continue;
+        require(sameBits(left, expected.left) && sameBits(right, expected.right),
+                label + " is not the expected engine at sample " + std::to_string(sample));
+        if (sample < settledSample + 2400)
+            tailEnergy += static_cast<double>(left) * left + static_cast<double>(right) * right;
+    }
+
+    require(expectsRestart ? tailEnergy <= 0.0 : tailEnergy > 1.0e-6,
+            label + (expectsRestart ? " kept a tail of the earlier visit"
+                                    : " lost the tail that was sounding"));
+}
+
+void testFathomBlockInvarianceAndModeSwitching()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto comparisonSamples = 48000;
+    ReverbParameters parameters;
+    parameters.mode = ReverbMode::fathom;
+    parameters.mix = 1.0f;
+    parameters.decaySeconds = 6.0f;
+    parameters.preDelayMs = 11.0f;
+    parameters.evolution = 0.8f;
+
+    std::vector<float> singleLeft(comparisonSamples, 0.0f);
+    std::vector<float> singleRight(comparisonSamples, 0.0f);
+    std::vector<float> blockLeft(comparisonSamples, 0.0f);
+    std::vector<float> blockRight(comparisonSamples, 0.0f);
+    singleLeft[0] = blockLeft[0] = 1.0f;
+
+    FDNReverb singleSample;
+    FDNReverb blockBased;
+    singleSample.setParameters(parameters);
+    blockBased.setParameters(parameters);
+    singleSample.prepare(sampleRate, 1);
+    blockBased.prepare(sampleRate, 127);
+
+    for (auto sample = 0; sample < comparisonSamples; ++sample)
+        singleSample.process(singleLeft.data() + sample, singleRight.data() + sample, 1);
+    for (auto offset = 0; offset < comparisonSamples; offset += 127)
+    {
+        const auto blockSize = std::min(127, comparisonSamples - offset);
+        blockBased.process(blockLeft.data() + offset, blockRight.data() + offset, blockSize);
+    }
+    for (auto sample = 0; sample < comparisonSamples; ++sample)
+    {
+        const auto index = static_cast<std::size_t>(sample);
+        require(std::bit_cast<std::uint32_t>(singleLeft[index])
+                    == std::bit_cast<std::uint32_t>(blockLeft[index])
+                    && std::bit_cast<std::uint32_t>(singleRight[index])
+                    == std::bit_cast<std::uint32_t>(blockRight[index]),
+                "Fathom depends on process block segmentation");
+    }
+
+    struct OtherCharacter
+    {
+        const char* name;
+        ReverbMode mode;
+    };
+
+    constexpr std::array otherCharacters {
+        OtherCharacter { "Default", ReverbMode::defaultMode },
+        OtherCharacter { "Bloom", ReverbMode::bloom },
+        OtherCharacter { "Drift", ReverbMode::drift },
+        OtherCharacter { "Veil", ReverbMode::veil },
+        OtherCharacter { "Current", ReverbMode::current }
+    };
+    for (const auto& other : otherCharacters)
+    {
+        requireFathomCrossfade(other.mode, true, std::string(other.name) + " to Fathom switch");
+        requireFathomCrossfade(other.mode, false,
+                               std::string("Fathom to ") + other.name + " switch");
+    }
+
+    constexpr auto morphSamples = static_cast<int>(sampleRate * 0.20);
+    requireFathomReturn(morphSamples, true, "Fathom selected again once its fade has ended");
+    requireFathomReturn(3 * morphSamples, true, "Fathom selected again after a longer stay away");
+    requireFathomReturn(morphSamples - 1, false,
+                        "Fathom selected again one frame before its fade ends");
+    requireFathomReturn(morphSamples / 2, false, "Fathom selected again in the middle of its fade");
+}
+
+// The campaign's null of a render against its reference: the energy of the
+// difference over the energy of the reference, in decibels.
+[[nodiscard]] double fathomNullDb(std::span<const float> candidate,
+                                  std::span<const float> reference)
+{
+    double differenceEnergy = 0.0;
+    double referenceEnergy = 0.0;
+    for (std::size_t index = 0; index < reference.size(); ++index)
+    {
+        const auto difference = static_cast<double>(candidate[index])
+                              - static_cast<double>(reference[index]);
+        differenceEnergy += difference * difference;
+        referenceEnergy += static_cast<double>(reference[index]) * reference[index];
+    }
+    return 10.0 * std::log10(std::max(differenceEnergy, 1.0e-300)
+                             / std::max(referenceEnergy, 1.0e-300));
+}
+
+// A short programme for the engine's own tests: an impulse on each side, then
+// a burst of noise.
+[[nodiscard]] FathomEngine::Frame fathomProgramme(int frame) noexcept
+{
+    FathomEngine::Frame input;
+    if (frame == 100)
+        input.left = 0.5f;
+    if (frame == 700)
+        input.right = -0.4f;
+    if (frame >= 1500 && frame < 2500)
+    {
+        input.left += 0.2f * fathomNoise(frame, 0);
+        input.right += 0.2f * fathomNoise(frame, 1);
+    }
+    return input;
+}
+
+// The engine's wet output for the test programme, left and right interleaved.
+[[nodiscard]] std::vector<float> renderFathomProgramme(FathomEngine& engine, int frameCount)
+{
+    std::vector<float> rendered;
+    rendered.reserve(2 * static_cast<std::size_t>(frameCount));
+    for (auto frame = 0; frame < frameCount; ++frame)
+    {
+        const auto input = fathomProgramme(frame);
+        const auto wet = engine.processSample(input.left, input.right);
+        rendered.push_back(wet.left);
+        rendered.push_back(wet.right);
+    }
+    return rendered;
+}
+
+void requireSameFathomRender(const std::vector<float>& rendered,
+                             const std::vector<float>& expected,
+                             const std::string& label)
+{
+    require(rendered.size() == expected.size(), label + ": render lengths differ");
+    for (std::size_t index = 0; index < expected.size(); ++index)
+        require(sameBits(rendered[index], expected[index]),
+                label + ": output differs at frame " + std::to_string(index / 2));
+}
+
+// Blocks of the voices that a run of host frames reaches: the core never runs
+// ahead of the host.
+[[nodiscard]] std::size_t fathomVoiceBlocks(double sampleRate, int frames)
+{
+    namespace fathom = amanita::dsp::fathom;
+    const auto internalSamples = static_cast<double>(frames) * fathom::internalRate / sampleRate;
+    return static_cast<std::size_t>(internalSamples / fathom::voiceBlockSamples) + 2;
+}
+
+// The voice phase of a capture where the engine sets its voices, at the start
+// of each block.
+[[nodiscard]] std::vector<double> fathomCapturePhase(
+    const amanita::dsp::fathomgolden::PhaseCurve& curve, std::size_t blockCount)
+{
+    namespace fathom = amanita::dsp::fathom;
+    constexpr auto pi = 3.14159265358979323846;
+    const auto knots = curve.knots;
+    std::vector<double> phase(blockCount);
+    for (std::size_t block = 0; block < blockCount; ++block)
+    {
+        const auto seconds = static_cast<double>(block * fathom::voiceBlockSamples) / fathom::internalRate;
+        auto level = seconds < knots.front().seconds ? knots.front().cycles : knots.back().cycles;
+        for (std::size_t knot = 0; knot + 1 < knots.size(); ++knot)
+        {
+            if (seconds >= knots[knot].seconds && seconds < knots[knot + 1].seconds)
+            {
+                const auto along = (seconds - knots[knot].seconds)
+                                 / (knots[knot + 1].seconds - knots[knot].seconds);
+                level = knots[knot].cycles
+                      + (knots[knot + 1].cycles - knots[knot].cycles) * (0.5 - 0.5 * std::cos(pi * along));
+            }
+        }
+        phase[block] = curve.cyclesPerSecond * seconds + level;
+    }
+    return phase;
+}
+
+void testFathomEngineGoldenVectors()
+{
+    namespace golden = amanita::dsp::fathomgolden;
+    // The engine stores its signals in single precision and so sits about
+    // 147 dB under the model; the model itself meets the reference at -99 to
+    // -131 dB on these excerpts at Macro 0 and at -84 to -99 dB at Macro 100 %.
+    constexpr auto nullLimitDb = -130.0;
+    auto worstNullDb = -400.0;
+    auto worstTideNullDb = -400.0;
+
+    for (const auto& vector : golden::captureVectors)
+    {
+        auto frameCount = 0;
+        for (const auto& excerpt : vector.excerpts)
+            frameCount = std::max(frameCount,
+                                  excerpt.firstFrame + static_cast<int>(excerpt.model.size() / 2));
+
+        FathomEngine::Parameters parameters;
+        parameters.decaySeconds = vector.decaySeconds;
+        parameters.sizeScale = vector.sizeScale;
+        parameters.preDelaySeconds = static_cast<float>(vector.preDelaySeconds);
+        parameters.macro = vector.macro;
+        FathomEngine engine;
+        engine.setParameters(parameters);
+        // Above Macro 0 the voices take the phase the capture had.
+        std::array<std::vector<double>, 2> phase;
+        if (vector.macro > 0.0f)
+        {
+            const auto blockCount = fathomVoiceBlocks(static_cast<double>(vector.hostRate),
+                                                      vector.warmupFrames + frameCount);
+            phase = { fathomCapturePhase(vector.phase[0], blockCount),
+                      fathomCapturePhase(vector.phase[1], blockCount) };
+            engine.setVoicePhaseForTesting(phase[0].data(), phase[1].data(), blockCount);
+        }
+        engine.prepare(static_cast<double>(vector.hostRate));
+        for (auto frame = 0; frame < vector.warmupFrames; ++frame)
+            engine.advanceIdle();
+
+        const auto programmeFrames = static_cast<int>(vector.programme.size() / 2);
+        std::vector<float> rendered;
+        rendered.reserve(2 * static_cast<std::size_t>(frameCount));
+        for (auto frame = 0; frame < frameCount; ++frame)
+        {
+            FathomEngine::Frame input;
+            for (const auto& impulse : vector.impulses)
+                if (impulse.frame == frame)
+                    (impulse.channel == 0 ? input.left : input.right) += impulse.amplitude;
+            const auto programmeFrame = frame - vector.programmeFirstFrame;
+            if (programmeFrame >= 0 && programmeFrame < programmeFrames)
+            {
+                input.left += vector.programme[2 * static_cast<std::size_t>(programmeFrame)];
+                input.right += vector.programme[2 * static_cast<std::size_t>(programmeFrame) + 1];
+            }
+            const auto wet = engine.processSample(input.left, input.right);
+            rendered.push_back(wet.left);
+            rendered.push_back(wet.right);
+        }
+
+        for (const auto& excerpt : vector.excerpts)
+        {
+            const auto nullDb = fathomNullDb(
+                std::span<const float>(rendered).subspan(
+                    2 * static_cast<std::size_t>(excerpt.firstFrame), excerpt.model.size()),
+                excerpt.model);
+            auto& worst = vector.macro > 0.0f ? worstTideNullDb : worstNullDb;
+            worst = std::max(worst, nullDb);
+            require(nullDb <= nullLimitDb,
+                    std::string("Fathom engine misses the golden vector ") + vector.name
+                        + " from frame " + std::to_string(excerpt.firstFrame)
+                        + ": null=" + std::to_string(nullDb) + " dB");
+        }
+    }
+
+    std::cout << "[METRIC] Fathom golden vectors: worst null against the model="
+              << worstNullDb << " dB at Macro 0, " << worstTideNullDb
+              << " dB at Macro 100 %, limit=" << nullLimitDb << " dB\n";
+    require(worstTideNullDb > -400.0, "Fathom golden vectors hold no capture above Macro 0");
+}
+
+void testFathomRateLatticeAndConverters()
+{
+    namespace golden = amanita::dsp::fathomgolden;
+
+    for (const auto& timing : golden::rateTimings)
+    {
+        const auto lattice = FathomRateLattice::at(timing.hostRate);
+        const auto label = "Fathom lattice at " + std::to_string(timing.hostRate) + " Hz: ";
+        require(lattice.hostStep == timing.hostStep
+                    && lattice.internalStep == timing.internalStep,
+                label + "steps differ from the model");
+        require(lattice.latencyFrames == timing.latencyFrames,
+                label + "reported latency differs from the model");
+        require(lattice.inputDelay == timing.inputDelay
+                    && lattice.outputDelay == timing.outputDelay,
+                label + "converter delays differ from the model");
+        require(lattice.inputClockSign == timing.inputClockSign
+                    && lattice.outputClockSign == timing.outputClockSign,
+                label + "clock signs differ from the model");
+        require(lattice.converts() == (timing.hostRate != 44100),
+                label + "wrong choice of converting");
+    }
+
+    // 44 internal samples at the host rate, rounded to a multiple of four.
+    constexpr std::array<std::array<int, 2>, 5> otherLatencies {{
+        { 22050, 24 }, { 32000, 32 }, { 56000, 56 }, { 352800, 352 }, { 384000, 384 }
+    }};
+    for (const auto& [hostRate, latency] : otherLatencies)
+        require(FathomRateLattice::at(hostRate).latencyFrames == latency,
+                "Fathom reported latency rule fails at " + std::to_string(hostRate) + " Hz");
+
+    // Clock signs away from the standard rates. At 56, 64 and 384 kHz the
+    // measured pairs stand; at the other rates the signs are those of the
+    // campaign's simulation of the reference's block clocks
+    // (converters.clock_signs). The simulation alone gives the measured pairs
+    // at 64 and 384 kHz and a high output clock at 56 kHz.
+    constexpr std::array<std::array<int, 3>, 10> otherClockSigns {{
+        { 22050, 0, 0 }, { 32000, -1, -1 }, { 44101, 1, -1 }, { 50000, -1, -1 },
+        { 56000, -1, -1 }, { 64000, -1, -1 }, { 128000, -1, 1 }, { 352800, 0, 0 },
+        { 383999, 1, -1 }, { 384000, 1, -1 }
+    }};
+    for (const auto& [hostRate, input, output] : otherClockSigns)
+    {
+        const auto lattice = FathomRateLattice::at(hostRate);
+        require(lattice.inputClockSign == input && lattice.outputClockSign == output,
+                "Fathom clock signs at " + std::to_string(hostRate) + " Hz are "
+                    + std::to_string(lattice.inputClockSign) + " and "
+                    + std::to_string(lattice.outputClockSign) + ", not the campaign's");
+    }
+
+    const auto& table = FathomConverter::kernelTable();
+    double tableSum = 0.0;
+    for (const auto entry : table)
+        tableSum += static_cast<double>(entry);
+    require(std::abs(tableSum - golden::converterTableSum) < 1.0e-9,
+            "Fathom converter table does not sum to the model's");
+    for (const auto& sample : golden::converterTableSamples)
+        require(sameBits(table[static_cast<std::size_t>(sample.entry)], sample.value),
+                "Fathom converter table differs at entry " + std::to_string(sample.entry));
+
+    constexpr auto tolerance = 1.0e-12;
+    const auto noiseFrames = static_cast<int>(std::size(golden::converterHostNoise));
+    for (const auto& vector : golden::converterVectors)
+    {
+        const auto lattice = FathomRateLattice::at(vector.hostRate);
+        const auto label = "Fathom converter at " + std::to_string(vector.hostRate) + " Hz: ";
+
+        // Host frames to internal samples. The right channel carries the
+        // inverted signal, so both channels are checked.
+        FathomConverter toInternal;
+        toInternal.prepare(lattice.hostStep, lattice.internalStep, lattice.inputDelay,
+                           lattice.inputClockSign, 0);
+        const auto internalCount = static_cast<int>(vector.toInternal.size());
+        auto worst = 0.0;
+        auto target = 0;
+        for (auto frame = 0; target < vector.toInternalFirstSample + internalCount + 64; ++frame)
+        {
+            const auto noiseFrame = frame - vector.hostFirstFrame;
+            const auto sample = noiseFrame >= 0 && noiseFrame < noiseFrames
+                ? golden::converterHostNoise[noiseFrame] : 0.0;
+            toInternal.write(sample, -sample);
+            while (toInternal.lastSourceNeeded() < toInternal.written())
+            {
+                auto left = 0.0;
+                auto right = 0.0;
+                toInternal.read(left, right);
+                const auto index = target - vector.toInternalFirstSample;
+                const auto expected = index >= 0 && index < internalCount
+                    ? vector.toInternal[static_cast<std::size_t>(index)] : 0.0;
+                worst = std::max({ worst, std::abs(left - expected), std::abs(right + expected) });
+                ++target;
+            }
+        }
+        require(worst <= tolerance,
+                label + "host to internal differs from the model by " + std::to_string(worst));
+
+        // Internal samples to the reference's raw host frames.
+        FathomConverter toHost;
+        toHost.prepare(lattice.internalStep, lattice.hostStep, lattice.outputDelay,
+                       lattice.outputClockSign, 0);
+        const auto hostCount = static_cast<int>(vector.toHost.size());
+        worst = 0.0;
+        target = 0;
+        for (auto sampleIndex = 0; target < vector.toHostFirstFrame + hostCount + 64; ++sampleIndex)
+        {
+            const auto noiseFrame = sampleIndex - vector.internalFirstSample;
+            const auto sample = noiseFrame >= 0 && noiseFrame < noiseFrames
+                ? golden::converterInternalNoise[noiseFrame] : 0.0;
+            toHost.write(sample, -sample);
+            while (toHost.lastSourceNeeded() < toHost.written())
+            {
+                auto left = 0.0;
+                auto right = 0.0;
+                toHost.read(left, right);
+                const auto index = target - vector.toHostFirstFrame;
+                const auto expected = index >= 0 && index < hostCount
+                    ? vector.toHost[static_cast<std::size_t>(index)] : 0.0;
+                worst = std::max({ worst, std::abs(left - expected), std::abs(right + expected) });
+                ++target;
+            }
+        }
+        require(worst <= tolerance,
+                label + "internal to host differs from the model by " + std::to_string(worst));
+    }
+}
+
+void testFathomEngineDeterminismAndClocks()
+{
+    constexpr std::array<double, 3> sampleRates { 44100.0, 48000.0, 96000.0 };
+
+    for (const auto sampleRate : sampleRates)
+    {
+        const auto label = "Fathom engine at " + std::to_string(static_cast<int>(sampleRate)) + " Hz, ";
+        // Long enough for every glide of the engine to end.
+        const auto warmupFrames = static_cast<int>(sampleRate * 0.35);
+        const auto programmeFrames = static_cast<int>(sampleRate * 0.25);
+        FathomEngine::Parameters parameters;
+        parameters.decaySeconds = 1.5f;
+        parameters.sizeScale = 1.2f;
+        parameters.preDelaySeconds = 0.004f;
+
+        const auto idle = [](FathomEngine& engine, int frames)
+        {
+            for (auto frame = 0; frame < frames; ++frame)
+                engine.advanceIdle();
+        };
+        const auto excite = [](FathomEngine& engine, int frames)
+        {
+            for (auto frame = 0; frame < frames; ++frame)
+                static_cast<void>(engine.processSample(0.3f * fathomNoise(frame, 2),
+                                                       0.3f * fathomNoise(frame, 3)));
+        };
+
+        FathomEngine fresh;
+        fresh.setParameters(parameters);
+        fresh.prepare(sampleRate);
+        idle(fresh, warmupFrames);
+        const auto expected = renderFathomProgramme(fresh, programmeFrames);
+        auto peak = 0.0f;
+        for (const auto sample : expected)
+        {
+            require(std::isfinite(sample), label + "the programme produced NaN/Inf");
+            peak = std::max(peak, std::abs(sample));
+        }
+        require(peak > 1.0e-3f, label + "the programme left no wet signal");
+
+        {
+            FathomEngine second;
+            second.setParameters(parameters);
+            second.prepare(sampleRate);
+            idle(second, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(second, programmeFrames), expected,
+                                    label + "second instance");
+        }
+        {
+            FathomEngine used;
+            used.setParameters(parameters);
+            used.prepare(sampleRate);
+            excite(used, 6000);
+            used.reset();
+            idle(used, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(used, programmeFrames), expected,
+                                    label + "after reset()");
+        }
+        {
+            FathomEngine prepared;
+            prepared.setParameters(parameters);
+            prepared.prepare(sampleRate * 2.0);
+            excite(prepared, 6000);
+            prepared.prepare(sampleRate);
+            idle(prepared, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(prepared, programmeFrames), expected,
+                                    label + "after prepare() at another rate");
+        }
+        {
+            FathomEngine silent;
+            silent.setParameters(parameters);
+            silent.prepare(sampleRate);
+            for (auto frame = 0; frame < warmupFrames; ++frame)
+            {
+                const auto wet = silent.processSample(0.0f, 0.0f);
+                require(!(std::abs(wet.left) > 0.0f) && !(std::abs(wet.right) > 0.0f),
+                        label + "silence in did not give silence out");
+            }
+            requireSameFathomRender(renderFathomProgramme(silent, programmeFrames), expected,
+                                    label + "processed silence against advanceIdle()");
+        }
+        {
+            // Parameters the engine already has, and values that are no
+            // numbers, must not disturb it.
+            auto invalid = parameters;
+            invalid.decaySeconds = std::numeric_limits<float>::quiet_NaN();
+            invalid.sizeScale = std::numeric_limits<float>::infinity();
+            invalid.preDelaySeconds = -std::numeric_limits<float>::infinity();
+            invalid.macro = std::numeric_limits<float>::quiet_NaN();
+            invalid.lowCutHz = std::numeric_limits<float>::quiet_NaN();
+            invalid.highDampingHz = std::numeric_limits<float>::infinity();
+            FathomEngine repeated;
+            repeated.setParameters(parameters);
+            repeated.prepare(sampleRate);
+            idle(repeated, warmupFrames);
+            std::vector<float> rendered;
+            for (auto frame = 0; frame < programmeFrames; ++frame)
+            {
+                repeated.setParameters(frame % 2 == 0 ? parameters : invalid);
+                const auto input = fathomProgramme(frame);
+                const auto wet = repeated.processSample(input.left, input.right);
+                rendered.push_back(wet.left);
+                rendered.push_back(wet.right);
+            }
+            requireSameFathomRender(rendered, expected, label + "repeated and invalid setParameters()");
+        }
+        {
+            // Every parameter arrives by its glide while the engine processes
+            // silence; at rest the values must be exactly those of a fresh engine.
+            FathomEngine::Parameters other;
+            other.decaySeconds = 6.0f;
+            other.sizeScale = 0.4f;
+            other.preDelaySeconds = 0.020f;
+            other.lowCutHz = 200.0f;
+            other.highDampingHz = 5000.0f;
+            other.freeze = true;
+            FathomEngine glided;
+            glided.setParameters(other);
+            glided.prepare(sampleRate);
+            for (auto frame = 0; frame < warmupFrames; ++frame)
+            {
+                if (frame == 300)
+                    glided.setParameters(parameters);
+                static_cast<void>(glided.processSample(0.0f, 0.0f));
+            }
+            requireSameFathomRender(renderFathomProgramme(glided, programmeFrames), expected,
+                                    label + "parameters at rest after their glides");
+        }
+
+        // Left idle after sound, the engine starts from silence with its
+        // clocks where a fresh instance has them, even after a single frame.
+        for (const auto idleFrames : { 1, 2, 3000 })
+        {
+            constexpr auto soundFrames = 7000;
+            FathomEngine reference;
+            reference.setParameters(parameters);
+            reference.prepare(sampleRate);
+            idle(reference, soundFrames + idleFrames);
+            const auto afterIdle = renderFathomProgramme(reference, programmeFrames);
+
+            FathomEngine sounded;
+            sounded.setParameters(parameters);
+            sounded.prepare(sampleRate);
+            excite(sounded, soundFrames);
+            idle(sounded, idleFrames);
+            requireSameFathomRender(renderFathomProgramme(sounded, programmeFrames), afterIdle,
+                                    label + "after sound and " + std::to_string(idleFrames)
+                                        + " idle frames");
+        }
+    }
+}
+
+void testFathomEngineSilenceHostileInputAndRates()
+{
+    // Every kind of rate ratio: none, whole, the common 160/147 family, rates
+    // below the core's, the ends of the supported range, and a ratio with too
+    // many branches to tabulate.
+    constexpr std::array<double, 12> sampleRates {
+        22050.0, 32000.0, 44100.0, 44101.0, 47952.0, 48000.0,
+        88200.0, 96000.0, 176400.0, 192000.0, 352800.0, 384000.0
+    };
+    for (const auto sampleRate : sampleRates)
+    {
+        const auto label = "Fathom engine at " + std::to_string(static_cast<int>(sampleRate))
+                         + " Hz ";
+        FathomEngine engine;
+        engine.prepare(sampleRate);
+        for (auto frame = 0; frame < 3000; ++frame)
+        {
+            const auto wet = engine.processSample(0.0f, 0.0f);
+            require(!(std::abs(wet.left) > 0.0f) && !(std::abs(wet.right) > 0.0f),
+                    label + "turned silence into sound");
+        }
+
+        // An impulse on the left arrives at both outputs after the fixed delay
+        // of the network and its shortest line, about 25 ms, and not before.
+        // Above the core's rate one host frame is a shorter impulse; its
+        // height makes up for that.
+        const auto impulse = 0.5f * static_cast<float>(std::max(1.0, sampleRate / 44100.0));
+        const auto responseFrames = static_cast<int>(sampleRate * 0.12);
+        const auto earliestFrame = static_cast<int>(sampleRate * 0.020);
+        auto firstFrame = -1;
+        auto peak = 0.0f;
+        for (auto frame = 0; frame < responseFrames; ++frame)
+        {
+            const auto wet = engine.processSample(frame == 0 ? impulse : 0.0f, 0.0f);
+            require(std::isfinite(wet.left) && std::isfinite(wet.right),
+                    label + "produced NaN/Inf");
+            const auto magnitude = std::max(std::abs(wet.left), std::abs(wet.right));
+            if (firstFrame < 0 && magnitude > 1.0e-4f)
+                firstFrame = frame;
+            peak = std::max(peak, magnitude);
+        }
+        require(firstFrame >= earliestFrame && firstFrame < static_cast<int>(sampleRate * 0.030),
+                label + "puts its first arrival at frame " + std::to_string(firstFrame));
+        require(peak > 0.01f && peak < 0.2f,
+                label + "has an implausible impulse response peak " + std::to_string(peak));
+    }
+
+    constexpr std::array<double, 4> hostileRates { 44100.0, 48000.0, 88200.0, 96000.0 };
+    constexpr std::array<float, 8> hostileSamples {
+        std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::max(),
+        -1.0e30f, std::numeric_limits<float>::denorm_min(), 1.0e-39f, -0.0f
+    };
+    for (const auto sampleRate : hostileRates)
+    {
+        const auto label = "Fathom engine at " + std::to_string(static_cast<int>(sampleRate))
+                         + " Hz ";
+        FathomEngine::Parameters parameters;
+        parameters.decaySeconds = 30.0f;
+        parameters.sizeScale = 2.0f;
+        parameters.preDelaySeconds = 0.25f;
+        FathomEngine engine;
+        FathomEngine::LevelStage levelStage;
+        engine.setParameters(parameters);
+        engine.prepare(sampleRate);
+        levelStage.prepare(sampleRate);
+
+        auto peak = 0.0f;
+        const auto frames = static_cast<int>(sampleRate * 1.5);
+        for (auto frame = 0; frame < frames; ++frame)
+        {
+            if (frame % 997 == 0)
+            {
+                // Parameters move through their extremes, with values no
+                // parameter may take in between.
+                const auto step = frame / 997;
+                parameters.decaySeconds = step % 3 == 0 ? 0.2f : 60.0f;
+                parameters.sizeScale = step % 2 == 0 ? 0.15f : 2.0f;
+                parameters.preDelaySeconds = step % 5 == 0 ? 0.0f : 2.0f;
+                parameters.lowCutHz = step % 4 == 0 ? 20.0f : 1000.0f;
+                parameters.highDampingHz = step % 7 == 0 ? 20000.0f : 1000.0f;
+                parameters.freeze = step % 6 == 5;
+                engine.setParameters(parameters);
+                auto invalid = parameters;
+                invalid.decaySeconds = std::numeric_limits<float>::quiet_NaN();
+                invalid.sizeScale = std::numeric_limits<float>::infinity();
+                invalid.preDelaySeconds = -std::numeric_limits<float>::infinity();
+                invalid.macro = std::numeric_limits<float>::quiet_NaN();
+                invalid.lowCutHz = std::numeric_limits<float>::quiet_NaN();
+                invalid.highDampingHz = std::numeric_limits<float>::quiet_NaN();
+                engine.setParameters(invalid);
+            }
+
+            // Full-scale noise, with a sample that is no sample every so often.
+            auto left = fathomNoise(frame, 4);
+            auto right = fathomNoise(frame, 5);
+            if (frame % 61 == 0)
+                left = hostileSamples[static_cast<std::size_t>(frame / 61) % hostileSamples.size()];
+            if (frame % 89 == 0)
+                right = hostileSamples[static_cast<std::size_t>(frame / 89) % hostileSamples.size()];
+            auto wet = levelStage.process(left, right, engine.processSample(left, right));
+            wet = FathomEngine::applyWidth(wet, 2.0f);
+            wet.left = FathomEngine::clip(wet.left);
+            wet.right = FathomEngine::clip(wet.right);
+            require(std::isfinite(wet.left) && std::isfinite(wet.right),
+                    label + "let hostile input through as NaN/Inf");
+            peak = std::max({ peak, std::abs(wet.left), std::abs(wet.right) });
+        }
+        require(peak <= 3.99f, label + "left the clipper's range under hostile input");
+
+        // Once the input is gone a short Decay brings the engine back to
+        // exact silence.
+        parameters.decaySeconds = 0.2f;
+        parameters.sizeScale = 1.0f;
+        parameters.preDelaySeconds = 0.0f;
+        parameters.lowCutHz = 20.0f;
+        parameters.highDampingHz = 20000.0f;
+        parameters.freeze = false;
+        engine.setParameters(parameters);
+        auto lastSound = -1;
+        const auto tailFrames = static_cast<int>(sampleRate * 6.0);
+        for (auto frame = 0; frame < tailFrames; ++frame)
+        {
+            const auto wet = engine.processSample(0.0f, 0.0f);
+            require(std::isfinite(wet.left) && std::isfinite(wet.right),
+                    label + "kept NaN/Inf after hostile input");
+            if (std::abs(wet.left) > 0.0f || std::abs(wet.right) > 0.0f)
+                lastSound = frame;
+        }
+        require(lastSound < static_cast<int>(sampleRate * 5.0),
+                label + "did not return to silence after hostile input");
+    }
+}
+
+void testFathomEngineAllocatesOnlyInPrepare()
+{
+    constexpr std::array<double, 2> sampleRates { 48000.0, 44101.0 };
+    for (const auto sampleRate : sampleRates)
+    {
+        FathomEngine engine;
+        FathomEngine::LevelStage levelStage;
+        FathomEngine::Parameters parameters;
+        engine.setParameters(parameters);
+        engine.prepare(sampleRate);
+        levelStage.prepare(sampleRate);
+        const std::vector<double> prescribedPhase(300, 0.25);
+
+        allocationCount.store(0, std::memory_order_relaxed);
+        countAllocations.store(true, std::memory_order_relaxed);
+        for (auto frame = 0; frame < 60000; ++frame)
+        {
+            if (frame % 211 == 0)
+            {
+                parameters.decaySeconds = parameters.decaySeconds > 1.0f ? 0.2f : 30.0f;
+                parameters.sizeScale = parameters.sizeScale > 1.0f ? 0.15f : 2.0f;
+                parameters.preDelaySeconds = parameters.preDelaySeconds > 0.1f ? 0.0f : 0.25f;
+                parameters.macro = 1.0f - parameters.macro;
+                parameters.lowCutHz = parameters.lowCutHz > 20.0f ? 20.0f : 400.0f;
+                parameters.highDampingHz = parameters.highDampingHz < 20000.0f ? 20000.0f : 3000.0f;
+                parameters.freeze = frame % 422 == 0;
+                engine.setParameters(parameters);
+                engine.setVoiceSeed(static_cast<std::uint64_t>(frame));
+                const auto* phase = frame % 633 == 0 ? prescribedPhase.data() : nullptr;
+                engine.setVoicePhaseForTesting(phase, phase, prescribedPhase.size());
+            }
+            if (frame % 17000 == 16000)
+                engine.reset();
+            if ((frame / 5000) % 3 == 2)
+            {
+                engine.advanceIdle();
+                continue;
+            }
+            const auto left = 0.5f * fathomNoise(frame, 6);
+            const auto right = 0.5f * fathomNoise(frame, 7);
+            auto wet = levelStage.process(left, right, engine.processSample(left, right));
+            wet = FathomEngine::applyWidth(wet, 1.3f);
+            auto dryGain = 0.0f;
+            auto wetGain = 0.0f;
+            FathomEngine::mixGains(0.4f, dryGain, wetGain);
+            static_cast<void>(
+                FathomEngine::clip(FathomEngine::mix(dryGain, left, wetGain, wet.left)));
+        }
+        countAllocations.store(false, std::memory_order_relaxed);
+
+        require(allocationCount.load(std::memory_order_relaxed) == 0,
+                "Fathom engine allocated memory outside prepare()");
+    }
+}
+
+void testFathomOuterLaws()
+{
+    namespace golden = amanita::dsp::fathomgolden;
+
+    // Clipper: unity up to +8 dBFS, a knee, the ceiling of +12 dBFS.
+    for (std::size_t index = 0; index < std::size(golden::clipInput); ++index)
+    {
+        const auto clipped = FathomEngine::clip(static_cast<float>(golden::clipInput[index]));
+        require(std::abs(static_cast<double>(clipped) - golden::clipOutput[index]) <= 1.0e-6,
+                "Fathom clipper differs from the model at input "
+                    + std::to_string(golden::clipInput[index]));
+    }
+    const auto threshold = static_cast<float>(std::pow(10.0, 8.0 / 20.0));
+    const auto ceiling = static_cast<float>(std::pow(10.0, 12.0 / 20.0));
+    for (const auto sample : { 0.0f, 1.0e-30f, 0.5f, 1.0f, 2.5f, threshold })
+        require(sameBits(FathomEngine::clip(sample), sample)
+                    && sameBits(FathomEngine::clip(-sample), -sample),
+                "Fathom clipper is not unity at " + std::to_string(sample));
+    for (const auto sample : { 5.5f, 8.0f, 1.0e30f, std::numeric_limits<float>::infinity() })
+        require(sameBits(FathomEngine::clip(sample), ceiling)
+                    && sameBits(FathomEngine::clip(-sample), -ceiling),
+                "Fathom clipper does not hold its ceiling at " + std::to_string(sample));
+    require(sameBits(FathomEngine::clip(std::numeric_limits<float>::quiet_NaN()), 0.0f),
+            "Fathom clipper passed NaN");
+    auto previous = 0.0f;
+    for (auto step = 0; step <= 7000; ++step)
+    {
+        const auto clipped = FathomEngine::clip(0.001f * static_cast<float>(step));
+        require(clipped >= previous && clipped <= ceiling, "Fathom clipper is not monotonic");
+        previous = clipped;
+    }
+
+    // Width: mid gain sqrt(2 / (1 + s)), side gain s times that.
+    const auto frameCount = std::size(golden::widthInput) / 2;
+    for (std::size_t scale = 0; scale < std::size(golden::widthScale); ++scale)
+    {
+        for (std::size_t frame = 0; frame < frameCount; ++frame)
+        {
+            const auto widened = FathomEngine::applyWidth(
+                { static_cast<float>(golden::widthInput[2 * frame]),
+                  static_cast<float>(golden::widthInput[2 * frame + 1]) },
+                static_cast<float>(golden::widthScale[scale]));
+            const auto* expected = golden::widthOutput + 2 * (scale * frameCount + frame);
+            require(std::abs(static_cast<double>(widened.left) - expected[0]) <= 1.0e-6
+                        && std::abs(static_cast<double>(widened.right) - expected[1]) <= 1.0e-6,
+                    "Fathom Width law differs from the model at scale "
+                        + std::to_string(golden::widthScale[scale]));
+        }
+    }
+    for (auto frame = 0; frame < 64; ++frame)
+    {
+        const FathomEngine::Frame wet { fathomNoise(frame, 8), 0.37f * fathomNoise(frame, 9) };
+        const auto unchanged = FathomEngine::applyWidth(wet, 1.0f);
+        require(sameBits(unchanged.left, wet.left) && sameBits(unchanged.right, wet.right),
+                "Fathom Width law is not the identity at 100 %");
+        const auto mono = FathomEngine::applyWidth(wet, 0.0f);
+        require(sameBits(mono.left, mono.right)
+                    && std::abs(mono.left - std::sqrt(0.5f) * (wet.left + wet.right)) <= 1.0e-6f,
+                "Fathom Width law is not the scaled Mid at 0 %");
+    }
+    // The identity holds where one channel lies far below the other and the
+    // sum of mid and side would round it.
+    for (const auto wet : { FathomEngine::Frame { 1.0f, 1.0e-12f }, FathomEngine::Frame { 3.0e-11f, -0.5f } })
+    {
+        const auto unchanged = FathomEngine::applyWidth(wet, 1.0f);
+        require(sameBits(unchanged.left, wet.left) && sameBits(unchanged.right, wet.right),
+                "Fathom Width law rounds the quieter channel at 100 %");
+    }
+    const auto widest = FathomEngine::applyWidth({ 1.0f, -1.0f }, 2.0f);
+    require(std::abs(widest.left - 2.0f * std::sqrt(2.0f / 3.0f)) <= 1.0e-6f
+                && sameBits(widest.left, -widest.right),
+            "Fathom Width law has the wrong Side gain at its maximum");
+
+    // Mix: the dry stays at unity up to 50 %, the wet reaches unity there.
+    for (std::size_t index = 0; index < std::size(golden::mixValue); ++index)
+    {
+        auto dryGain = -1.0f;
+        auto wetGain = -1.0f;
+        FathomEngine::mixGains(static_cast<float>(golden::mixValue[index]), dryGain, wetGain);
+        require(std::abs(static_cast<double>(dryGain) - golden::mixDryAndWetGain[2 * index]) <= 1.0e-7
+                    && std::abs(static_cast<double>(wetGain) - golden::mixDryAndWetGain[2 * index + 1]) <= 1.0e-7,
+                "Fathom Mix law differs from the model at "
+                    + std::to_string(golden::mixValue[index]));
+    }
+    constexpr std::array<std::array<float, 3>, 5> mixPoints {{
+        { 0.0f, 1.0f, 0.0f }, { 0.25f, 1.0f, 0.5f }, { 0.5f, 1.0f, 1.0f },
+        { 0.75f, 0.5f, 1.0f }, { 1.0f, 0.0f, 1.0f }
+    }};
+    for (const auto& point : mixPoints)
+    {
+        auto dryGain = -1.0f;
+        auto wetGain = -1.0f;
+        FathomEngine::mixGains(point[0], dryGain, wetGain);
+        require(sameBits(dryGain, point[1]) && sameBits(wetGain, point[2]),
+                "Fathom Mix law misses its defining point at " + std::to_string(point[0]));
+    }
+
+    // The Mix sum rounds each product before it adds. The products pass
+    // through memory here, so no build of this file can fuse them with the
+    // addition; a fused sum rounds once and differs in part of the frames.
+    auto fusedSumsThatDiffer = 0;
+    for (const auto mix : { 0.3f, 0.7f })
+    {
+        auto dryGain = 0.0f;
+        auto wetGain = 0.0f;
+        FathomEngine::mixGains(mix, dryGain, wetGain);
+        for (auto frame = 0; frame < 4000; ++frame)
+        {
+            const auto dry = fathomNoise(frame, 30);
+            const auto wet = fathomNoise(frame, 31);
+            volatile float dryShare = dryGain * dry;
+            volatile float wetShare = wetGain * wet;
+            const float separate = dryShare + wetShare;
+            require(sameBits(FathomEngine::mix(dryGain, dry, wetGain, wet), separate),
+                    "Fathom Mix sum does not round each product on its own at Mix "
+                        + std::to_string(mix) + ", frame " + std::to_string(frame));
+            const float wetProduct = wetShare;
+            if (!sameBits(std::fma(dryGain, dry, wetProduct), separate))
+                ++fusedSumsThatDiffer;
+        }
+    }
+    require(fusedSumsThatDiffer > 100, "Fathom Mix sum was not tried where a fused sum differs");
+
+    // Level stage against the model's single-precision reduction, bit for bit.
+    FathomEngine::LevelStage modelStage;
+    modelStage.prepare(static_cast<double>(golden::levelStageHostRate));
+    for (std::size_t frame = 0; frame < std::size(golden::levelStageReductionDb); ++frame)
+    {
+        const auto reductionDb = golden::levelStageReductionDb[frame];
+        const auto gain = reductionDb < 0.0f
+            ? std::pow(10.0, static_cast<double>(reductionDb) / 20.0) : 1.0;
+        const auto wet = modelStage.process(golden::levelStageInput[2 * frame],
+                                              golden::levelStageInput[2 * frame + 1],
+                                              { 1.0f, -0.5f });
+        require(sameBits(wet.left, static_cast<float>(gain))
+                    && sameBits(wet.right, static_cast<float>(gain * -0.5)),
+                "Fathom level stage differs from the model at frame " + std::to_string(frame));
+    }
+
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto kneeDb = 9.98306;
+    const auto reductionAfter = [](FathomEngine::LevelStage& levelStage, float left, float right,
+                                   int frames)
+    {
+        auto wet = FathomEngine::Frame { 1.0f, 1.0f };
+        for (auto frame = 0; frame < frames; ++frame)
+            wet = levelStage.process(left, right, { 1.0f, 1.0f });
+        return 20.0 * std::log10(static_cast<double>(wet.left));
+    };
+
+    // Nothing happens to the wet while every input sample stays under the
+    // knee, which starts half its width below 0 dBFS.
+    FathomEngine::LevelStage stage;
+    stage.prepare(sampleRate);
+    const auto kneeStart = static_cast<float>(std::pow(10.0, -kneeDb / 40.0));
+    for (auto frame = 0; frame < 20000; ++frame)
+    {
+        const FathomEngine::Frame wet { fathomNoise(frame, 10), fathomNoise(frame, 11) };
+        const auto key = (kneeStart - 1.0e-6f) * fathomNoise(frame, 12);
+        const auto staged = stage.process(key, -key, wet);
+        require(sameBits(staged.left, wet.left) && sameBits(staged.right, wet.right),
+                "Fathom level stage touched the wet below its knee");
+    }
+    require(reductionAfter(stage, kneeStart + 1.0e-3f, 0.0f, 48000) < -1.0e-7,
+            "Fathom level stage did not start at its knee");
+
+    // Static curve: 5/7 dB per dB above the knee, a parabola through it,
+    // keyed by the larger magnitude of the two inputs. The single-precision
+    // smoother comes to rest where its step rounds away, up to 2e-4 dB short
+    // of the curve on the way down and 1e-3 dB on the way back.
+    stage.reset();
+    require(std::abs(reductionAfter(stage, 2.0f, 0.0f, 96000)
+                     + (5.0 / 7.0) * 20.0 * std::log10(2.0)) < 2.0e-4,
+            "Fathom level stage misses its slope at +6 dBFS");
+    require(std::abs(reductionAfter(stage, 0.1f, -4.0f, 96000)
+                     + (5.0 / 7.0) * 20.0 * std::log10(4.0)) < 2.0e-4,
+            "Fathom level stage misses its slope at +12 dBFS on the right input");
+    require(std::abs(reductionAfter(stage, -1.0f, 1.0f, 192000) + (5.0 / 7.0) * kneeDb / 8.0) < 1.0e-3,
+            "Fathom level stage misses the middle of its knee at 0 dBFS");
+
+    // 5 ms towards more reduction, 300 ms back.
+    stage.reset();
+    const auto targetDb = -(5.0 / 7.0) * 20.0 * std::log10(2.0);
+    const auto attackedDb = reductionAfter(stage, 2.0f, 2.0f, static_cast<int>(sampleRate * 0.005));
+    require(std::abs(attackedDb / targetDb - (1.0 - std::exp(-1.0))) < 1.0e-3,
+            "Fathom level stage attack is not 5 ms");
+    const auto settledDb = reductionAfter(stage, 2.0f, 2.0f, 96000);
+    const auto releasedDb = reductionAfter(stage, 0.0f, 0.0f, static_cast<int>(sampleRate * 0.300));
+    require(std::abs(releasedDb / settledDb - std::exp(-1.0)) < 1.0e-3,
+            "Fathom level stage release is not 300 ms");
+
+    // Input that is no number counts as silence, and reset() ends the reduction.
+    static_cast<void>(reductionAfter(stage, 3.0f, 3.0f, 4800));
+    stage.reset();
+    for (const auto key : { std::numeric_limits<float>::quiet_NaN(),
+                            std::numeric_limits<float>::infinity() })
+    {
+        const auto staged = stage.process(key, -key, { 0.25f, -0.75f });
+        require(sameBits(staged.left, 0.25f) && sameBits(staged.right, -0.75f),
+                "Fathom level stage reacted to a non-finite input or kept its state over reset()");
+    }
+}
+
+// Energy of the engine's wet output over `frames` frames of silent input.
+[[nodiscard]] double fathomSilentEnergy(FathomEngine& engine, int frames)
+{
+    double energy = 0.0;
+    for (auto frame = 0; frame < frames; ++frame)
+    {
+        const auto wet = engine.processSample(0.0f, 0.0f);
+        energy += static_cast<double>(wet.left) * wet.left + static_cast<double>(wet.right) * wet.right;
+    }
+    return energy;
+}
+
+void testFathomOceanLoopControls()
+{
+    constexpr auto sampleRate = 44100.0;
+    constexpr auto twoPi = 6.28318530717958647692;
+    FathomEngine::Parameters neutral;
+    neutral.decaySeconds = 3.0f;
+    neutral.lowCutHz = 20.0f;
+    neutral.highDampingHz = 20000.0f;
+
+    // At and beyond their neutral positions the two filters are out of the
+    // circuit: the output is that of an engine that never had them.
+    {
+        const auto programmeFrames = 20000;
+        FathomEngine plain;
+        plain.setParameters(neutral);
+        plain.prepare(sampleRate);
+        const auto expected = renderFathomProgramme(plain, programmeFrames);
+
+        auto beyond = neutral;
+        beyond.lowCutHz = 5.0f;
+        beyond.highDampingHz = 40000.0f;
+        FathomEngine clamped;
+        clamped.setParameters(beyond);
+        clamped.prepare(sampleRate);
+        requireSameFathomRender(renderFathomProgramme(clamped, programmeFrames), expected,
+                                "Fathom loop filters beyond their neutral positions");
+
+        // Engaged and released again before the programme, the filters leave
+        // nothing behind once their fades have ended.
+        const auto warmupFrames = static_cast<int>(sampleRate * 0.2);
+        FathomEngine fresh;
+        fresh.setParameters(neutral);
+        fresh.prepare(sampleRate);
+        for (auto frame = 0; frame < warmupFrames; ++frame)
+            fresh.advanceIdle();
+        const auto afterWarmup = renderFathomProgramme(fresh, programmeFrames);
+
+        auto engaged = neutral;
+        engaged.lowCutHz = 300.0f;
+        engaged.highDampingHz = 4000.0f;
+        FathomEngine released;
+        released.setParameters(neutral);
+        released.prepare(sampleRate);
+        for (auto frame = 0; frame < warmupFrames; ++frame)
+        {
+            if (frame == 10)
+                released.setParameters(engaged);
+            if (frame == 3000)
+                released.setParameters(neutral);
+            static_cast<void>(released.processSample(0.0f, 0.0f));
+        }
+        requireSameFathomRender(renderFathomProgramme(released, programmeFrames), afterWarmup,
+                                "Fathom loop filters after they were engaged and released");
+    }
+
+    // In the circuit they act on the recirculating sound only: the first pass
+    // through the lines leaves before the loop filters, a later tail has gone
+    // through them many times.
+    const auto tailEnergy = [&](const FathomEngine::Parameters& parameters, double frequencyHz,
+                                std::vector<float>& firstPass)
+    {
+        constexpr auto burstFrames = 8820;
+        FathomEngine engine;
+        engine.setParameters(parameters);
+        engine.prepare(sampleRate);
+        firstPass.clear();
+        for (auto frame = 0; frame < burstFrames; ++frame)
+        {
+            const auto tone = 0.25f * static_cast<float>(
+                std::sin(twoPi * frequencyHz * static_cast<double>(frame) / sampleRate));
+            const auto wet = engine.processSample(frame == 0 ? 0.5f + tone : tone, tone);
+            // No line is shorter than 1031 - 39 samples, so nothing has come
+            // round a second time within 1900 frames.
+            if (frame < 1900)
+            {
+                firstPass.push_back(wet.left);
+                firstPass.push_back(wet.right);
+            }
+        }
+        static_cast<void>(fathomSilentEnergy(engine, static_cast<int>(sampleRate * 0.5)));
+        return fathomSilentEnergy(engine, static_cast<int>(sampleRate * 0.5));
+    };
+
+    std::vector<float> neutralFirstPass;
+    std::vector<float> shapedFirstPass;
+    auto lowCut = neutral;
+    lowCut.lowCutHz = 500.0f;
+    const auto neutralLowEnergy = tailEnergy(neutral, 70.0, neutralFirstPass);
+    const auto cutLowEnergy = tailEnergy(lowCut, 70.0, shapedFirstPass);
+    requireSameFathomRender(shapedFirstPass, neutralFirstPass, "Fathom Low Cut on the first pass");
+    require(neutralLowEnergy > 1.0e-6, "Fathom tail of a 70 Hz burst is missing");
+    std::cout << "[METRIC] Fathom Low Cut 500 Hz on a 70 Hz tail: "
+              << 10.0 * std::log10(cutLowEnergy / neutralLowEnergy) << " dB\n";
+    require(cutLowEnergy < 0.01 * neutralLowEnergy,
+            "Fathom Low Cut does not remove low frequencies from the tail");
+
+    auto damped = neutral;
+    damped.highDampingHz = 1500.0f;
+    const auto neutralHighEnergy = tailEnergy(neutral, 6000.0, neutralFirstPass);
+    const auto dampedHighEnergy = tailEnergy(damped, 6000.0, shapedFirstPass);
+    requireSameFathomRender(shapedFirstPass, neutralFirstPass,
+                            "Fathom High Damping on the first pass");
+    require(neutralHighEnergy > 1.0e-6, "Fathom tail of a 6 kHz burst is missing");
+    std::cout << "[METRIC] Fathom High Damping 1.5 kHz on a 6 kHz tail: "
+              << 10.0 * std::log10(dampedHighEnergy / neutralHighEnergy) << " dB\n";
+    require(dampedHighEnergy < 0.01 * neutralHighEnergy,
+            "Fathom High Damping does not remove high frequencies from the tail");
+
+    // Each filter leaves the other end of the spectrum nearly alone. The low
+    // cut is the input less its low-passed part, which also takes a fraction
+    // of a decibel per pass from everything above it, as it does in FDNReverb.
+    const auto cutHighEnergy = tailEnergy(lowCut, 6000.0, shapedFirstPass);
+    const auto dampedLowEnergy = tailEnergy(damped, 70.0, shapedFirstPass);
+    std::cout << "[METRIC] Fathom Low Cut 500 Hz on a 6 kHz tail: "
+              << 10.0 * std::log10(cutHighEnergy / neutralHighEnergy)
+              << " dB, High Damping 1.5 kHz on a 70 Hz tail: "
+              << 10.0 * std::log10(dampedLowEnergy / neutralLowEnergy) << " dB\n";
+    require(cutHighEnergy > 0.25 * neutralHighEnergy && dampedLowEnergy > 0.5 * neutralLowEnergy,
+            "Fathom loop filters reach beyond their own end of the spectrum");
+}
+
+void testFathomFreezeHold()
+{
+    constexpr std::array<double, 2> sampleRates { 44100.0, 96000.0 };
+    for (const auto sampleRate : sampleRates)
+    {
+        const auto label = "Fathom Freeze at " + std::to_string(static_cast<int>(sampleRate))
+                         + " Hz ";
+        FathomEngine::Parameters parameters;
+        parameters.decaySeconds = 1.0f;
+        parameters.lowCutHz = 250.0f;
+        parameters.highDampingHz = 6000.0f;
+        FathomEngine held;
+        FathomEngine fed;
+        FathomEngine released;
+        for (auto* engine : { &held, &fed, &released })
+        {
+            engine->setParameters(parameters);
+            engine->prepare(sampleRate);
+        }
+
+        // A band of noise below 1 kHz, so that the hold is judged on sound
+        // the interpolated line reads wear down slowly.
+        const auto burstFrames = static_cast<int>(sampleRate * 0.3);
+        const auto smoothing = static_cast<float>(0.06 * 44100.0 / sampleRate);
+        auto lowPassed = 0.0f;
+        auto smoothed = 0.0f;
+        for (auto frame = 0; frame < burstFrames; ++frame)
+        {
+            lowPassed += smoothing * (fathomNoise(frame, 13) - lowPassed);
+            smoothed += smoothing * (lowPassed - smoothed);
+            const auto input = 2.0f * (lowPassed - smoothed);
+            for (auto* engine : { &held, &fed, &released })
+                static_cast<void>(engine->processSample(input, -0.6f * input));
+        }
+
+        parameters.freeze = true;
+        for (auto* engine : { &held, &fed, &released })
+            engine->setParameters(parameters);
+        const auto second = static_cast<int>(sampleRate);
+        const auto fadeFrames = static_cast<int>(sampleRate * 0.1);
+        static_cast<void>(fathomSilentEnergy(held, fadeFrames));
+        static_cast<void>(fathomSilentEnergy(fed, fadeFrames));
+        static_cast<void>(fathomSilentEnergy(released, fadeFrames));
+
+        // Held, the engine takes no input: one that is fed full-scale noise
+        // sounds like one that is fed silence, bit for bit.
+        double firstEnergy = 0.0;
+        double lastEnergy = 0.0;
+        for (auto frame = 0; frame < 4 * second; ++frame)
+        {
+            const auto quiet = held.processSample(0.0f, 0.0f);
+            const auto loud = fed.processSample(fathomNoise(frame, 14), fathomNoise(frame, 15));
+            require(sameBits(quiet.left, loud.left) && sameBits(quiet.right, loud.right),
+                    label + "lets input into the held loop");
+            const auto energy = static_cast<double>(quiet.left) * quiet.left
+                              + static_cast<double>(quiet.right) * quiet.right;
+            if (frame < second)
+                firstEnergy += energy;
+            if (frame >= 3 * second)
+                lastEnergy += energy;
+        }
+        const auto heldChangeDb = 10.0 * std::log10(lastEnergy / firstEnergy);
+        std::cout << "[METRIC] " << label << "change over 3 s: " << heldChangeDb << " dB\n";
+        require(firstEnergy > 1.0e-6, label + "holds nothing");
+        // Decay 1 s alone would take 180 dB in that time. The hold is lossless
+        // apart from what linear interpolation takes from the top.
+        require(heldChangeDb > -3.0 && heldChangeDb < 0.5, label + "does not hold the tail");
+
+        // Released, the tail takes up its Decay again and the input returns.
+        parameters.freeze = false;
+        released.setParameters(parameters);
+        const auto releasedEarly = fathomSilentEnergy(released, second / 2);
+        static_cast<void>(fathomSilentEnergy(released, second / 2));
+        const auto releasedLate = fathomSilentEnergy(released, second / 2);
+        require(releasedLate < 1.0e-4 * releasedEarly, label + "does not decay after release");
+        auto inputEnergy = 0.0;
+        for (auto frame = 0; frame < second / 2; ++frame)
+        {
+            const auto wet = released.processSample(0.3f * fathomNoise(frame, 16), 0.0f);
+            inputEnergy += static_cast<double>(wet.left) * wet.left;
+        }
+        require(inputEnergy > 1.0e3 * releasedLate, label + "stays closed to the input after release");
+    }
+}
+
+void testFathomParameterGlides()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto twoPi = 6.28318530717958647692;
+    constexpr auto changeFrame = 72000;
+
+    struct GlideCase
+    {
+        const char* name;
+        FathomEngine::Parameters target;
+        double glideSeconds;
+        double toneHz;
+    };
+    FathomEngine::Parameters base;
+    base.decaySeconds = 0.5f;
+    base.preDelaySeconds = 0.010f;
+    auto decay = base;
+    decay.decaySeconds = 8.0f;
+    auto size = base;
+    size.sizeScale = 1.2f;
+    auto preDelay = base;
+    preDelay.preDelaySeconds = 0.035f;
+    auto lowCut = base;
+    lowCut.lowCutHz = 800.0f;
+    auto damping = base;
+    damping.highDampingHz = 1000.0f;
+    auto freeze = base;
+    freeze.freeze = true;
+    const std::array glideCases {
+        GlideCase { "Decay", decay, 0.25, 90.0 },
+        GlideCase { "Size", size, 0.25, 90.0 },
+        GlideCase { "Pre-delay", preDelay, 0.05, 90.0 },
+        GlideCase { "Low Cut", lowCut, 0.05, 90.0 },
+        GlideCase { "High Damping", damping, 0.05, 3000.0 },
+        GlideCase { "Freeze", freeze, 0.05, 90.0 }
+    };
+
+    // Under a steady tone, an engine whose parameter changes is compared with
+    // one that keeps it. A parameter that glides lets the two drift apart no
+    // faster than its glide runs; one that stepped would open the whole
+    // difference in a single frame, thousands of times that rate.
+    constexpr auto driftLimit = 10.0;
+    for (const auto& glideCase : glideCases)
+    {
+        FathomEngine kept;
+        FathomEngine changed;
+        kept.setParameters(base);
+        changed.setParameters(base);
+        kept.prepare(sampleRate);
+        changed.prepare(sampleRate);
+
+        const auto glideFrames = static_cast<int>(sampleRate * glideCase.glideSeconds);
+        auto localPeak = 0.0;
+        auto worstDrift = 0.0;
+        auto lastDifference = 0.0;
+        for (auto frame = 0; frame < changeFrame + glideFrames; ++frame)
+        {
+            if (frame == changeFrame)
+                changed.setParameters(glideCase.target);
+            const auto tone = 0.25f * static_cast<float>(
+                std::sin(twoPi * glideCase.toneHz * static_cast<double>(frame) / sampleRate));
+            const auto keptWet = kept.processSample(tone, -0.5f * tone);
+            const auto changedWet = changed.processSample(tone, -0.5f * tone);
+            if (frame < changeFrame)
+            {
+                require(sameBits(keptWet.left, changedWet.left)
+                            && sameBits(keptWet.right, changedWet.right),
+                        std::string("Fathom ") + glideCase.name + " differs before its change");
+                continue;
+            }
+            localPeak = std::max({ localPeak,
+                                   static_cast<double>(std::abs(keptWet.left)),
+                                   static_cast<double>(std::abs(keptWet.right)) });
+            lastDifference = static_cast<double>(std::max(std::abs(changedWet.left - keptWet.left),
+                                                          std::abs(changedWet.right - keptWet.right)));
+            const auto glided = static_cast<double>(frame - changeFrame + 1)
+                              / static_cast<double>(glideFrames);
+            worstDrift = std::max(worstDrift, lastDifference / glided);
+        }
+
+        std::cout << "[METRIC] Fathom " << glideCase.name << " glide: worst difference/glide="
+                  << worstDrift / localPeak << " of the wet peak, limit=" << driftLimit
+                  << ", difference at its end=" << lastDifference / localPeak << '\n';
+        require(localPeak > 1.0e-3, std::string("Fathom ") + glideCase.name + " glide has no steady wet");
+        require(worstDrift <= driftLimit * localPeak,
+                std::string("Fathom ") + glideCase.name + " steps instead of gliding");
+        require(lastDifference > 1.0e-3 * localPeak,
+                std::string("Fathom ") + glideCase.name + " has no effect");
+    }
+}
+
+// Share of the energy of a signal that lies more than a factor of 1.6 (0.68
+// octave) from a tone, in decibels, over Hann windows of 4096 frames that
+// overlap by half.
+[[nodiscard]] double fathomOffToneDb(std::span<const float> signal, double toneHz,
+                                     double sampleRate)
+{
+    constexpr std::size_t windowSize = 4096;
+    constexpr auto twoPi = 6.28318530717958647692;
+    auto totalEnergy = 0.0;
+    auto offToneEnergy = 0.0;
+    std::vector<std::complex<double>> spectrum(windowSize);
+    for (std::size_t start = 0; start + windowSize <= signal.size(); start += windowSize / 2)
+    {
+        for (std::size_t index = 0; index < windowSize; ++index)
+        {
+            const auto window = 0.5 - 0.5 * std::cos(
+                twoPi * static_cast<double>(index) / static_cast<double>(windowSize));
+            spectrum[index] = static_cast<double>(signal[start + index]) * window;
+        }
+        driftRegressionFft(spectrum);
+        for (std::size_t bin = 0; bin <= windowSize / 2; ++bin)
+        {
+            const auto frequency = static_cast<double>(bin) * sampleRate / windowSize;
+            const auto energy = std::norm(spectrum[bin]);
+            totalEnergy += energy;
+            if (frequency < toneHz / 1.6 || frequency > toneHz * 1.6)
+                offToneEnergy += energy;
+        }
+    }
+    return 10.0 * std::log10(std::max(offToneEnergy, 1.0e-300) / std::max(totalEnergy, 1.0e-300));
+}
+
+// Size turned while a steady tone sounds. Each line moves from one whole
+// length to the next through the fractions in between, so the turn bends the
+// pitch of the tone and adds nothing else: what lies away from the tone stays
+// far under it. A line that jumped over whole samples would put a click into
+// the output at every jump, noise across the whole band 19 to 34 dB under
+// the tone.
+void testFathomSizeInMotion()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto twoPi = 6.28318530717958647692;
+    constexpr auto blockFrames = 512;
+    constexpr auto settleFrames = 3 * 48000;
+    constexpr auto turnFrames = 2 * 48000;
+    constexpr auto offToneLimitDb = -50.0;
+
+    for (const auto macro : { 0.0f, 1.0f })
+    {
+        for (const auto toneHz : { 1000.0, 3000.0, 8000.0 })
+        {
+            const auto label = "Fathom Size turned under a "
+                             + std::to_string(static_cast<int>(toneHz)) + " Hz tone at Macro "
+                             + std::to_string(static_cast<int>(100.0f * macro)) + " %";
+            FathomEngine::Parameters parameters;
+            parameters.decaySeconds = 2.0f;
+            parameters.macro = macro;
+            FathomEngine engine;
+            engine.setParameters(parameters);
+            engine.prepare(sampleRate);
+
+            std::vector<float> turned;
+            turned.reserve(turnFrames);
+            auto peak = 0.0f;
+            for (auto frame = 0; frame < settleFrames + turnFrames; ++frame)
+            {
+                // The knob goes from 100 to 110 % at 5 % per second in its
+                // steps of 0.1 %, handed over once per block.
+                if (frame >= settleFrames && frame % blockFrames == 0)
+                {
+                    const auto steps = std::floor(
+                        50.0 * static_cast<double>(frame - settleFrames) / sampleRate);
+                    parameters.sizeScale = 1.0f + 0.001f * static_cast<float>(steps);
+                    engine.setParameters(parameters);
+                }
+                const auto time = static_cast<double>(frame) / sampleRate;
+                const auto wet = engine.processSample(
+                    0.25f * static_cast<float>(std::sin(twoPi * toneHz * time)),
+                    0.25f * static_cast<float>(std::sin(twoPi * toneHz * time + 1.0)));
+                if (frame >= settleFrames)
+                {
+                    turned.push_back(wet.left);
+                    peak = std::max(peak, std::abs(wet.left));
+                }
+            }
+
+            const auto offToneDb = fathomOffToneDb(turned, toneHz, sampleRate);
+            std::cout << "[METRIC] " << label << ": energy away from the tone=" << offToneDb
+                      << " dB of all, limit=" << offToneLimitDb << " dB\n";
+            require(peak > 1.0e-3f, label + " has no steady wet");
+            require(offToneDb <= offToneLimitDb,
+                    label + " adds noise away from the tone: " + std::to_string(offToneDb) + " dB");
+        }
+    }
+}
+
+// A tail that has died leaves the engine at rest: its output is exact silence
+// and none of its filters goes on computing in the denormal range, which the
+// underflow flag of the floating-point environment would show.
+void testFathomEngineComesToRest()
+{
+    struct RestCase
+    {
+        double sampleRate;
+        float macro;
+        float lowCutHz;
+        float highDampingHz;
+    };
+    constexpr std::array restCases {
+        RestCase { 44100.0, 0.0f, 20.0f, 20000.0f },
+        RestCase { 48000.0, 1.0f, 20.0f, 20000.0f },
+        RestCase { 44100.0, 1.0f, 300.0f, 5000.0f }
+    };
+
+    for (const auto& restCase : restCases)
+    {
+        const auto label = "Fathom engine at "
+                         + std::to_string(static_cast<int>(restCase.sampleRate))
+                         + " Hz, Macro " + std::to_string(static_cast<int>(100.0f * restCase.macro))
+                         + " %, Low Cut " + std::to_string(static_cast<int>(restCase.lowCutHz)) + " Hz";
+        FathomEngine::Parameters parameters;
+        parameters.decaySeconds = 0.5f;
+        parameters.macro = restCase.macro;
+        parameters.lowCutHz = restCase.lowCutHz;
+        parameters.highDampingHz = restCase.highDampingHz;
+        FathomEngine engine;
+        engine.setParameters(parameters);
+        engine.prepare(restCase.sampleRate);
+
+        // A second of noise, then silence: Decay 0.5 s takes the tail under
+        // the floor of the lines, 600 dB down, within five seconds.
+        const auto second = static_cast<int>(restCase.sampleRate);
+        auto peak = 0.0f;
+        for (auto frame = 0; frame < second; ++frame)
+        {
+            const auto wet = engine.processSample(0.25f * fathomNoise(frame, 32), 0.25f * fathomNoise(frame, 33));
+            peak = std::max({ peak, std::abs(wet.left), std::abs(wet.right) });
+        }
+        require(peak > 0.01f, label + " has no tail to die");
+        static_cast<void>(fathomSilentEnergy(engine, 6 * second));
+
+        std::feclearexcept(FE_UNDERFLOW);
+        const auto restEnergy = fathomSilentEnergy(engine, second);
+        const auto underflowed = std::fetestexcept(FE_UNDERFLOW) != 0;
+        require(!(restEnergy > 0.0), label + " still sounds six seconds after its input");
+        require(!underflowed, label + " computes in the denormal range after its tail has died");
+    }
+}
+
+void testFathomVoicePhaseGenerator()
+{
+    namespace fathom = amanita::dsp::fathom;
+    // The campaign's numbers (findings/tide_phase.md and tide_model.md): the
+    // grid and the bounds of the level of each output, the share of
+    // instances whose two start levels lie in the same half of their ranges,
+    // and the rate of the phase as it was read at seven Macro values.
+    constexpr std::array<double, 2> cellSeconds { 7.3529411764705882, 6.25 };
+    constexpr std::array<double, 2> levelLow { 0.184, -0.007 };
+    constexpr std::array<double, 2> levelHigh { 0.591, 0.433 };
+    constexpr auto startSameHalf = 0.83;
+    struct RateReading
+    {
+        double macro;
+        double cyclesPerSecond;
+    };
+    constexpr std::array rateReadings {
+        RateReading { 0.02, 0.0503272 }, RateReading { 0.05, 0.0504631 },
+        RateReading { 0.10, 0.0506959 }, RateReading { 0.25, 0.0514399 },
+        RateReading { 0.50, 0.0528473 }, RateReading { 0.75, 0.0544952 },
+        RateReading { 1.00, 0.0564239 }
+    };
+    constexpr auto blockSeconds = static_cast<double>(fathom::voiceBlockSamples)
+                                / fathom::internalRate;
+
+    for (const auto& reading : rateReadings)
+        require(std::abs(FathomVoicePhase::rate(reading.macro) - reading.cyclesPerSecond) <= 5.0e-7,
+                "Fathom phase rate misses the campaign's reading at Macro "
+                    + std::to_string(reading.macro));
+
+    // The phase is the level plus a ramp that rises at the rate of the Macro
+    // of each block: at one Macro a straight line, after a change the sum of
+    // both stretches.
+    {
+        constexpr auto blocks = 60000;
+        FathomVoicePhase steady;
+        FathomVoicePhase moved;
+        steady.reset(11);
+        moved.reset(11);
+        for (auto block = 0; block < blocks; ++block)
+        {
+            steady.advance(1.0);
+            moved.advance(block < blocks / 2 ? 0.25 : 1.0);
+        }
+        const auto seconds = blocks * blockSeconds;
+        for (std::size_t output = 0; output < FathomVoicePhase::outputCount; ++output)
+        {
+            const auto level = steady.level(output, seconds);
+            require(std::abs(steady.phase(output) - level - 0.0564238 * seconds) <= 1.0e-9,
+                    "Fathom phase does not rise at its rate at Macro 100 %");
+            require(std::abs(moved.phase(output) - level
+                             - 0.5 * (FathomVoicePhase::rate(0.25) + FathomVoicePhase::rate(1.0)) * seconds)
+                        <= 1.0e-9,
+                    "Fathom phase does not follow a Macro that moves");
+        }
+    }
+
+    // One knot in every cell of an output's grid, each level inside the
+    // bounds, the start held up to the first knot and a raised cosine from
+    // knot to knot. Over many instances the places in the cells and the
+    // levels are uniform and independent.
+    constexpr auto instances = 200;
+    constexpr auto knotsPerInstance = 40;
+    for (std::size_t output = 0; output < FathomVoicePhase::outputCount; ++output)
+    {
+        const auto label = std::string("Fathom phase level of the ")
+                         + (output == 0 ? "left" : "right") + " output ";
+        const auto span = levelHigh[output] - levelLow[output];
+        auto placeSum = 0.0;
+        auto placeSquares = 0.0;
+        auto placeProducts = 0.0;
+        auto levelSum = 0.0;
+        auto levelSquares = 0.0;
+        auto levelProducts = 0.0;
+        auto count = 0;
+        for (auto instance = 0; instance < instances; ++instance)
+        {
+            FathomVoicePhase generator;
+            generator.reset(static_cast<std::uint64_t>(instance));
+            const auto start = generator.knot(output, 0);
+            const auto first = generator.knot(output, 1);
+            require(sameBits(start.seconds, 0.0) && sameBits(first.level, start.level),
+                    label + "does not hold its start value up to the first knot");
+            require(sameBits(generator.level(output, 0.0), start.level)
+                        && sameBits(generator.level(output, 0.999 * first.seconds), start.level),
+                    label + "moves before its first knot");
+
+            auto previousPlace = 0.5;
+            auto previousLevel = 0.5;
+            for (auto index = 1; index <= knotsPerInstance; ++index)
+            {
+                const auto knot = generator.knot(output, index);
+                const auto next = generator.knot(output, index + 1);
+                const auto place = knot.seconds / cellSeconds[output] - index;
+                require(place >= 0.0 && place < 1.0,
+                        label + "has knot " + std::to_string(index) + " outside its cell");
+                require(knot.level >= levelLow[output] && knot.level <= levelHigh[output],
+                        label + "leaves its bounds at knot " + std::to_string(index));
+
+                const auto length = next.seconds - knot.seconds;
+                require(std::abs(generator.level(output, knot.seconds) - knot.level) <= 1.0e-12
+                            && std::abs(generator.level(output, knot.seconds + 0.5 * length)
+                                        - 0.5 * (knot.level + next.level)) <= 1.0e-9
+                            && std::abs(generator.level(output, knot.seconds + 0.25 * length)
+                                        - (knot.level + 0.14644660940672624 * (next.level - knot.level)))
+                                   <= 1.0e-9,
+                        label + "does not move along a raised cosine after knot "
+                            + std::to_string(index));
+
+                const auto normalisedLevel = (next.level - levelLow[output]) / span;
+                placeSum += place;
+                placeSquares += place * place;
+                placeProducts += (place - 0.5) * (previousPlace - 0.5);
+                levelSum += normalisedLevel;
+                levelSquares += normalisedLevel * normalisedLevel;
+                levelProducts += (normalisedLevel - 0.5) * (previousLevel - 0.5);
+                previousPlace = place;
+                previousLevel = normalisedLevel;
+                ++count;
+            }
+        }
+
+        const auto placeMean = placeSum / count;
+        const auto placeVariance = placeSquares / count - placeMean * placeMean;
+        const auto levelMean = levelSum / count;
+        const auto levelVariance = levelSquares / count - levelMean * levelMean;
+        std::cout << "[METRIC] " << label << "over " << count << " knots: place in the cell mean="
+                  << placeMean << " variance=" << placeVariance << ", level mean=" << levelMean
+                  << " variance=" << levelVariance << " (uniform: 0.5 and 0.0833), neighbour correlation="
+                  << placeProducts / count / placeVariance << " and "
+                  << levelProducts / count / levelVariance << '\n';
+        require(std::abs(placeMean - 0.5) <= 0.012 && std::abs(placeVariance - 1.0 / 12.0) <= 0.004,
+                label + "does not place its knots uniformly in their cells");
+        require(std::abs(levelMean - 0.5) <= 0.012 && std::abs(levelVariance - 1.0 / 12.0) <= 0.004,
+                label + "does not draw its targets uniformly between its bounds");
+        require(std::abs(placeProducts / count / placeVariance) <= 0.04
+                    && std::abs(levelProducts / count / levelVariance) <= 0.04,
+                label + "ties a knot to the one before it");
+    }
+
+    // Start levels: each uniform over the range the campaign measured, the
+    // two in the same half of their ranges as often as the campaign found
+    // them. That holds for seeds that lie close together, for seeds spread
+    // over all 64 bits, as an instance of the plug-in draws its own, and for
+    // seeds that differ in their upper half alone.
+    struct SeedFamily
+    {
+        const char* name;
+        std::uint64_t (*seed)(std::uint64_t index);
+    };
+    constexpr std::array seedFamilies {
+        SeedFamily { "seeds close together",
+                     [](std::uint64_t index) { return index * 0x9e3779b9ULL + 17; } },
+        SeedFamily { "seeds over all 64 bits",
+                     [](std::uint64_t index)
+                     { return (index + 1) * 6364136223846793005ULL + 1442695040888963407ULL; } },
+        SeedFamily { "seeds that differ in their upper half",
+                     [](std::uint64_t index) { return (index << 32) | 0x45626245ULL; } }
+    };
+    for (const auto& family : seedFamilies)
+    {
+        constexpr auto seeds = 4000;
+        const auto label = std::string("Fathom phase start levels of ") + family.name;
+        std::array<double, 2> startSum {};
+        std::array<double, 2> lowest { 1.0, 1.0 };
+        std::array<double, 2> highest { 0.0, 0.0 };
+        auto sameHalf = 0;
+        auto rightHigh = 0;
+        std::array<double, 2> previous {};
+        auto distinct = 0;
+        for (auto seed = 0; seed < seeds; ++seed)
+        {
+            FathomVoicePhase generator;
+            generator.reset(family.seed(static_cast<std::uint64_t>(seed)));
+            std::array<double, 2> place {};
+            for (std::size_t output = 0; output < place.size(); ++output)
+            {
+                place[output] = (generator.knot(output, 0).level - levelLow[output])
+                              / (levelHigh[output] - levelLow[output]);
+                require(place[output] >= 0.0 && place[output] <= 1.0,
+                        label + " leave the range the campaign measured");
+                startSum[output] += place[output];
+                lowest[output] = std::min(lowest[output], place[output]);
+                highest[output] = std::max(highest[output], place[output]);
+            }
+            sameHalf += (place[0] >= 0.5) == (place[1] >= 0.5) ? 1 : 0;
+            rightHigh += place[1] >= 0.5 ? 1 : 0;
+            distinct += place != previous ? 1 : 0;
+            previous = place;
+        }
+        const auto sameShare = static_cast<double>(sameHalf) / seeds;
+        const auto cycles = [&](std::size_t output, double place)
+        {
+            return levelLow[output] + (levelHigh[output] - levelLow[output]) * place;
+        };
+        std::cout << "[METRIC] " << label << ", " << seeds << " of them: left "
+                  << cycles(0, lowest[0]) << " to " << cycles(0, highest[0]) << " cycles (campaign "
+                  << levelLow[0] << " to " << levelHigh[0] << "), right " << cycles(1, lowest[1])
+                  << " to " << cycles(1, highest[1]) << " (campaign " << levelLow[1] << " to "
+                  << levelHigh[1] << "), mean place left=" << startSum[0] / seeds << " right="
+                  << startSum[1] / seeds << ", same half=" << sameShare << " (campaign "
+                  << startSameHalf << ")\n";
+        require(distinct == seeds, label + " are the same for two seeds");
+        require(lowest[0] < 0.01 && lowest[1] < 0.01 && highest[0] > 0.99 && highest[1] > 0.99,
+                label + " do not reach the ends of the range the campaign measured");
+        require(std::abs(startSum[0] / seeds - 0.5) <= 0.02 && std::abs(startSum[1] / seeds - 0.5) <= 0.02
+                    && std::abs(static_cast<double>(rightHigh) / seeds - 0.5) <= 0.035,
+                label + " are not uniform over their ranges");
+        require(std::abs(sameShare - startSameHalf) <= 0.025,
+                label + " are not tied as the campaign found them");
+    }
+
+    // The same seed is the same instance; reset() starts it again.
+    FathomVoicePhase first;
+    FathomVoicePhase second;
+    first.reset(0x1234abcdULL);
+    second.reset(0x1234abcdULL);
+    for (auto block = 0; block < 20000; ++block)
+    {
+        require(sameBits(first.phase(0), second.phase(0)) && sameBits(first.phase(1), second.phase(1)),
+                "Fathom phase differs between two generators of one seed");
+        first.advance(0.7);
+        second.advance(0.7);
+    }
+    const auto late = first.phase(0);
+    first.reset(0x1234abcdULL);
+    second.reset(0x1234abceULL);
+    require(sameBits(first.phase(0), first.knot(0, 0).level) && !sameBits(first.phase(0), late),
+            "Fathom phase does not start again at reset()");
+    require(!sameBits(first.phase(0), second.phase(0)) && !sameBits(first.phase(1), second.phase(1)),
+            "Fathom phase is the same for neighbouring seeds");
+}
+
+void testFathomTideDeterminismAndSeeds()
+{
+    constexpr std::array<double, 2> sampleRates { 44100.0, 48000.0 };
+    constexpr std::uint64_t otherSeed = 0x5eedf00dULL;
+
+    for (const auto sampleRate : sampleRates)
+    {
+        const auto label = "Fathom Tide layer at " + std::to_string(static_cast<int>(sampleRate)) + " Hz, ";
+        const auto warmupFrames = static_cast<int>(sampleRate * 0.35);
+        const auto programmeFrames = static_cast<int>(sampleRate * 0.3);
+        FathomEngine::Parameters parameters;
+        parameters.decaySeconds = 1.5f;
+        parameters.sizeScale = 1.2f;
+        parameters.macro = 1.0f;
+
+        const auto idle = [](FathomEngine& engine, int frames)
+        {
+            for (auto frame = 0; frame < frames; ++frame)
+                engine.advanceIdle();
+        };
+        const auto excite = [](FathomEngine& engine, int frames)
+        {
+            for (auto frame = 0; frame < frames; ++frame)
+                static_cast<void>(engine.processSample(0.3f * fathomNoise(frame, 17),
+                                                       0.3f * fathomNoise(frame, 18)));
+        };
+        const auto renderWithSeed = [&](std::uint64_t seed)
+        {
+            FathomEngine engine;
+            engine.setParameters(parameters);
+            engine.setVoiceSeed(seed);
+            engine.prepare(sampleRate);
+            idle(engine, warmupFrames);
+            return renderFathomProgramme(engine, programmeFrames);
+        };
+
+        const auto expected = renderWithSeed(FathomEngine::defaultVoiceSeed);
+        auto peak = 0.0f;
+        for (const auto sample : expected)
+        {
+            require(std::isfinite(sample), label + "the programme produced NaN/Inf");
+            peak = std::max(peak, std::abs(sample));
+        }
+        require(peak > 1.0e-3f, label + "the programme left no wet signal");
+
+        {
+            // An engine that was given no seed has the default one.
+            FathomEngine second;
+            second.setParameters(parameters);
+            second.prepare(sampleRate);
+            idle(second, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(second, programmeFrames), expected,
+                                    label + "second instance");
+        }
+        {
+            FathomEngine used;
+            used.setParameters(parameters);
+            used.prepare(sampleRate);
+            excite(used, 6000);
+            used.reset();
+            idle(used, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(used, programmeFrames), expected,
+                                    label + "after reset()");
+        }
+        {
+            FathomEngine silent;
+            silent.setParameters(parameters);
+            silent.prepare(sampleRate);
+            for (auto frame = 0; frame < warmupFrames; ++frame)
+            {
+                const auto wet = silent.processSample(0.0f, 0.0f);
+                require(!(std::abs(wet.left) > 0.0f) && !(std::abs(wet.right) > 0.0f),
+                        label + "silence in did not give silence out");
+            }
+            requireSameFathomRender(renderFathomProgramme(silent, programmeFrames), expected,
+                                    label + "processed silence against advanceIdle()");
+        }
+        // Left idle after sound, the engine starts from silence with the
+        // comb, the voices and their phase where a fresh instance has them.
+        for (const auto idleFrames : { 1, 43, 3000 })
+        {
+            constexpr auto soundFrames = 7000;
+            FathomEngine reference;
+            reference.setParameters(parameters);
+            reference.prepare(sampleRate);
+            idle(reference, soundFrames + idleFrames);
+            const auto afterIdle = renderFathomProgramme(reference, programmeFrames);
+
+            FathomEngine sounded;
+            sounded.setParameters(parameters);
+            sounded.prepare(sampleRate);
+            excite(sounded, soundFrames);
+            idle(sounded, idleFrames);
+            requireSameFathomRender(renderFathomProgramme(sounded, programmeFrames), afterIdle,
+                                    label + "after sound and " + std::to_string(idleFrames)
+                                        + " idle frames");
+        }
+
+        // Another seed is another instance of the phase, from the next
+        // reset() on.
+        const auto other = renderWithSeed(otherSeed);
+        const auto seedNullDb = fathomNullDb(other, expected);
+        std::cout << "[METRIC] " << label << "null between two voice seeds: " << seedNullDb << " dB\n";
+        require(seedNullDb > -40.0, label + "two voice seeds give the same render");
+        {
+            FathomEngine reseeded;
+            reseeded.setParameters(parameters);
+            reseeded.prepare(sampleRate);
+            reseeded.setVoiceSeed(otherSeed);
+            idle(reseeded, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(reseeded, programmeFrames), expected,
+                                    label + "a new voice seed before reset()");
+            reseeded.reset();
+            idle(reseeded, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(reseeded, programmeFrames), other,
+                                    label + "a new voice seed after reset()");
+        }
+        {
+            // The engine's own phase is FathomVoicePhase: prescribed block by
+            // block from a generator of the same seed, the render is the same.
+            const auto blockCount = fathomVoiceBlocks(sampleRate, warmupFrames + programmeFrames);
+            std::array<std::vector<double>, 2> phase { std::vector<double>(blockCount),
+                                                       std::vector<double>(blockCount) };
+            FathomVoicePhase generator;
+            generator.reset(otherSeed);
+            for (std::size_t block = 0; block < blockCount; ++block)
+            {
+                phase[0][block] = generator.phase(0);
+                phase[1][block] = generator.phase(1);
+                generator.advance(static_cast<double>(parameters.macro));
+            }
+            FathomEngine prescribed;
+            prescribed.setParameters(parameters);
+            prescribed.setVoicePhaseForTesting(phase[0].data(), phase[1].data(), blockCount);
+            prescribed.prepare(sampleRate);
+            idle(prescribed, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(prescribed, programmeFrames), other,
+                                    label + "the phase of FathomVoicePhase prescribed from outside");
+        }
+    }
+}
+
+void testFathomTideOutOfCircuitAtMacroZero()
+{
+    constexpr std::array<double, 3> sampleRates { 44100.0, 48000.0, 96000.0 };
+    for (const auto sampleRate : sampleRates)
+    {
+        const auto label = "Fathom Tide layer at " + std::to_string(static_cast<int>(sampleRate)) + " Hz, ";
+        // Long enough for Macro to glide back and the Q of a voice to come to rest.
+        const auto warmupFrames = static_cast<int>(sampleRate * 0.8);
+        const auto programmeFrames = static_cast<int>(sampleRate * 0.3);
+        FathomEngine::Parameters parameters;
+        parameters.decaySeconds = 2.0f;
+        parameters.sizeScale = 0.9f;
+        parameters.preDelaySeconds = 0.003f;
+        parameters.macro = 0.0f;
+
+        const auto idle = [](FathomEngine& engine, int frames)
+        {
+            for (auto frame = 0; frame < frames; ++frame)
+                engine.advanceIdle();
+        };
+
+        // At Macro 0 the engine leaves the Tide layer out: the lines take
+        // the equalised input and the voices rest.
+        FathomEngine bypassed;
+        bypassed.setParameters(parameters);
+        bypassed.prepare(sampleRate);
+        idle(bypassed, warmupFrames);
+        const auto expected = renderFathomProgramme(bypassed, programmeFrames);
+
+        {
+            // A prescribed phase keeps the layer in the circuit. At Macro 0
+            // its laws give no comb, the resting voice and a gain of 1
+            // whatever the phase is, so the output is the same bits.
+            const auto blockCount = fathomVoiceBlocks(sampleRate, warmupFrames + programmeFrames);
+            std::array<std::vector<double>, 2> phase { std::vector<double>(blockCount),
+                                                       std::vector<double>(blockCount) };
+            for (std::size_t block = 0; block < blockCount; ++block)
+            {
+                const auto index = static_cast<int>(block);
+                phase[0][block] = 0.3 + 5.6e-5 * index + 0.4 * static_cast<double>(fathomNoise(index, 19));
+                phase[1][block] = 0.1 + 5.6e-5 * index + 0.4 * static_cast<double>(fathomNoise(index, 20));
+            }
+            FathomEngine inCircuit;
+            inCircuit.setParameters(parameters);
+            inCircuit.setVoicePhaseForTesting(phase[0].data(), phase[1].data(), blockCount);
+            inCircuit.prepare(sampleRate);
+            idle(inCircuit, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(inCircuit, programmeFrames), expected,
+                                    label + "Macro 0 with the Tide layer in the circuit");
+        }
+        {
+            // Raised and lowered again before the programme, Macro leaves
+            // nothing behind once the voices have come back to rest.
+            auto raised = parameters;
+            raised.macro = 1.0f;
+            FathomEngine released;
+            released.setParameters(raised);
+            released.prepare(sampleRate);
+            idle(released, 100);
+            released.setParameters(parameters);
+            idle(released, warmupFrames - 100);
+            requireSameFathomRender(renderFathomProgramme(released, programmeFrames), expected,
+                                    label + "Macro 0 after Macro was raised and lowered");
+        }
+        {
+            // The same with sound: while the engine processes, Macro glides
+            // up and down, and the voices are back at rest when the input
+            // returns.
+            auto raised = parameters;
+            raised.macro = 0.6f;
+            FathomEngine glided;
+            glided.setParameters(parameters);
+            glided.prepare(sampleRate);
+            const auto glideFrames = warmupFrames - 100;
+            for (auto frame = 0; frame < glideFrames; ++frame)
+            {
+                if (frame == 10)
+                    glided.setParameters(raised);
+                if (frame == glideFrames / 8)
+                    glided.setParameters(parameters);
+                static_cast<void>(glided.processSample(0.0f, 0.0f));
+            }
+            idle(glided, 100);
+            requireSameFathomRender(renderFathomProgramme(glided, programmeFrames), expected,
+                                    label + "Macro 0 after Macro glided up and down");
+        }
+    }
+}
+
+void testFathomTideDepthBelowFullDepth()
+{
+    namespace fathom = amanita::dsp::fathom;
+    constexpr auto sampleRate = 44100.0;
+    constexpr auto pi = 3.14159265358979323846;
+    constexpr auto warmupFrames = 8820;
+    // An impulse on the left input reaches both outputs through the first
+    // eight lines of each group, 1036 frames later at the earliest. For 195
+    // frames more nothing else arrives: the comb's delayed path, the other
+    // eight lines and the second passes all come later.
+    constexpr auto arrivalFrame = 1036;
+    constexpr auto windowFrames = arrivalFrame + 190;
+
+    const auto impulseResponse = [&](FathomEngine& engine)
+    {
+        for (auto frame = 0; frame < warmupFrames; ++frame)
+            engine.advanceIdle();
+        std::vector<float> rendered;
+        for (auto frame = 0; frame < windowFrames; ++frame)
+        {
+            const auto wet = engine.processSample(frame == 0 ? 0.5f : 0.0f, 0.0f);
+            rendered.push_back(wet.left);
+            rendered.push_back(wet.right);
+        }
+        return rendered;
+    };
+
+    FathomEngine atRest;
+    atRest.prepare(sampleRate);
+    const auto plain = impulseResponse(atRest);
+    auto peak = 0.0;
+    for (std::size_t index = 0; index < plain.size(); ++index)
+    {
+        require(index >= 2 * static_cast<std::size_t>(arrivalFrame) || !(std::abs(plain[index]) > 0.0f),
+                "Fathom engine answers an impulse before its first line can");
+        peak = std::max(peak, static_cast<double>(std::abs(plain[index])));
+    }
+    require(peak > 1.0e-3, "Fathom engine has no first arrival to judge the Tide depth on");
+
+    // With its phase held at a whole number the first voice of an output
+    // stays at its resting cut-off and its window is shut, so its gain is
+    // what the depth leaves of 1: 1 - 0.88 Macro / 0.05, and nothing from
+    // Macro 5.68 % up. The plain share of the input is cos(90 degrees x Macro).
+    const auto blockCount = fathomVoiceBlocks(sampleRate, warmupFrames + windowFrames);
+    const std::vector<double> wholePhase(blockCount, 0.0);
+    for (const auto macro : { 0.01f, 0.03f, 0.05f, 0.06f })
+    {
+        FathomEngine::Parameters parameters;
+        parameters.macro = macro;
+        FathomEngine engine;
+        engine.setParameters(parameters);
+        engine.setVoicePhaseForTesting(wholePhase.data(), wholePhase.data(), blockCount);
+        engine.prepare(sampleRate);
+        const auto rendered = impulseResponse(engine);
+
+        const auto amount = static_cast<double>(macro);
+        const auto depth = std::min(1.0, fathom::voiceAmountPerMacro * amount / fathom::voiceFullDepthAmount);
+        const auto expectedGain = (1.0 - depth) * std::cos(0.5 * pi * amount);
+        auto worst = 0.0;
+        for (std::size_t index = 0; index < plain.size(); ++index)
+            worst = std::max(worst, std::abs(static_cast<double>(rendered[index])
+                                             - expectedGain * static_cast<double>(plain[index])));
+        std::cout << "[METRIC] Fathom first arrival at Macro " << 100.0f * macro << " %: gain "
+                  << expectedGain << " of the Macro 0 one, largest deviation=" << worst / peak
+                  << " of its peak\n";
+        require(worst <= 1.0e-6 * peak,
+                "Fathom Tide depth or plain share is off its law at Macro "
+                    + std::to_string(macro));
+    }
+}
+
+void testFathomTideHostileInputAndAutomation()
+{
+    constexpr std::array<double, 3> sampleRates { 44100.0, 48000.0, 96000.0 };
+    constexpr std::array<float, 8> hostileSamples {
+        std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::max(),
+        -1.0e30f, std::numeric_limits<float>::denorm_min(), 1.0e-39f, -0.0f
+    };
+    for (const auto sampleRate : sampleRates)
+    {
+        const auto label = "Fathom Tide layer at " + std::to_string(static_cast<int>(sampleRate)) + " Hz ";
+        FathomEngine::Parameters parameters;
+        parameters.decaySeconds = 30.0f;
+        parameters.sizeScale = 2.0f;
+        parameters.macro = 1.0f;
+        FathomEngine engine;
+        FathomEngine::LevelStage levelStage;
+        engine.setParameters(parameters);
+        engine.prepare(sampleRate);
+        levelStage.prepare(sampleRate);
+
+        // Macro runs from end to end and back every few milliseconds, first
+        // in steps of 2 ms, then of single frames, while the other parameters
+        // jump between their extremes and the input is full-scale noise with
+        // samples that are no samples.
+        const auto macroFrames = static_cast<int>(sampleRate * 0.002);
+        const auto frames = static_cast<int>(sampleRate * 2.0);
+        auto wetPeak = 0.0f;
+        auto peak = 0.0f;
+        for (auto frame = 0; frame < frames; ++frame)
+        {
+            const auto fast = frame >= frames / 2;
+            if (fast || frame % macroFrames == 0)
+            {
+                const auto step = fast ? frame : frame / macroFrames;
+                parameters.macro = step % 2 == 0 ? 1.0f : 0.0f;
+                if (step % 7 == 3)
+                    parameters.macro = 0.5f + 0.5f * fathomNoise(step, 21);
+                engine.setParameters(parameters);
+            }
+            if (frame % 997 == 0)
+            {
+                const auto step = frame / 997;
+                parameters.decaySeconds = step % 3 == 0 ? 0.2f : 60.0f;
+                parameters.sizeScale = step % 2 == 0 ? 0.15f : 2.0f;
+                parameters.preDelaySeconds = step % 5 == 0 ? 0.0f : 2.0f;
+                parameters.lowCutHz = step % 4 == 0 ? 20.0f : 1000.0f;
+                parameters.highDampingHz = step % 7 == 0 ? 20000.0f : 1000.0f;
+                parameters.freeze = step % 6 == 5;
+                auto invalid = parameters;
+                invalid.macro = std::numeric_limits<float>::quiet_NaN();
+                engine.setParameters(invalid);
+            }
+
+            auto left = fathomNoise(frame, 22);
+            auto right = fathomNoise(frame, 23);
+            if (frame % 61 == 0)
+                left = hostileSamples[static_cast<std::size_t>(frame / 61) % hostileSamples.size()];
+            if (frame % 89 == 0)
+                right = hostileSamples[static_cast<std::size_t>(frame / 89) % hostileSamples.size()];
+            auto wet = engine.processSample(left, right);
+            require(std::isfinite(wet.left) && std::isfinite(wet.right),
+                    label + "let hostile input through as NaN/Inf");
+            wetPeak = std::max({ wetPeak, std::abs(wet.left), std::abs(wet.right) });
+            wet = FathomEngine::applyWidth(levelStage.process(left, right, wet), 2.0f);
+            peak = std::max({ peak, std::abs(FathomEngine::clip(wet.left)),
+                              std::abs(FathomEngine::clip(wet.right)) });
+        }
+        std::cout << "[METRIC] " << label << "wet peak under hostile input and Macro automation: "
+                  << wetPeak << '\n';
+        // The engine bounds an input sample at 64, and what it makes of the
+        // input stays under that bound.
+        require(wetPeak < 64.0f, label + "bursts under hostile input and Macro automation");
+        require(peak <= 3.99f, label + "left the clipper's range under hostile input");
+
+        // Once the input is gone a short Decay brings the engine back to
+        // exact silence with the Tide layer in the circuit.
+        parameters.decaySeconds = 0.2f;
+        parameters.sizeScale = 1.0f;
+        parameters.preDelaySeconds = 0.0f;
+        parameters.macro = 1.0f;
+        parameters.lowCutHz = 20.0f;
+        parameters.highDampingHz = 20000.0f;
+        parameters.freeze = false;
+        engine.setParameters(parameters);
+        auto lastSound = -1;
+        const auto tailFrames = static_cast<int>(sampleRate * 6.0);
+        for (auto frame = 0; frame < tailFrames; ++frame)
+        {
+            const auto wet = engine.processSample(0.0f, 0.0f);
+            require(std::isfinite(wet.left) && std::isfinite(wet.right),
+                    label + "kept NaN/Inf after hostile input");
+            if (std::abs(wet.left) > 0.0f || std::abs(wet.right) > 0.0f)
+                lastSound = frame;
+        }
+        require(lastSound < static_cast<int>(sampleRate * 5.0),
+                label + "did not return to silence after hostile input");
+    }
+}
+
+void testFathomTideSmoothMotion()
+{
+    constexpr std::array<double, 2> sampleRates { 44100.0, 48000.0 };
+    constexpr std::array<std::uint64_t, 3> seeds { FathomEngine::defaultVoiceSeed, 1, 2 };
+    constexpr auto twoPi = 6.28318530717958647692;
+    constexpr auto toneHz = 60.0;
+    // The measure: the largest sample-to-sample step of the wet output while
+    // a parameter moves, in units of what the signal itself explains. The
+    // input is a steady tone, and a tone of its frequency at the peak level
+    // of the output moves by no more than 2 pi f / fs of that peak per sample.
+    // A parameter that stepped, a gain that moved once per block of the
+    // voices or a line that jumped would show as many times that.
+    constexpr auto stepLimit = 3.0;
+
+    struct Motion
+    {
+        const char* name;
+        FathomEngine::Parameters from;
+        FathomEngine::Parameters to;
+        // Above zero, the parameters go back and forth between the two sets
+        // at this interval instead of changing once.
+        double toggleSeconds;
+    };
+    FathomEngine::Parameters rest;
+    rest.decaySeconds = 0.5f;
+    FathomEngine::Parameters tide = rest;
+    tide.macro = 1.0f;
+    auto larger = tide;
+    larger.sizeScale = 1.2f;
+    auto longer = tide;
+    longer.decaySeconds = 8.0f;
+    auto together = tide;
+    together.macro = 0.3f;
+    together.sizeScale = 1.3f;
+    together.decaySeconds = 4.0f;
+    const std::array motions {
+        Motion { "Macro 0 to 100 %", rest, tide, 0.0 },
+        Motion { "Macro 100 % to 0", tide, rest, 0.0 },
+        Motion { "Macro between 0 and 100 % every 3 ms", rest, tide, 0.003 },
+        Motion { "Macro between 100 % and 0 every 20 ms", tide, rest, 0.02 },
+        Motion { "Size at Macro 100 %", tide, larger, 0.0 },
+        Motion { "Decay at Macro 100 %", tide, longer, 0.0 },
+        Motion { "Macro, Size and Decay together", tide, together, 0.0 }
+    };
+
+    for (const auto& motion : motions)
+    {
+        auto worstSteady = 0.0;
+        auto worstMoving = 0.0;
+        for (const auto sampleRate : sampleRates)
+        {
+            const auto settleFrames = static_cast<int>(sampleRate * 1.5);
+            const auto steadyFrames = static_cast<int>(sampleRate * 0.3);
+            const auto movingFrames = static_cast<int>(sampleRate * 0.6);
+            const auto toggleFrames = static_cast<int>(sampleRate * motion.toggleSeconds);
+            const auto explained = twoPi * toneHz / sampleRate;
+            for (const auto seed : seeds)
+            {
+                FathomEngine engine;
+                engine.setParameters(motion.from);
+                engine.setVoiceSeed(seed);
+                engine.prepare(sampleRate);
+
+                auto previous = FathomEngine::Frame {};
+                auto peak = 0.0;
+                auto steadyStep = 0.0;
+                auto movingStep = 0.0;
+                for (auto frame = 0; frame < settleFrames + movingFrames; ++frame)
+                {
+                    const auto moved = frame - settleFrames;
+                    if (moved == 0)
+                        engine.setParameters(motion.to);
+                    else if (moved > 0 && toggleFrames > 0 && moved % toggleFrames == 0)
+                        engine.setParameters((moved / toggleFrames) % 2 == 0 ? motion.to : motion.from);
+
+                    const auto tone = 0.25f * static_cast<float>(
+                        std::sin(twoPi * toneHz * static_cast<double>(frame) / sampleRate));
+                    const auto wet = engine.processSample(tone, -0.5f * tone);
+                    const auto step = static_cast<double>(std::max(std::abs(wet.left - previous.left),
+                                                                   std::abs(wet.right - previous.right)));
+                    previous = wet;
+                    if (frame < settleFrames - steadyFrames)
+                        continue;
+                    peak = std::max({ peak, static_cast<double>(std::abs(wet.left)),
+                                      static_cast<double>(std::abs(wet.right)) });
+                    auto& largest = moved < 0 ? steadyStep : movingStep;
+                    largest = std::max(largest, step);
+                }
+                require(peak > 1.0e-3, std::string("Fathom ") + motion.name + " has no steady wet");
+                worstSteady = std::max(worstSteady, steadyStep / (explained * peak));
+                worstMoving = std::max(worstMoving, movingStep / (explained * peak));
+            }
+        }
+
+        std::cout << "[METRIC] Fathom " << motion.name << ": largest step while it moves=" << worstMoving
+                  << ", before=" << worstSteady << " of what the signal explains, limit=" << stepLimit << '\n';
+        require(worstMoving <= stepLimit,
+                std::string("Fathom ") + motion.name + " puts a step into the output");
     }
 }
 
@@ -6749,7 +9995,8 @@ void testNoAllocationsInProcess()
         ReverbMode::bloom,
         ReverbMode::drift,
         ReverbMode::veil,
-        ReverbMode::current
+        ReverbMode::current,
+        ReverbMode::fathom
     };
     auto modeIndex = std::size_t { 0 };
 
@@ -6761,12 +10008,18 @@ void testNoAllocationsInProcess()
         {
             modeIndex = (modeIndex + 1) % modes.size();
             parameters.mode = modes[modeIndex];
-            parameters.evolution = 1.0f - parameters.evolution;
-            parameters.ducking = 1.0f - parameters.ducking;
-            parameters.size = parameters.size > 0.15f ? 0.15f : 2.0f;
-            parameters.width = parameters.width > 0.0f ? 0.0f : 2.0f;
-            parameters.monoSafeStereo = !parameters.monoSafeStereo;
-            parameters.freeze = !parameters.freeze;
+            // An even number of modes would pair each of them with one state
+            // of the toggles; holding the toggles once per cycle lets every
+            // mode meet both.
+            if (modeIndex != 0)
+            {
+                parameters.evolution = 1.0f - parameters.evolution;
+                parameters.ducking = 1.0f - parameters.ducking;
+                parameters.size = parameters.size > 0.15f ? 0.15f : 2.0f;
+                parameters.width = parameters.width > 0.0f ? 0.0f : 2.0f;
+                parameters.monoSafeStereo = !parameters.monoSafeStereo;
+                parameters.freeze = !parameters.freeze;
+            }
             harmonicWeights = modeIndex % 2 == 0
                 ? harmonyWeights({ 0, 4, 7 })
                 : harmonyWeights({ 1, 6, 10 });
@@ -6919,7 +10172,9 @@ void testDeterministicRenderFingerprints()
         RenderCase { "Veil low Evolution", ReverbMode::veil, 0.0f },
         RenderCase { "Veil high Evolution", ReverbMode::veil, 1.0f },
         RenderCase { "Current low Evolution", ReverbMode::current, 0.0f },
-        RenderCase { "Current high Evolution", ReverbMode::current, 1.0f }
+        RenderCase { "Current high Evolution", ReverbMode::current, 1.0f },
+        RenderCase { "Fathom low Evolution", ReverbMode::fathom, 0.0f },
+        RenderCase { "Fathom high Evolution", ReverbMode::fathom, 1.0f }
     };
 
     std::array<std::uint64_t, renderCases.size()> fingerprints {};
@@ -7232,6 +10487,1995 @@ void renderHarmonyAb(const std::string& scene, const std::string& prefix)
               << "[PASS] wrote " << offPath << '\n'
               << "[PASS] wrote " << onPath << '\n';
 }
+
+// ---------------------------------------------------------------- Undertow
+
+using amanita::dsp::HostTransport;
+using amanita::dsp::UndertowLayer;
+
+// A host for the tests of Undertow: blocks of a fixed length, a tempo, and a
+// position that runs on with the frames while the transport does.
+struct UndertowHost
+{
+    [[nodiscard]] FathomEngine::Transport at(long long frame) const noexcept
+    {
+        FathomEngine::Transport transport;
+        transport.hasTempo = hasTempo;
+        transport.bpm = tempo;
+        transport.playing = playing;
+        transport.quarterNotes = playing
+            ? startQuarters + static_cast<double>(frame) * tempo / (60.0 * sampleRate)
+            : startQuarters;
+        return transport;
+    }
+
+    // What the host says in front of a frame, if a block begins there.
+    void announce(FathomEngine& engine, long long frame) const noexcept
+    {
+        if (frame % blockFrames == 0)
+            engine.setTransport(at(frame));
+    }
+
+    double sampleRate = 48000.0;
+    int blockFrames = 512;
+    double tempo = 120.0;
+    bool hasTempo = true;
+    bool playing = true;
+    double startQuarters = 0.0;
+};
+
+void prepareUndertowEngine(FathomEngine& engine, const FathomEngine::Parameters& parameters,
+                           double sampleRate, bool referenceArithmetic = false)
+{
+    engine.setLayer(FathomEngine::Layer::undertow);
+    engine.setReferenceArithmetic(referenceArithmetic);
+    engine.setParameters(parameters);
+    engine.prepare(sampleRate);
+}
+
+// The engine's wet output for the test programme under a host, left and right
+// interleaved; `firstFrame` is the host's frame of the engine's next one.
+[[nodiscard]] std::vector<float> renderUndertowProgramme(FathomEngine& engine, const UndertowHost& host,
+                                                         long long firstFrame, int frameCount)
+{
+    std::vector<float> rendered;
+    rendered.reserve(2 * static_cast<std::size_t>(frameCount));
+    for (auto frame = 0; frame < frameCount; ++frame)
+    {
+        host.announce(engine, firstFrame + frame);
+        const auto input = fathomProgramme(frame);
+        const auto wet = engine.processSample(input.left, input.right);
+        rendered.push_back(wet.left);
+        rendered.push_back(wet.right);
+    }
+    return rendered;
+}
+
+void idleUndertow(FathomEngine& engine, const UndertowHost& host, long long firstFrame, int frameCount)
+{
+    for (auto frame = 0; frame < frameCount; ++frame)
+    {
+        host.announce(engine, firstFrame + frame);
+        engine.advanceIdle();
+    }
+}
+
+[[nodiscard]] FathomEngine::Parameters undertowTestParameters(float macro) noexcept
+{
+    FathomEngine::Parameters parameters;
+    parameters.decaySeconds = 1.5f;
+    parameters.sizeScale = 1.2f;
+    parameters.preDelaySeconds = 0.004f;
+    parameters.macro = macro;
+    return parameters;
+}
+
+void testUndertowEngineGoldenVectors()
+{
+    namespace golden = amanita::dsp::undertowgolden;
+    // The model is the campaign's of the reference's Abyss mode with the clock
+    // read from the host, in the reference's arithmetic. The engine stores the
+    // signals of its lines in single precision and sits about 147 dB under the
+    // model on whole renders, as it does without the layer; the model itself
+    // meets the reference at -56 to -78 dB above Macro 0.
+    constexpr auto nullLimitDb = -130.0;
+    auto worstNullDb = -400.0;
+
+    for (const auto& vector : golden::vectors)
+    {
+        auto frameCount = 0;
+        for (const auto& excerpt : vector.excerpts)
+            frameCount = std::max(frameCount,
+                                  excerpt.firstFrame + static_cast<int>(excerpt.model.size() / 2));
+
+        FathomEngine::Parameters parameters;
+        parameters.decaySeconds = golden::decaySeconds;
+        parameters.sizeScale = golden::sizeScale;
+        parameters.macro = vector.macro;
+        FathomEngine::ClockOrigins origins;
+        origins.firstFrame = vector.firstFrame;
+        origins.oscillators = vector.origin;
+        origins.phasors = vector.origin;
+        origins.freeRun = vector.origin;
+        FathomEngine engine;
+        engine.setClockOriginsForTesting(origins);
+        prepareUndertowEngine(engine, parameters, static_cast<double>(vector.hostRate), true);
+
+        const auto rate = static_cast<double>(vector.hostRate);
+        const auto programmeFrames = static_cast<int>(vector.programme.size() / 2);
+        std::vector<float> rendered;
+        rendered.reserve(2 * static_cast<std::size_t>(frameCount));
+        for (auto frame = 0; frame < frameCount; ++frame)
+        {
+            if (frame % golden::hostBlockFrames == 0)
+            {
+                // The host's position in seconds times its tempo, as the
+                // session host of the campaign forms it.
+                const auto reported = vector.playing ? vector.firstFrame + frame + vector.aheadFrames
+                                                     : vector.aheadFrames;
+                FathomEngine::Transport transport;
+                transport.hasTempo = true;
+                transport.bpm = vector.tempo;
+                transport.playing = vector.playing;
+                transport.quarterNotes = static_cast<double>(reported) / rate * vector.tempo / 60.0;
+                engine.setTransport(transport);
+            }
+
+            FathomEngine::Frame input;
+            for (const auto& impulse : vector.impulses)
+                if (impulse.frame == frame)
+                    (impulse.channel == 0 ? input.left : input.right) += impulse.amplitude;
+            const auto programmeFrame = frame - vector.programmeFirstFrame;
+            if (programmeFrame >= 0 && programmeFrame < programmeFrames)
+            {
+                input.left += vector.programme[2 * static_cast<std::size_t>(programmeFrame)];
+                input.right += vector.programme[2 * static_cast<std::size_t>(programmeFrame) + 1];
+            }
+            const auto wet = engine.processSample(input.left, input.right);
+            rendered.push_back(wet.left);
+            rendered.push_back(wet.right);
+        }
+
+        for (const auto& excerpt : vector.excerpts)
+        {
+            const auto nullDb = fathomNullDb(
+                std::span<const float>(rendered).subspan(
+                    2 * static_cast<std::size_t>(excerpt.firstFrame), excerpt.model.size()),
+                excerpt.model);
+            worstNullDb = std::max(worstNullDb, nullDb);
+            require(nullDb <= nullLimitDb,
+                    std::string("Undertow engine misses the golden vector ") + vector.name
+                        + " from frame " + std::to_string(excerpt.firstFrame)
+                        + ": null=" + std::to_string(nullDb) + " dB");
+        }
+    }
+
+    std::cout << "[METRIC] Undertow golden vectors: worst null against the model=" << worstNullDb
+              << " dB, limit=" << nullLimitDb << " dB\n";
+}
+
+// At Macro 0 every gain of the layer rests at zero and nothing is added: the
+// engine is Fathom's at Macro 0 to the bit, whatever the host says.
+void testUndertowIsFathomAtEvolutionZero()
+{
+    constexpr std::array<double, 3> sampleRates { 44100.0, 48000.0, 96000.0 };
+    for (const auto sampleRate : sampleRates)
+    {
+        const auto label = "Undertow at Evolution 0, " + std::to_string(static_cast<int>(sampleRate))
+                         + " Hz: ";
+        const auto frameCount = static_cast<int>(sampleRate * 1.6);
+        const auto parameters = undertowTestParameters(0.0f);
+
+        FathomEngine tide;
+        tide.setParameters(parameters);
+        tide.prepare(sampleRate);
+        const auto expected = renderFathomProgramme(tide, frameCount);
+
+        for (const auto playing : { true, false })
+        {
+            UndertowHost host;
+            host.sampleRate = sampleRate;
+            host.tempo = 133.0;
+            host.playing = playing;
+            host.startQuarters = 7.25;
+            FathomEngine undertow;
+            prepareUndertowEngine(undertow, parameters, sampleRate);
+            requireSameFathomRender(renderUndertowProgramme(undertow, host, 0, frameCount), expected,
+                                    label + (playing ? "running transport" : "stopped transport"));
+        }
+
+        // Macro came down from 100 %: once the layer and the network have
+        // fallen silent the engine is Fathom's again.
+        UndertowHost host;
+        host.sampleRate = sampleRate;
+        host.tempo = 999.0;
+        auto loud = parameters;
+        loud.decaySeconds = 0.2f;
+        loud.macro = 1.0f;
+        auto quiet = loud;
+        quiet.macro = 0.0f;
+        FathomEngine visited;
+        prepareUndertowEngine(visited, loud, sampleRate);
+        FathomEngine plain;
+        plain.setParameters(quiet);
+        plain.prepare(sampleRate);
+        const auto visitFrames = static_cast<int>(sampleRate * 0.5);
+        const auto restFrames = static_cast<int>(sampleRate * 9.0);
+        auto lastSound = -1;
+        for (auto frame = 0; frame < visitFrames + restFrames; ++frame)
+        {
+            host.announce(visited, frame);
+            if (frame == visitFrames)
+                visited.setParameters(quiet);
+            const auto input = frame < visitFrames ? fathomProgramme(frame % 3000) : FathomEngine::Frame {};
+            const auto wet = visited.processSample(input.left, input.right);
+            static_cast<void>(plain.processSample(input.left, input.right));
+            if (std::abs(wet.left) > 0.0f || std::abs(wet.right) > 0.0f)
+                lastSound = frame;
+        }
+        require(lastSound >= visitFrames && lastSound < visitFrames + static_cast<int>(sampleRate * 8.0),
+                label + "the engine did not fall silent behind Macro 100 %");
+        const auto after = renderUndertowProgramme(visited, host, visitFrames + restFrames, frameCount);
+        requireSameFathomRender(after, renderFathomProgramme(plain, frameCount),
+                                label + "settled after a visit at Macro 100 %");
+    }
+
+    // Through the plug-in: a settled Undertow at Evolution 0 is a settled Fathom.
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto blockSize = 256;
+    auto parameters = fathomNeutralParameters();
+    parameters.evolution = 0.0f;
+    parameters.preDelayMs = 7.0f;
+    parameters.width = 1.3f;
+    parameters.mix = 0.8f;
+    auto undertowParameters = parameters;
+    undertowParameters.mode = ReverbMode::undertow;
+    FDNReverb fathom;
+    FDNReverb undertow;
+    fathom.setParameters(parameters);
+    undertow.setParameters(undertowParameters);
+    fathom.prepare(sampleRate, blockSize);
+    undertow.prepare(sampleRate, blockSize);
+    std::array<float, blockSize> fathomLeft {};
+    std::array<float, blockSize> fathomRight {};
+    std::array<float, blockSize> undertowLeft {};
+    std::array<float, blockSize> undertowRight {};
+    auto peak = 0.0f;
+    for (auto block = 0; block < 150; ++block)
+    {
+        for (auto frame = 0; frame < blockSize; ++frame)
+        {
+            const auto input = fathomBursts(block * blockSize + frame, sampleRate);
+            fathomLeft[static_cast<std::size_t>(frame)] = undertowLeft[static_cast<std::size_t>(frame)] = input.left;
+            fathomRight[static_cast<std::size_t>(frame)] = undertowRight[static_cast<std::size_t>(frame)] = input.right;
+        }
+        HostTransport transport;
+        transport.quarterNotes = 3.0 + block * blockSize / sampleRate * 2.0;
+        transport.bpm = 120.0;
+        transport.playing = true;
+        transport.hasTempo = true;
+        undertow.setHostTransport(transport);
+        fathom.process(fathomLeft.data(), fathomRight.data(), blockSize);
+        undertow.process(undertowLeft.data(), undertowRight.data(), blockSize);
+        for (std::size_t frame = 0; frame < blockSize; ++frame)
+        {
+            require(sameBits(fathomLeft[frame], undertowLeft[frame])
+                        && sameBits(fathomRight[frame], undertowRight[frame]),
+                    "A settled Undertow at Evolution 0 is not a settled Fathom at Evolution 0");
+            peak = std::max(peak, std::abs(undertowLeft[frame]));
+        }
+    }
+    require(peak > 0.01f, "The Evolution 0 comparison of Undertow and Fathom saw no signal");
+}
+
+void testUndertowEngineDeterminismAndClocks()
+{
+    constexpr std::array<double, 3> sampleRates { 44100.0, 48000.0, 96000.0 };
+    for (const auto sampleRate : sampleRates)
+    {
+        const auto label = "Undertow engine at " + std::to_string(static_cast<int>(sampleRate)) + " Hz, ";
+        const auto warmupFrames = static_cast<int>(sampleRate * 0.35);
+        const auto programmeFrames = static_cast<int>(sampleRate * 1.9);
+        const auto parameters = undertowTestParameters(1.0f);
+        UndertowHost host;
+        host.sampleRate = sampleRate;
+        host.tempo = 171.0;
+        host.startQuarters = 11.5;
+
+        const auto excite = [&](FathomEngine& engine, long long firstFrame, int frames)
+        {
+            for (auto frame = 0; frame < frames; ++frame)
+            {
+                host.announce(engine, firstFrame + frame);
+                static_cast<void>(engine.processSample(0.3f * fathomNoise(frame, 2),
+                                                       0.3f * fathomNoise(frame, 3)));
+            }
+        };
+
+        FathomEngine fresh;
+        prepareUndertowEngine(fresh, parameters, sampleRate);
+        idleUndertow(fresh, host, 0, warmupFrames);
+        const auto expected = renderUndertowProgramme(fresh, host, warmupFrames, programmeFrames);
+
+        // The layer is in the render: Macro 0 gives another one.
+        {
+            FathomEngine plain;
+            prepareUndertowEngine(plain, undertowTestParameters(0.0f), sampleRate);
+            idleUndertow(plain, host, 0, warmupFrames);
+            const auto base = renderUndertowProgramme(plain, host, warmupFrames, programmeFrames);
+            auto layerEnergy = 0.0;
+            auto baseEnergy = 0.0;
+            for (std::size_t index = 0; index < expected.size(); ++index)
+            {
+                require(std::isfinite(expected[index]), label + "the programme produced NaN/Inf");
+                const auto difference = static_cast<double>(expected[index]) - base[index];
+                layerEnergy += difference * difference;
+                baseEnergy += static_cast<double>(base[index]) * base[index];
+            }
+            require(baseEnergy > 1.0e-6 && layerEnergy > 0.05 * baseEnergy,
+                    label + "Macro 100 % added no layer to the programme");
+        }
+        {
+            FathomEngine second;
+            prepareUndertowEngine(second, parameters, sampleRate);
+            idleUndertow(second, host, 0, warmupFrames);
+            requireSameFathomRender(renderUndertowProgramme(second, host, warmupFrames, programmeFrames),
+                                    expected, label + "second instance");
+        }
+        {
+            FathomEngine used;
+            prepareUndertowEngine(used, parameters, sampleRate);
+            excite(used, 0, 9000);
+            used.reset();
+            idleUndertow(used, host, 0, warmupFrames);
+            requireSameFathomRender(renderUndertowProgramme(used, host, warmupFrames, programmeFrames),
+                                    expected, label + "after reset()");
+        }
+        {
+            FathomEngine prepared;
+            prepareUndertowEngine(prepared, parameters, sampleRate * 2.0);
+            excite(prepared, 0, 9000);
+            prepared.prepare(sampleRate);
+            idleUndertow(prepared, host, 0, warmupFrames);
+            requireSameFathomRender(renderUndertowProgramme(prepared, host, warmupFrames, programmeFrames),
+                                    expected, label + "after prepare() at another rate");
+        }
+        {
+            // Silence in gives exact silence out at every Macro: the layer
+            // has no noise of its own.
+            FathomEngine silent;
+            prepareUndertowEngine(silent, parameters, sampleRate);
+            for (auto frame = 0; frame < warmupFrames; ++frame)
+            {
+                host.announce(silent, frame);
+                const auto wet = silent.processSample(0.0f, 0.0f);
+                require(!(std::abs(wet.left) > 0.0f) && !(std::abs(wet.right) > 0.0f),
+                        label + "silence in did not give silence out");
+            }
+            requireSameFathomRender(renderUndertowProgramme(silent, host, warmupFrames, programmeFrames),
+                                    expected, label + "processed silence against advanceIdle()");
+        }
+
+        // Left idle after sound, the engine starts from silence with every
+        // clock of the layer where a fresh instance has it.
+        for (const auto idleFrames : { 1, 2, 3000 })
+        {
+            constexpr auto soundFrames = 31000;
+            FathomEngine reference;
+            prepareUndertowEngine(reference, parameters, sampleRate);
+            idleUndertow(reference, host, 0, soundFrames + idleFrames);
+            const auto afterIdle = renderUndertowProgramme(reference, host, soundFrames + idleFrames,
+                                                           programmeFrames);
+
+            FathomEngine sounded;
+            prepareUndertowEngine(sounded, parameters, sampleRate);
+            excite(sounded, 0, soundFrames);
+            idleUndertow(sounded, host, soundFrames, idleFrames);
+            requireSameFathomRender(
+                renderUndertowProgramme(sounded, host, soundFrames + idleFrames, programmeFrames),
+                afterIdle,
+                label + "after sound and " + std::to_string(idleFrames) + " idle frames");
+        }
+
+        // Held, the network takes no input, and the layer is part of the
+        // input: once Freeze has arrived nothing the engine is given changes
+        // what it holds.
+        {
+            const auto holdFrame = static_cast<int>(sampleRate * 0.6);
+            const auto partFrame = static_cast<int>(sampleRate * 0.75);
+            const auto endFrame = static_cast<int>(sampleRate * 1.75);
+            FathomEngine fed;
+            FathomEngine starved;
+            prepareUndertowEngine(fed, parameters, sampleRate);
+            prepareUndertowEngine(starved, parameters, sampleRate);
+            auto held = parameters;
+            held.freeze = true;
+            auto heldPeak = 0.0f;
+            for (auto frame = 0; frame < endFrame; ++frame)
+            {
+                host.announce(fed, frame);
+                host.announce(starved, frame);
+                if (frame == holdFrame)
+                {
+                    fed.setParameters(held);
+                    starved.setParameters(held);
+                }
+                const auto shared = frame < partFrame;
+                const auto left = 0.3f * fathomNoise(frame, 2);
+                const auto right = 0.3f * fathomNoise(frame, 3);
+                const auto first = fed.processSample(left, right);
+                const auto second = starved.processSample(shared ? left : 0.0f, shared ? right : 0.0f);
+                require(sameBits(first.left, second.left) && sameBits(first.right, second.right),
+                        label + "input reaches a held network through the layer, frame " + std::to_string(frame));
+                if (!shared)
+                    heldPeak = std::max({ heldPeak, std::abs(first.left), std::abs(first.right) });
+            }
+            require(heldPeak > 1.0e-3f, label + "Freeze held nothing");
+        }
+    }
+}
+
+// The engine's own arithmetic keeps the position as a line through the first
+// block the host announced. A host that runs on by its frames gives the same
+// render in blocks of any length; a stopped one gives what the reference's
+// arithmetic gives, which there is exact as well.
+void testUndertowHostBlockInvariance()
+{
+    constexpr std::array<double, 3> sampleRates { 44100.0, 48000.0, 96000.0 };
+    for (const auto sampleRate : sampleRates)
+    {
+        const auto label = "Undertow engine at " + std::to_string(static_cast<int>(sampleRate)) + " Hz, ";
+        const auto frameCount = static_cast<int>(sampleRate * 2.6);
+        const auto parameters = undertowTestParameters(1.0f);
+
+        for (const auto playing : { true, false })
+        {
+            UndertowHost host;
+            host.sampleRate = sampleRate;
+            host.tempo = 97.31;
+            host.playing = playing;
+            host.startQuarters = 37.123;
+            std::vector<float> expected;
+            for (const auto blockFrames : { 512, 64, 1, 333 })
+            {
+                host.blockFrames = blockFrames;
+                FathomEngine engine;
+                prepareUndertowEngine(engine, parameters, sampleRate);
+                const auto rendered = renderUndertowProgramme(engine, host, 0, frameCount);
+                if (expected.empty())
+                    expected = rendered;
+                else
+                    requireSameFathomRender(rendered, expected,
+                                            label + (playing ? "running" : "stopped") + " transport in blocks of "
+                                                + std::to_string(blockFrames));
+            }
+
+            if (!playing)
+            {
+                host.blockFrames = 512;
+                FathomEngine engine;
+                prepareUndertowEngine(engine, parameters, sampleRate, true);
+                requireSameFathomRender(renderUndertowProgramme(engine, host, 0, frameCount), expected,
+                                        label + "stopped transport in the reference's arithmetic");
+            }
+        }
+    }
+
+    // Through the plug-in: process() in blocks of any length, each announced.
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto frameCount = 96000;
+    auto parameters = fathomNeutralParameters();
+    parameters.mode = ReverbMode::undertow;
+    parameters.evolution = 0.85f;
+    parameters.preDelayMs = 9.0f;
+    std::vector<float> expectedLeft;
+    std::vector<float> expectedRight;
+    for (const auto blockFrames : { 512, 1, 64, 100 })
+    {
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, blockFrames);
+        std::vector<float> left(frameCount);
+        std::vector<float> right(frameCount);
+        for (auto frame = 0; frame < frameCount; ++frame)
+        {
+            const auto input = fathomBursts(frame, sampleRate);
+            left[static_cast<std::size_t>(frame)] = input.left;
+            right[static_cast<std::size_t>(frame)] = input.right;
+        }
+        for (auto frame = 0; frame < frameCount; frame += blockFrames)
+        {
+            HostTransport transport;
+            transport.quarterNotes = 12.0 + frame * 141.0 / (60.0 * sampleRate);
+            transport.bpm = 141.0;
+            transport.playing = true;
+            transport.hasTempo = true;
+            reverb.setHostTransport(transport);
+            reverb.process(left.data() + frame, right.data() + frame,
+                           std::min(blockFrames, frameCount - frame));
+        }
+        if (expectedLeft.empty())
+        {
+            expectedLeft = left;
+            expectedRight = right;
+            continue;
+        }
+        for (std::size_t index = 0; index < left.size(); ++index)
+            require(sameBits(left[index], expectedLeft[index]) && sameBits(right[index], expectedRight[index]),
+                    "Undertow depends on the host's block length: blocks of "
+                        + std::to_string(blockFrames) + ", frame " + std::to_string(index));
+    }
+}
+
+// The layer on its own at a host rate, for the tests that look at what it adds
+// and at the chunks it gives its readers. Host frames and internal samples
+// alternate as the engine's converters make them: an internal sample when the
+// frames so far have reached it.
+struct UndertowLayerRig
+{
+    explicit UndertowLayerRig(int rate, bool referenceArithmetic = false, double macro = 1.0)
+        : hostRate(rate), lattice(FathomRateLattice::at(rate))
+    {
+        layer.setReferenceArithmetic(referenceArithmetic);
+        layer.prepare(lattice, rate);
+        layer.setMacro(macro, true);
+    }
+
+    // One host frame; `added` receives what the layer adds to each internal
+    // sample the frame brings. Returns how many there were.
+    template <typename Input>
+    int frame(Input&& input, std::array<std::array<double, 2>, 4>& added)
+    {
+        layer.hostFrame();
+        ++frames;
+        auto count = 0;
+        while ((samples + 1) * lattice.internalStep <= frames * lattice.hostStep)
+        {
+            const auto in = input(samples);
+            auto& out = added[static_cast<std::size_t>(count++)];
+            layer.process(in[0], in[1], out[0], out[1]);
+            ++samples;
+        }
+        return count;
+    }
+
+    void idleFrame()
+    {
+        layer.hostFrame();
+        ++frames;
+        while ((samples + 1) * lattice.internalStep <= frames * lattice.hostStep)
+        {
+            layer.idle();
+            ++samples;
+        }
+    }
+
+    int hostRate;
+    FathomRateLattice lattice;
+    UndertowLayer layer;
+    long long frames = 0;
+    long long samples = 0;
+};
+
+// Two steady tones, one per input: what a reader plays back of them is as
+// smooth as they are, so anything sharper in the layer's output is a click.
+[[nodiscard]] std::array<double, 2> undertowTones(long long sample) noexcept
+{
+    constexpr auto twoPi = 6.28318530717958647692;
+    constexpr auto pi = 3.14159265358979323846;
+    constexpr auto onsetSamples = 8820.0;
+    const auto seconds = static_cast<double>(sample) / 44100.0;
+    // The tones begin as smoothly as they go on: a reader plays their
+    // beginning too.
+    const auto onset = static_cast<double>(sample) < onsetSamples
+        ? 0.5 - 0.5 * std::cos(pi * static_cast<double>(sample) / onsetSamples) : 1.0;
+    return { 0.5 * onset * std::sin(twoPi * 220.0 * seconds),
+             0.5 * onset * std::sin(twoPi * 330.0 * seconds) };
+}
+
+// What the layer adds to the two tones under a transport that `say` describes
+// block by block. The click measure is the largest second difference of the
+// added signal: for a tone of amplitude a and angular frequency w per sample
+// it is a w^2, and a step of height h gives h itself.
+struct UndertowRun
+{
+    double click = 0.0;
+    double peak = 0.0;
+    // Peak over the last three seconds: what is left of the layer at the end.
+    double latePeak = 0.0;
+    bool finite = true;
+};
+
+template <typename Say, typename Macro>
+[[nodiscard]] UndertowRun runUndertowLayer(int hostRate, int blockFrames, long long frameCount,
+                                           Say&& say, Macro&& macro)
+{
+    UndertowLayerRig rig(hostRate);
+    UndertowRun run;
+    std::array<std::array<double, 2>, 2> before {};
+    std::array<std::array<double, 2>, 4> added {};
+    for (long long frame = 0; frame < frameCount; ++frame)
+    {
+        if (frame % blockFrames == 0)
+        {
+            rig.layer.setTransport(say(frame / blockFrames));
+            macro(rig.layer, frame / blockFrames);
+        }
+        const auto count = rig.frame(undertowTones, added);
+        for (auto index = 0; index < count; ++index)
+        {
+            const auto& now = added[static_cast<std::size_t>(index)];
+            for (std::size_t channel = 0; channel < 2; ++channel)
+            {
+                run.finite = run.finite && std::isfinite(now[channel]);
+                run.peak = std::max(run.peak, std::abs(now[channel]));
+                if (frame >= frameCount - 3LL * hostRate)
+                    run.latePeak = std::max(run.latePeak, std::abs(now[channel]));
+                run.click = std::max(run.click,
+                                     std::abs(now[channel] - 2.0 * before[1][channel] + before[0][channel]));
+            }
+            before[0] = before[1];
+            before[1] = now;
+        }
+    }
+    return run;
+}
+
+[[nodiscard]] UndertowLayer::Transport undertowTransport(double quarterNotes, double bpm, bool playing,
+                                                         bool hasTempo = true) noexcept
+{
+    UndertowLayer::Transport transport;
+    transport.quarterNotes = quarterNotes;
+    transport.bpm = bpm;
+    transport.playing = playing;
+    transport.hasTempo = hasTempo;
+    return transport;
+}
+
+// Ocean's own rules for a transport that does not simply run on: nothing may
+// click, whatever the host does, and everything stays finite and bounded.
+void testUndertowTransportEvents()
+{
+    constexpr auto blockFrames = 256;
+    constexpr auto eventBlock = 700LL;
+    const auto notANumber = std::numeric_limits<double>::quiet_NaN();
+    const auto infinite = std::numeric_limits<double>::infinity();
+    const auto steadyMacro = [](UndertowLayer&, long long) {};
+
+    for (const auto hostRate : { 44100, 48000 })
+    {
+        const auto rate = static_cast<double>(hostRate);
+        const auto frameCount = static_cast<long long>(rate * 10.0);
+        const auto running = [&](long long block, double tempo, double startQuarters = 0.0)
+        {
+            return startQuarters + static_cast<double>(block * blockFrames) * tempo / (60.0 * rate);
+        };
+
+        // The measure of a transport that simply runs.
+        const auto calm = runUndertowLayer(hostRate, blockFrames, frameCount, [&](long long block)
+        {
+            return undertowTransport(running(block, 120.0), 120.0, true);
+        }, steadyMacro);
+        require(calm.finite && calm.peak > 0.3 && calm.peak < 2.0,
+                "Undertow layer under a running transport is out of its range: peak="
+                    + std::to_string(calm.peak));
+
+        constexpr std::array<const char*, 11> scenarios {
+            "start", "stop", "jump forward", "jump back", "loop", "tempo step", "tempo step while stopped",
+            "tempo ramp", "tempo lost", "a jump at every block", "what is no transport"
+        };
+        const auto say = [&](std::size_t scenario, long long block)
+        {
+            switch (scenario)
+            {
+                case 0:
+                    return block < eventBlock ? undertowTransport(0.0, 120.0, false)
+                                              : undertowTransport(running(block - eventBlock, 120.0, 8.0), 120.0, true);
+                case 1:
+                    return undertowTransport(running(std::min(block, eventBlock), 120.0), 120.0, block < eventBlock);
+                case 2:
+                    return undertowTransport(running(block, 120.0, block < eventBlock ? 0.0 : 13.37), 120.0, true);
+                case 3:
+                    return undertowTransport(running(block, 120.0, block < eventBlock ? 9.0 : 1.5), 120.0, true);
+                case 4:
+                {
+                    // Four quarter notes round and round: every two seconds a block jumps back.
+                    const auto loopBlocks = static_cast<long long>(2.0 * rate / blockFrames);
+                    return undertowTransport(running(block % loopBlocks, 120.0, 16.0), 120.0, true);
+                }
+                case 5:
+                    return block < eventBlock
+                        ? undertowTransport(running(block, 120.0), 120.0, true)
+                        : undertowTransport(running(eventBlock, 120.0) + running(block - eventBlock, 87.0), 87.0, true);
+                case 6:
+                    return undertowTransport(0.0, block < eventBlock ? 120.0 : 163.0, false);
+                case 7:
+                {
+                    // 120 to 150 BPM over 400 blocks; the position is the sum of what went before.
+                    const auto along = std::clamp(block - 500LL, 0LL, 400LL);
+                    const auto tempo = 120.0 + 30.0 * static_cast<double>(along) / 400.0;
+                    const auto mean = 120.0 + 15.0 * static_cast<double>(along) / 400.0;
+                    return undertowTransport(running(std::min(block, 500LL), 120.0) + running(along, mean)
+                                                 + running(std::max(block - 900LL, 0LL), 150.0),
+                                             tempo, true);
+                }
+                case 8:
+                    return undertowTransport(running(block, block < eventBlock ? 97.0 : 120.0), 97.0, true,
+                                             block < eventBlock);
+                case 9:
+                {
+                    const auto storm = block >= eventBlock && block < eventBlock + 80;
+                    const auto offset = storm ? 3.7 * static_cast<double>(fathomNoise(static_cast<int>(block), 9)) : 0.0;
+                    return undertowTransport(running(block, 120.0, 5.0 + offset), 120.0, true);
+                }
+                default:
+                {
+                    // Positions and tempi that are no numbers, or none a host could mean.
+                    const std::array<double, 8> positions { notANumber, infinite, -infinite, 1.0e30, -1.0e30,
+                                                            1.0e11, -1.0e11, 0.0 };
+                    const std::array<double, 8> tempi { notANumber, infinite, 0.0, -5.0, 1.0e9, 1.0e-9, 19.0, 1000.0 };
+                    if (block < eventBlock || block % 37 != 0)
+                        return undertowTransport(running(block, 120.0), 120.0, true);
+                    const auto pick = static_cast<std::size_t>(block / 37);
+                    return undertowTransport(positions[pick % positions.size()], tempi[(pick / 3) % tempi.size()],
+                                             pick % 5 != 0);
+                }
+            }
+        };
+
+        for (std::size_t scenario = 0; scenario < scenarios.size(); ++scenario)
+        {
+            const auto run = runUndertowLayer(hostRate, blockFrames, frameCount, [&](long long block)
+            {
+                return say(scenario, block);
+            }, steadyMacro);
+            const auto label = std::string("Undertow layer at ") + std::to_string(hostRate) + " Hz, "
+                             + scenarios[scenario] + ": ";
+            std::cout << "[METRIC] " << label << "click measure=" << run.click << " (running transport "
+                      << calm.click << "), peak=" << run.peak << ", in the last 3 s=" << run.latePeak << '\n';
+            require(run.finite, label + "NaN/Inf");
+            require(run.peak < 2.0, label + "left its range, peak=" + std::to_string(run.peak));
+            require(run.latePeak > 0.3,
+                    label + "the layer did not come back, late peak=" + std::to_string(run.latePeak));
+            require(run.click <= 1.5 * calm.click,
+                    label + "clicks: " + std::to_string(run.click) + " against "
+                        + std::to_string(calm.click) + " of a running transport");
+        }
+    }
+
+    // The chunks follow the tempo: successive chunks of a reader lie a note
+    // value apart, at 120 BPM without a tempo and at the nearer end outside
+    // 20 to 999 BPM.
+    struct TempoCase
+    {
+        double bpm;
+        bool hasTempo;
+        double effective;
+    };
+    constexpr std::array<TempoCase, 6> tempoCases {{
+        { 90.0, true, 90.0 }, { 120.0, true, 120.0 }, { 300.0, false, 120.0 },
+        { 5.0, true, 20.0 }, { 5000.0, true, 999.0 }, { 61.7, true, 61.7 }
+    }};
+    constexpr std::array<double, 3> noteQuarters { 1.3333333730697632, 2.0, 2.6666667461395264 };
+    for (const auto& tempoCase : tempoCases)
+    {
+        for (const auto playing : { true, false })
+        {
+            UndertowLayerRig rig(44100);
+            std::array<UndertowLayer::ChunkStart, 3> last {};
+            std::array<int, 3> spans {};
+            const auto samplesPerQuarter = 60.0 / tempoCase.effective * 44100.0;
+            const auto frameCount = static_cast<long long>(2.4 * noteQuarters[2] * samplesPerQuarter);
+            for (long long frame = 0; frame < frameCount; ++frame)
+            {
+                if (frame % blockFrames == 0)
+                    rig.layer.setTransport(undertowTransport(
+                        static_cast<double>(frame) * tempoCase.effective / (60.0 * 44100.0),
+                        tempoCase.bpm, playing, tempoCase.hasTempo));
+                rig.idleFrame();
+                for (std::size_t voice = 0; voice < 3; ++voice)
+                {
+                    const auto given = rig.layer.lastChunk(static_cast<UndertowLayer::Voice>(voice));
+                    if (given.count == last[voice].count)
+                        continue;
+                    if (last[voice].count > 0)
+                    {
+                        const auto span = 0.5 * (given.mirrorSum - last[voice].mirrorSum);
+                        require(given.index == last[voice].index + 1
+                                    && std::abs(span - noteQuarters[voice] * samplesPerQuarter) < 1.01,
+                                "Undertow chunks of voice " + std::to_string(voice) + " at "
+                                    + std::to_string(tempoCase.bpm) + " BPM are " + std::to_string(span)
+                                    + " samples apart");
+                        ++spans[voice];
+                    }
+                    last[voice] = given;
+                }
+            }
+            require(spans[0] >= 3 && spans[1] >= 2 && spans[2] >= 1,
+                    "Undertow tempo test saw too few chunks at " + std::to_string(tempoCase.bpm) + " BPM");
+        }
+    }
+
+    // The engine under the same kinds of transport on noise: finite and
+    // inside the range of its base.
+    for (const auto sampleRate : { 44100.0, 48000.0, 96000.0 })
+    {
+        auto parameters = undertowTestParameters(1.0f);
+        parameters.decaySeconds = 30.0f;
+        FathomEngine engine;
+        prepareUndertowEngine(engine, parameters, sampleRate);
+        const auto frameCount = static_cast<int>(sampleRate * 6.0);
+        auto peak = 0.0f;
+        for (auto frame = 0; frame < frameCount; ++frame)
+        {
+            if (frame % 96 == 0)
+            {
+                const auto block = frame / 96;
+                FathomEngine::Transport transport;
+                transport.hasTempo = block % 11 != 0;
+                transport.bpm = block % 29 == 0 ? notANumber : block % 17 < 8 ? 120.0 : 71.5 + block % 13;
+                transport.playing = block % 23 < 15;
+                transport.quarterNotes = block % 31 == 0 ? infinite
+                    : static_cast<double>(frame % 60000) * 120.0 / (60.0 * sampleRate) + (block % 7 == 0 ? 3.3 : 0.0);
+                engine.setTransport(transport);
+            }
+            const auto wet = engine.processSample(0.5f * fathomNoise(frame, 30), 0.5f * fathomNoise(frame, 31));
+            require(std::isfinite(wet.left) && std::isfinite(wet.right),
+                    "Undertow engine produced NaN/Inf under a restless transport");
+            peak = std::max({ peak, std::abs(wet.left), std::abs(wet.right) });
+        }
+        require(peak > 0.05f && peak < 8.0f,
+                "Undertow engine left its range under a restless transport: peak=" + std::to_string(peak));
+    }
+}
+
+// Macro: three ramps, each gain through a one-pole of 10 ms behind its
+// reversed reader; the octave gains in front of their grain readers; buffers
+// and clocks run at every Macro.
+void testUndertowMacroSteps()
+{
+    constexpr auto hostRate = 44100;
+    constexpr auto blockFrames = 256;
+    const auto say = [](long long block)
+    {
+        return undertowTransport(static_cast<double>(block * blockFrames) * 120.0 / (60.0 * 44100.0), 120.0, true);
+    };
+
+    // No step of Macro clicks.
+    const auto calm = runUndertowLayer(hostRate, blockFrames, 441000, say, [](UndertowLayer&, long long) {});
+    const auto stepped = runUndertowLayer(hostRate, blockFrames, 441000, say, [](UndertowLayer& layer, long long block)
+    {
+        constexpr std::array<double, 9> positions { 1.0, 0.0, 1.0, 0.3, 0.7, 0.05, 0.62, 0.0, 1.0 };
+        layer.setMacro(positions[static_cast<std::size_t>(block / 173) % positions.size()], false);
+    });
+    std::cout << "[METRIC] Undertow Macro steps: click measure=" << stepped.click << " (Macro at rest "
+              << calm.click << "), peak=" << stepped.peak << '\n';
+    require(stepped.finite && stepped.peak < 2.0, "Undertow Macro steps left the layer's range");
+    require(stepped.click <= 1.5 * calm.click, "Undertow Macro steps click");
+
+    // The gain at pitch: what was stored at Macro 0 plays at the new gain at
+    // once, through the one-pole. At Macro 14 % that voice sounds alone.
+    constexpr auto stepSample = 60000LL;
+    constexpr auto compared = 44;
+    constexpr auto gainAtPitch = 0.6927952;
+    const auto pole = std::exp(-1.0 / (0.010 * 44100.0));
+    UndertowLayerRig alone(hostRate, false, 0.14);
+    UndertowLayerRig step(hostRate, false, 0.0);
+    std::array<std::array<double, 2>, 4> aloneAdded {};
+    std::array<std::array<double, 2>, 4> stepAdded {};
+    auto worst = 0.0;
+    auto peak = 0.0;
+    auto laterDifference = 0.0;
+    for (long long frame = 0; frame < stepSample + 9000; ++frame)
+    {
+        if (frame % blockFrames == 0)
+        {
+            alone.layer.setTransport(say(frame / blockFrames));
+            step.layer.setTransport(say(frame / blockFrames));
+        }
+        if (frame == stepSample)
+            step.layer.setMacro(0.4, false);
+        static_cast<void>(alone.frame(undertowTones, aloneAdded));
+        static_cast<void>(step.frame(undertowTones, stepAdded));
+        if (frame < stepSample)
+        {
+            require(!(std::abs(stepAdded[0][0]) > 0.0) && !(std::abs(stepAdded[0][1]) > 0.0)
+                        && step.layer.atRest(),
+                    "Undertow layer adds something at Macro 0");
+            continue;
+        }
+
+        // The stream at pitch, from the layer that plays it alone.
+        const auto arrived = 1.0 - std::pow(pole, static_cast<double>(frame - stepSample + 1));
+        for (std::size_t channel = 0; channel < 2; ++channel)
+        {
+            const auto stream = aloneAdded[0][channel] / (gainAtPitch * 0.14 / 0.3);
+            const auto atPitch = arrived * gainAtPitch * stream;
+            if (frame < stepSample + compared)
+            {
+                // Nothing of the octave above has passed its grain reader yet.
+                worst = std::max(worst, std::abs(stepAdded[0][channel] - atPitch));
+                peak = std::max(peak, std::abs(atPitch));
+            }
+            else
+            {
+                laterDifference = std::max(laterDifference, std::abs(stepAdded[0][channel] - atPitch));
+            }
+        }
+    }
+    std::cout << "[METRIC] Undertow Macro step at pitch: distance from the one-pole=" << worst
+              << ", peak=" << peak << ", octave above later=" << laterDifference << '\n';
+    require(peak > 1.0e-3 && worst <= 1.0e-9 * peak,
+            "Undertow gain at pitch does not follow a one-pole of 10 ms behind its reader");
+    require(laterDifference > 1.0e-3,
+            "Undertow octave above did not arrive behind its grain reader");
+
+    // The engine through steps of Macro on noise.
+    FathomEngine engine;
+    auto parameters = undertowTestParameters(0.0f);
+    prepareUndertowEngine(engine, parameters, 48000.0);
+    UndertowHost host;
+    auto enginePeak = 0.0f;
+    for (auto frame = 0; frame < 240000; ++frame)
+    {
+        host.announce(engine, frame);
+        if (frame % 7919 == 0)
+        {
+            parameters.macro = static_cast<float>((frame / 7919) % 6) / 5.0f;
+            engine.setParameters(parameters);
+        }
+        const auto wet = engine.processSample(0.4f * fathomNoise(frame, 32), 0.4f * fathomNoise(frame, 33));
+        require(std::isfinite(wet.left) && std::isfinite(wet.right), "Undertow Macro steps produced NaN/Inf");
+        enginePeak = std::max({ enginePeak, std::abs(wet.left), std::abs(wet.right) });
+    }
+    require(enginePeak > 0.05f && enginePeak < 8.0f, "Undertow engine left its range under Macro steps");
+}
+
+// The boundary a chunk was given for, read back from the sum of its reversed
+// read: twice the block that holds it, less two, plus the way into the block
+// and that way rounded down (up for the octave-up reader).
+[[nodiscard]] double undertowBoundary(const UndertowLayer::ChunkStart& chunk, bool roundsUp) noexcept
+{
+    const auto sum = chunk.mirrorSum + 2.0;
+    if (!roundsUp)
+    {
+        const auto whole = std::floor(sum / 2.0);
+        return whole + (sum - 2.0 * whole);
+    }
+    const auto half = sum / 2.0;
+    if (!(half > std::floor(half)))
+        return half;
+    const auto whole = std::floor((sum - 1.0) / 2.0);
+    return whole + (sum - 1.0 - 2.0 * whole);
+}
+
+// The engine's own arithmetic holds the position in double precision: hours
+// into a session a chunk still begins where the host's position is a whole
+// number of its note values. The reference's single-precision stamps do not
+// reach that far.
+void testUndertowLongRunStaysOnTheGrid()
+{
+    constexpr auto hostRate = 44100;
+    constexpr auto blockFrames = 512;
+    constexpr auto tempo = 97.31;
+    constexpr std::array<double, 3> noteQuarters { 1.3333333730697632, 2.0, 2.6666667461395264 };
+    const auto quartersPerFrame = tempo / (60.0 * 44100.0);
+
+    // Worst distance of a chunk's boundary from its place on the grid, in
+    // samples, over some seconds of a transport that began at `startQuarters`
+    // `idleFrames` earlier.
+    const auto offGrid = [&](bool referenceArithmetic, double startQuarters, long long idleFrames)
+    {
+        UndertowLayerRig rig(hostRate, referenceArithmetic);
+        const auto announce = [&]
+        {
+            if (rig.frames % blockFrames == 0)
+                rig.layer.setTransport(undertowTransport(
+                    startQuarters + static_cast<double>(rig.frames) * quartersPerFrame, tempo, true));
+        };
+        for (long long frame = 0; frame < idleFrames; ++frame)
+        {
+            announce();
+            rig.idleFrame();
+        }
+
+        std::array<std::int64_t, 3> counted {};
+        for (std::size_t voice = 0; voice < 3; ++voice)
+            counted[voice] = rig.layer.lastChunk(static_cast<UndertowLayer::Voice>(voice)).count;
+        auto worst = 0.0;
+        auto chunks = 0;
+        for (long long frame = 0; frame < 44100 * 9; ++frame)
+        {
+            announce();
+            rig.idleFrame();
+            for (std::size_t voice = 0; voice < 3; ++voice)
+            {
+                const auto given = rig.layer.lastChunk(static_cast<UndertowLayer::Voice>(voice));
+                if (given.count == counted[voice])
+                    continue;
+                counted[voice] = given.count;
+                // At this rate an internal sample is a host frame.
+                const auto boundary = undertowBoundary(given, voice == 1);
+                const auto quarters = startQuarters + boundary * quartersPerFrame;
+                worst = std::max(worst, std::abs(quarters - static_cast<double>(given.index) * noteQuarters[voice])
+                                            / quartersPerFrame);
+                ++chunks;
+            }
+        }
+        require(chunks >= 9, "Undertow grid test saw too few chunks");
+        return worst;
+    };
+
+    // Fourteen hours into the host's timeline, and an hour of the instance's own run.
+    const auto farPosition = offGrid(false, 81234.5, 0);
+    const auto longRun = offGrid(false, 3.25, 44100LL * 3600);
+    const auto nearPosition = offGrid(false, 3.25, 0);
+    const auto referenceFar = offGrid(true, 81234.5, 0);
+    std::cout << "[METRIC] Undertow chunk boundaries off the grid, in samples: " << nearPosition
+              << " at the start, " << longRun << " after an hour's run, " << farPosition
+              << " fourteen hours into the timeline; the reference's arithmetic there " << referenceFar << '\n';
+    require(nearPosition < 1.0e-6 && longRun < 1.0e-5 && farPosition < 1.0e-5,
+            "Undertow chunks leave the grid in the engine's own arithmetic");
+    require(referenceFar > 10.0,
+            "The reference's arithmetic was expected off the grid fourteen hours in: the test does not see the grid");
+}
+
+void testUndertowSilenceDenormalsAndHostileInput()
+{
+    // The recirculation of the octave-up voice loses 14 dB a pass and no more:
+    // without a floor it would run through the denormal range for minutes. At
+    // the fastest tempo a pass is 120 ms.
+    UndertowLayerRig rig(44100);
+    std::array<std::array<double, 2>, 4> added {};
+    auto lastSound = -1LL;
+    auto denormals = 0;
+    for (long long frame = 0; frame < 44100 * 12; ++frame)
+    {
+        if (frame % 256 == 0)
+            rig.layer.setTransport(undertowTransport(static_cast<double>(frame) * 999.0 / (60.0 * 44100.0),
+                                                     999.0, true));
+        const auto count = rig.frame([](long long sample)
+        {
+            return sample < 22050 ? undertowTones(sample) : std::array<double, 2> { 0.0, 0.0 };
+        }, added);
+        require(count == 1, "Undertow rig is out of step at 44.1 kHz");
+        for (const auto value : added[0])
+        {
+            if (std::fpclassify(value) == FP_SUBNORMAL)
+                ++denormals;
+            if (std::abs(value) > 0.0)
+                lastSound = frame;
+        }
+    }
+    require(denormals == 0, "Undertow layer lets its recirculation reach the denormal range");
+    require(lastSound > 44100 && lastSound < 44100 * 10,
+            "Undertow layer did not fall silent behind its input: last sound at sample "
+                + std::to_string(lastSound));
+
+    constexpr std::array<float, 8> hostileSamples {
+        std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::max(),
+        -1.0e30f, std::numeric_limits<float>::denorm_min(), 1.0e-39f, -0.0f
+    };
+    for (const auto sampleRate : { 44100.0, 48000.0, 96000.0 })
+    {
+        const auto label = "Undertow engine at " + std::to_string(static_cast<int>(sampleRate)) + " Hz ";
+        UndertowHost host;
+        host.sampleRate = sampleRate;
+        host.tempo = 999.0;
+
+        // Input that is all denormal is silence to the layer and to the engine.
+        {
+            FathomEngine engine;
+            prepareUndertowEngine(engine, undertowTestParameters(1.0f), sampleRate);
+            for (auto frame = 0; frame < 30000; ++frame)
+            {
+                host.announce(engine, frame);
+                const auto wet = engine.processSample(frame % 2 == 0 ? 1.0e-39f : -1.0e-41f,
+                                                      std::numeric_limits<float>::denorm_min());
+                require(!(std::abs(wet.left) > 0.0f) && !(std::abs(wet.right) > 0.0f),
+                        label + "turned denormal input into sound");
+            }
+        }
+
+        auto parameters = undertowTestParameters(1.0f);
+        parameters.decaySeconds = 30.0f;
+        parameters.sizeScale = 2.0f;
+        parameters.preDelaySeconds = 0.25f;
+        FathomEngine engine;
+        FathomEngine::LevelStage levelStage;
+        prepareUndertowEngine(engine, parameters, sampleRate);
+        levelStage.prepare(sampleRate);
+        auto peak = 0.0f;
+        const auto frames = static_cast<int>(sampleRate * 1.5);
+        for (auto frame = 0; frame < frames; ++frame)
+        {
+            host.announce(engine, frame);
+            if (frame % 997 == 0)
+            {
+                const auto step = frame / 997;
+                parameters.decaySeconds = step % 3 == 0 ? 0.2f : 60.0f;
+                parameters.sizeScale = step % 2 == 0 ? 0.15f : 2.0f;
+                parameters.macro = step % 4 == 0 ? 0.0f : step % 4 == 1 ? 1.0f
+                                 : std::numeric_limits<float>::quiet_NaN();
+                parameters.freeze = step % 6 == 5;
+                engine.setParameters(parameters);
+            }
+            auto left = fathomNoise(frame, 4);
+            auto right = fathomNoise(frame, 5);
+            if (frame % 61 == 0)
+                left = hostileSamples[static_cast<std::size_t>(frame / 61) % hostileSamples.size()];
+            if (frame % 89 == 0)
+                right = hostileSamples[static_cast<std::size_t>(frame / 89) % hostileSamples.size()];
+            auto wet = levelStage.process(left, right, engine.processSample(left, right));
+            wet = FathomEngine::applyWidth(wet, 2.0f);
+            wet.left = FathomEngine::clip(wet.left);
+            wet.right = FathomEngine::clip(wet.right);
+            require(std::isfinite(wet.left) && std::isfinite(wet.right),
+                    label + "let hostile input through as NaN/Inf");
+            peak = std::max({ peak, std::abs(wet.left), std::abs(wet.right) });
+        }
+        require(peak <= 3.99f, label + "left the clipper's range under hostile input");
+
+        // Once the input is gone a short Decay brings the engine back to
+        // exact silence, the layer with it.
+        parameters = undertowTestParameters(1.0f);
+        parameters.decaySeconds = 0.2f;
+        parameters.sizeScale = 1.0f;
+        parameters.preDelaySeconds = 0.0f;
+        engine.setParameters(parameters);
+        auto lastFrame = -1;
+        const auto tailFrames = static_cast<int>(sampleRate * 12.0);
+        for (auto frame = 0; frame < tailFrames; ++frame)
+        {
+            host.announce(engine, frames + frame);
+            const auto wet = engine.processSample(0.0f, 0.0f);
+            require(std::isfinite(wet.left) && std::isfinite(wet.right),
+                    label + "kept NaN/Inf after hostile input");
+            if (std::abs(wet.left) > 0.0f || std::abs(wet.right) > 0.0f)
+                lastFrame = frame;
+        }
+        require(lastFrame < static_cast<int>(sampleRate * 11.0),
+                label + "did not return to silence after hostile input");
+    }
+}
+
+void testUndertowEngineAllocatesOnlyInPrepare()
+{
+    constexpr std::array<double, 2> sampleRates { 48000.0, 44101.0 };
+    for (const auto sampleRate : sampleRates)
+    {
+        for (const auto referenceArithmetic : { false, true })
+        {
+            FathomEngine engine;
+            FathomEngine::LevelStage levelStage;
+            auto parameters = undertowTestParameters(1.0f);
+            prepareUndertowEngine(engine, parameters, sampleRate, referenceArithmetic);
+            levelStage.prepare(sampleRate);
+
+            allocationCount.store(0, std::memory_order_relaxed);
+            countAllocations.store(true, std::memory_order_relaxed);
+            for (auto frame = 0; frame < 90000; ++frame)
+            {
+                if (frame % 128 == 0)
+                {
+                    const auto block = frame / 128;
+                    FathomEngine::Transport transport;
+                    transport.hasTempo = block % 19 != 0;
+                    transport.bpm = block % 40 < 20 ? 120.0 : 83.0;
+                    transport.playing = block % 50 < 35;
+                    transport.quarterNotes = (frame % 30000) * 120.0 / (60.0 * sampleRate);
+                    engine.setTransport(transport);
+                }
+                if (frame % 211 == 0)
+                {
+                    parameters.decaySeconds = parameters.decaySeconds > 1.0f ? 0.2f : 30.0f;
+                    parameters.macro = static_cast<float>((frame / 211) % 5) / 4.0f;
+                    parameters.freeze = frame % 422 == 0;
+                    engine.setParameters(parameters);
+                }
+                if (frame % 37000 == 36000)
+                    engine.reset();
+                if ((frame / 5000) % 3 == 2)
+                {
+                    engine.advanceIdle();
+                    continue;
+                }
+                const auto left = 0.5f * fathomNoise(frame, 6);
+                const auto right = 0.5f * fathomNoise(frame, 7);
+                static_cast<void>(levelStage.process(left, right, engine.processSample(left, right)));
+            }
+            countAllocations.store(false, std::memory_order_relaxed);
+
+            require(allocationCount.load(std::memory_order_relaxed) == 0,
+                    "Undertow engine allocated memory outside prepare()");
+        }
+    }
+
+    FDNReverb reverb;
+    auto parameters = fathomNeutralParameters();
+    parameters.mode = ReverbMode::undertow;
+    reverb.setParameters(parameters);
+    reverb.prepare(48000.0, 256);
+    std::array<float, 256> left {};
+    std::array<float, 256> right {};
+    allocationCount.store(0, std::memory_order_relaxed);
+    countAllocations.store(true, std::memory_order_relaxed);
+    for (auto block = 0; block < 300; ++block)
+    {
+        for (std::size_t frame = 0; frame < left.size(); ++frame)
+        {
+            left[frame] = 0.3f * fathomNoise(block * 256 + static_cast<int>(frame), 8);
+            right[frame] = 0.3f * fathomNoise(block * 256 + static_cast<int>(frame), 9);
+        }
+        if (block % 40 == 20)
+        {
+            parameters.mode = parameters.mode == ReverbMode::undertow ? ReverbMode::fathom : ReverbMode::undertow;
+            reverb.setParameters(parameters);
+        }
+        HostTransport transport;
+        transport.quarterNotes = (block % 90) * 256.0 * 120.0 / (60.0 * 48000.0);
+        transport.bpm = 120.0;
+        transport.playing = block % 70 < 50;
+        transport.hasTempo = true;
+        reverb.setHostTransport(transport);
+        reverb.process(left.data(), right.data(), 256);
+    }
+    countAllocations.store(false, std::memory_order_relaxed);
+    require(allocationCount.load(std::memory_order_relaxed) == 0,
+            "Undertow allocated memory in process");
+}
+
+// The chain Undertow must reduce to while Ocean's own controls are neutral:
+// Fathom's, with the engine under the Undertow layer and told of the host's
+// transport.
+struct UndertowReferenceChain
+{
+    UndertowReferenceChain(const ReverbParameters& parameters, double sampleRate)
+        : mix(parameters.mix), width(parameters.width)
+    {
+        engine.setLayer(FathomEngine::Layer::undertow);
+        engine.setParameters(fathomEngineParameters(parameters));
+        engine.prepare(sampleRate);
+        levelStage.prepare(sampleRate);
+    }
+
+    void announce(const HostTransport& transport) noexcept
+    {
+        FathomEngine::Transport forwarded;
+        forwarded.quarterNotes = transport.quarterNotes;
+        forwarded.bpm = transport.bpm;
+        forwarded.playing = transport.playing;
+        forwarded.hasTempo = transport.hasTempo;
+        engine.setTransport(forwarded);
+    }
+
+    void idle() noexcept
+    {
+        engine.advanceIdle();
+    }
+
+    [[nodiscard]] FathomEngine::Frame wet(float dryLeft, float dryRight) noexcept
+    {
+        return levelStage.process(dryLeft, dryRight, engine.processSample(dryLeft, dryRight));
+    }
+
+    [[nodiscard]] FathomEngine::Frame process(float dryLeft, float dryRight) noexcept
+    {
+        const auto widened = FathomEngine::applyWidth(wet(dryLeft, dryRight), width);
+        return { FathomReferenceChain::guard(FathomEngine::clip(oceanMix(dryLeft, widened.left, mix))),
+                 FathomReferenceChain::guard(FathomEngine::clip(oceanMix(dryRight, widened.right, mix))) };
+    }
+
+    FathomEngine engine;
+    FathomEngine::LevelStage levelStage;
+    float mix;
+    float width;
+};
+
+// A host of the plug-in for these tests: blocks of 64 frames at 108 BPM from
+// the position of 5 quarter notes.
+[[nodiscard]] HostTransport undertowPlugInTransport(int frame, double sampleRate) noexcept
+{
+    HostTransport transport;
+    transport.quarterNotes = 5.0 + static_cast<double>(frame) * 108.0 / (60.0 * sampleRate);
+    transport.bpm = 108.0;
+    transport.playing = true;
+    transport.hasTempo = true;
+    return transport;
+}
+
+// One frame of the plug-in under that host. FDNReverb takes the transport per
+// process() call, so a block of the host is a call.
+void processUndertowPlugIn(FDNReverb& reverb, int frame, double sampleRate, float& left, float& right)
+{
+    constexpr auto blockFrames = 64;
+    if (frame % blockFrames == 0)
+        reverb.setHostTransport(undertowPlugInTransport(frame, sampleRate));
+    // A call of one frame: the transport said for a block's first frame holds
+    // for it, and the frames behind it say nothing new.
+    if (frame % blockFrames == 0)
+        reverb.process(&left, &right, 1);
+    else
+        reverb.processSample(left, right);
+}
+
+void testUndertowThroughThePlugIn()
+{
+    constexpr auto blockFrames = 64;
+
+    // Routing at Ocean's neutral controls: the engine's wet through its level stage.
+    for (const auto sampleRate : { 44100.0, 48000.0, 88200.0, 96000.0 })
+    {
+        for (const auto evolution : { 0.0f, 0.45f, 1.0f })
+        {
+            auto parameters = fathomNeutralParameters();
+            parameters.mode = ReverbMode::undertow;
+            parameters.evolution = evolution;
+            parameters.preDelayMs = 12.3f;
+            FDNReverb reverb;
+            reverb.setParameters(parameters);
+            reverb.prepare(sampleRate, blockFrames);
+            UndertowReferenceChain chain(parameters, sampleRate);
+
+            auto wetPeak = 0.0f;
+            const auto frameCount = static_cast<int>(sampleRate * 1.75);
+            for (auto frame = 0; frame < frameCount; ++frame)
+            {
+                if (frame % blockFrames == 0)
+                    chain.announce(undertowPlugInTransport(frame, sampleRate));
+                const auto input = fathomBursts(frame, sampleRate);
+                const auto expected = chain.wet(input.left, input.right);
+                wetPeak = std::max({ wetPeak, std::abs(expected.left), std::abs(expected.right) });
+                auto left = input.left;
+                auto right = input.right;
+                processUndertowPlugIn(reverb, frame, sampleRate, left, right);
+                require(sameBits(left, expected.left) && sameBits(right, expected.right),
+                        "Undertow is not the engine's wet through its level stage at "
+                            + std::to_string(static_cast<int>(sampleRate)) + " Hz, Evolution "
+                            + std::to_string(evolution) + ", frame " + std::to_string(frame));
+            }
+            require(wetPeak > 0.01f, "Undertow routing programme did not exercise the engine");
+        }
+    }
+
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto switchSample = 60000;
+    constexpr auto morphSamples = static_cast<int>(sampleRate * 0.20);
+    constexpr auto endSample = switchSample + morphSamples + 12000;
+
+    // Fathom and Undertow crossfade directly: nothing of the FDN shows.
+    for (const auto intoUndertow : { true, false })
+    {
+        const auto label = std::string(intoUndertow ? "Fathom to Undertow" : "Undertow to Fathom") + " switch";
+        auto parameters = fathomNeutralParameters();
+        parameters.decaySeconds = 6.0f;
+        parameters.evolution = 0.8f;
+        auto switched = parameters;
+        switched.mode = intoUndertow ? ReverbMode::fathom : ReverbMode::undertow;
+        FDNReverb reverb;
+        reverb.setParameters(switched);
+        reverb.prepare(sampleRate, blockFrames);
+        FathomReferenceChain fathomSide(parameters, sampleRate);
+        UndertowReferenceChain undertowSide(parameters, sampleRate);
+        FathomMorphRamp undertowAmount(intoUndertow ? 0.0f : 1.0f, intoUndertow ? 1.0f : 0.0f, morphSamples);
+        FathomMorphRamp fathomAmount(intoUndertow ? 1.0f : 0.0f, intoUndertow ? 0.0f : 1.0f, morphSamples);
+
+        auto largestDistance = 0.0f;
+        auto peak = 1.0e-3f;
+        double sideDifferenceEnergy = 0.0;
+        double sideEnergy = 0.0;
+        for (auto sample = 0; sample < endSample; ++sample)
+        {
+            if (sample == switchSample)
+            {
+                switched.mode = intoUndertow ? ReverbMode::undertow : ReverbMode::fathom;
+                reverb.setParameters(switched);
+            }
+            if (sample % blockFrames == 0)
+                undertowSide.announce(undertowPlugInTransport(sample, sampleRate));
+
+            const auto input = fathomBursts(sample, sampleRate, 0.5f);
+            auto left = input.left;
+            auto right = input.right;
+            processUndertowPlugIn(reverb, sample, sampleRate, left, right);
+
+            // Each side sounds while its amount is above zero and keeps time otherwise.
+            const auto fathomSounds = intoUndertow ? sample < switchSample + morphSamples - 1
+                                                   : sample >= switchSample;
+            const auto undertowSounds = intoUndertow ? sample >= switchSample
+                                                     : sample < switchSample + morphSamples - 1;
+            auto fathom = FathomEngine::Frame {};
+            auto undertow = FathomEngine::Frame {};
+            if (fathomSounds)
+                fathom = fathomSide.process(input.left, input.right);
+            else
+                fathomSide.idle();
+            if (undertowSounds)
+                undertow = undertowSide.process(input.left, input.right);
+            else
+                undertowSide.idle();
+
+            if (sample < switchSample)
+            {
+                const auto& before = intoUndertow ? fathom : undertow;
+                require(sameBits(left, before.left) && sameBits(right, before.right),
+                        label + " differs before the switch");
+                continue;
+            }
+            // Each amount moves on its own ramp; the two share the wet by them.
+            const auto rising = undertowAmount.next();
+            const auto falling = fathomAmount.next();
+            const auto amount = rising / (falling + rising);
+            if (sample >= switchSample + morphSamples - 1)
+            {
+                const auto& after = intoUndertow ? undertow : fathom;
+                require(sameBits(left, after.left) && sameBits(right, after.right),
+                        label + " is not the new Character alone after the crossfade, at sample "
+                            + std::to_string(sample));
+                continue;
+            }
+            largestDistance = std::max({
+                largestDistance,
+                std::abs(left - (fathom.left + amount * (undertow.left - fathom.left))),
+                std::abs(right - (fathom.right + amount * (undertow.right - fathom.right)))
+            });
+            peak = std::max({ peak, std::abs(fathom.left), std::abs(fathom.right),
+                              std::abs(undertow.left), std::abs(undertow.right) });
+            sideDifferenceEnergy += static_cast<double>(undertow.left - fathom.left) * (undertow.left - fathom.left)
+                                  + static_cast<double>(undertow.right - fathom.right)
+                                        * (undertow.right - fathom.right);
+            sideEnergy += 0.5 * (static_cast<double>(fathom.left) * fathom.left
+                                 + static_cast<double>(fathom.right) * fathom.right
+                                 + static_cast<double>(undertow.left) * undertow.left
+                                 + static_cast<double>(undertow.right) * undertow.right);
+        }
+        std::cout << "[METRIC] " << label << ": largest distance from the crossfade="
+                  << largestDistance << ", peak of its two sides=" << peak << '\n';
+        require(largestDistance <= 4.0e-6f * peak,
+                label + " is not a crossfade of the two Characters: distance="
+                    + std::to_string(largestDistance / peak) + " of the peak");
+        require(sideEnergy > 1.0e-8 && sideDifferenceEnergy > 0.25 * sideEnergy,
+                label + " crossfades two sides that do not differ");
+    }
+
+    // Default and Undertow: a crossfade of the FDN and the engine's chain,
+    // which starts from silence when Undertow is entered.
+    for (const auto intoUndertow : { true, false })
+    {
+        const auto label = std::string(intoUndertow ? "Default to Undertow" : "Undertow to Default") + " switch";
+        auto parameters = fathomNeutralParameters();
+        parameters.mode = ReverbMode::undertow;
+        parameters.decaySeconds = 6.0f;
+        parameters.evolution = 0.8f;
+        auto switched = parameters;
+        switched.mode = intoUndertow ? ReverbMode::defaultMode : ReverbMode::undertow;
+        auto fdnParameters = parameters;
+        fdnParameters.mode = ReverbMode::defaultMode;
+        FDNReverb reverb;
+        FDNReverb fdnSide;
+        reverb.setParameters(switched);
+        fdnSide.setParameters(fdnParameters);
+        reverb.prepare(sampleRate, blockFrames);
+        fdnSide.prepare(sampleRate, blockFrames);
+        UndertowReferenceChain undertowSide(parameters, sampleRate);
+        FathomMorphRamp undertowAmount(intoUndertow ? 0.0f : 1.0f, intoUndertow ? 1.0f : 0.0f, morphSamples);
+
+        auto largestDistance = 0.0f;
+        auto peak = 1.0e-3f;
+        for (auto sample = 0; sample < endSample; ++sample)
+        {
+            if (sample == switchSample)
+            {
+                switched.mode = intoUndertow ? ReverbMode::undertow : ReverbMode::defaultMode;
+                reverb.setParameters(switched);
+            }
+            if (sample % blockFrames == 0)
+                undertowSide.announce(undertowPlugInTransport(sample, sampleRate));
+            const auto input = fathomBursts(sample, sampleRate, 0.5f);
+            auto left = input.left;
+            auto right = input.right;
+            processUndertowPlugIn(reverb, sample, sampleRate, left, right);
+            auto fdnLeft = input.left;
+            auto fdnRight = input.right;
+            fdnSide.processSample(fdnLeft, fdnRight);
+            auto undertow = FathomEngine::Frame {};
+            if (intoUndertow ? sample >= switchSample : sample < switchSample + morphSamples - 1)
+                undertow = undertowSide.process(input.left, input.right);
+            else
+                undertowSide.idle();
+
+            if (sample < switchSample)
+            {
+                require(intoUndertow ? sameBits(left, fdnLeft) && sameBits(right, fdnRight)
+                                     : sameBits(left, undertow.left) && sameBits(right, undertow.right),
+                        label + " differs before the switch");
+                continue;
+            }
+            const auto amount = undertowAmount.next();
+            if (sample >= switchSample + morphSamples - 1)
+            {
+                require(intoUndertow ? sameBits(left, undertow.left) && sameBits(right, undertow.right)
+                                     : sameBits(left, fdnLeft) && sameBits(right, fdnRight),
+                        label + " is not the new Character alone after the crossfade, at sample "
+                            + std::to_string(sample));
+                continue;
+            }
+            largestDistance = std::max({
+                largestDistance,
+                std::abs(left - (fdnLeft + amount * (undertow.left - fdnLeft))),
+                std::abs(right - (fdnRight + amount * (undertow.right - fdnRight)))
+            });
+            peak = std::max({ peak, std::abs(fdnLeft), std::abs(fdnRight),
+                              std::abs(undertow.left), std::abs(undertow.right) });
+        }
+        std::cout << "[METRIC] " << label << ": largest distance from the crossfade="
+                  << largestDistance << ", peak of its two sides=" << peak << '\n';
+        require(largestDistance <= 4.0e-6f * peak,
+                label + " is not a crossfade of the two Characters: distance="
+                    + std::to_string(largestDistance / peak) + " of the peak");
+    }
+
+    // Left for longer than its fade and selected again, Undertow returns as
+    // an engine that has only kept time since it was prepared.
+    {
+        constexpr auto leaveSample = 50000;
+        constexpr auto returnSample = leaveSample + 3 * morphSamples;
+        constexpr auto settledSample = returnSample + morphSamples;
+        auto parameters = fathomNeutralParameters();
+        parameters.mode = ReverbMode::undertow;
+        parameters.decaySeconds = 30.0f;
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, blockFrames);
+        UndertowReferenceChain chain(parameters, sampleRate);
+        auto peak = 0.0f;
+        for (auto sample = 0; sample < settledSample + 70000; ++sample)
+        {
+            if (sample == leaveSample || sample == returnSample)
+            {
+                parameters.mode = sample == leaveSample ? ReverbMode::bloom : ReverbMode::undertow;
+                reverb.setParameters(parameters);
+            }
+            if (sample % blockFrames == 0)
+                chain.announce(undertowPlugInTransport(sample, sampleRate));
+            const auto input = sample < leaveSample || sample >= returnSample
+                ? fathomBursts(sample, sampleRate, 0.5f) : FathomEngine::Frame {};
+            auto left = input.left;
+            auto right = input.right;
+            processUndertowPlugIn(reverb, sample, sampleRate, left, right);
+            auto expected = FathomEngine::Frame {};
+            if (sample < returnSample)
+                chain.idle();
+            else
+                expected = chain.process(input.left, input.right);
+            if (sample < settledSample)
+                continue;
+            require(sameBits(left, expected.left) && sameBits(right, expected.right),
+                    "Undertow selected again is not an engine that only kept time, at sample "
+                        + std::to_string(sample));
+            peak = std::max(peak, std::abs(left));
+        }
+        require(peak > 0.01f, "Undertow selected again stayed silent");
+    }
+
+    // Every rate, Freeze, input that is no signal, and the value behind the last mode.
+    for (const auto rate : { 44100.0, 48000.0, 88200.0, 96000.0 })
+    {
+        ReverbParameters parameters;
+        parameters.mode = ReverbMode::undertow;
+        parameters.mix = 0.6f;
+        parameters.decaySeconds = 30.0f;
+        parameters.size = FDNReverb::maximumSizeScale;
+        parameters.evolution = 1.0f;
+        parameters.width = 2.0f;
+        parameters.harmony = 0.5f;
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(rate, 128);
+        auto peak = 0.0f;
+        const auto frames = static_cast<int>(rate * 3.0);
+        for (auto frame = 0; frame < frames; ++frame)
+        {
+            if (frame == static_cast<int>(rate * 1.5))
+            {
+                parameters.freeze = true;
+                reverb.setParameters(parameters);
+            }
+            auto left = frame % 4001 == 0 ? std::numeric_limits<float>::quiet_NaN() : 0.9f * fathomNoise(frame, 40);
+            auto right = frame % 5003 == 0 ? std::numeric_limits<float>::infinity() : 0.9f * fathomNoise(frame, 41);
+            if (frame % 128 == 0)
+            {
+                auto transport = undertowPlugInTransport(frame % 100000, rate);
+                transport.playing = (frame / 128) % 9 != 0;
+                transport.hasTempo = (frame / 128) % 13 != 0;
+                reverb.setHostTransport(transport);
+                reverb.process(&left, &right, 1);
+            }
+            else
+            {
+                reverb.processSample(left, right);
+            }
+            require(std::isfinite(left) && std::isfinite(right), "Undertow produced NaN/Inf in the plug-in");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+        }
+        require(peak > 0.05f && peak < 4.0f,
+                "Undertow stress test left the safety range: peak=" + std::to_string(peak));
+    }
+
+    FDNReverb reverb;
+    ReverbParameters lastKnown;
+    lastKnown.mode = ReverbMode::undertow;
+    reverb.setParameters(lastKnown);
+    require(reverb.getParameters().mode == ReverbMode::undertow, "Undertow mode was not accepted");
+}
+
+// What the layer adds to the two tones over a run under a host that says its
+// transport in front of every block: the click measure, the mean square over
+// a window of frames, the restarts of its readers, and whether its chunks
+// follow the host at the end. `watch` sees the layer in front of every block.
+struct UndertowWatched
+{
+    double click = 0.0;
+    double peak = 0.0;
+    double windowEnergy = 0.0;
+    std::int64_t restarts = 0;
+    bool followsHost = false;
+    bool finite = true;
+    // What was added to the left input over the window, for a comparison.
+    std::vector<float> window;
+};
+
+template <typename Say, typename Watch>
+[[nodiscard]] UndertowWatched watchUndertowLayer(int hostRate, int blockFrames, double seconds,
+                                                 double windowFromSeconds, Say&& say, Watch&& watch)
+{
+    UndertowLayerRig rig(hostRate);
+    UndertowWatched run;
+    const auto frameCount = static_cast<long long>(seconds * hostRate);
+    const auto windowFrom = static_cast<long long>(windowFromSeconds * hostRate);
+    std::array<std::array<double, 2>, 2> before {};
+    std::array<std::array<double, 2>, 4> added {};
+    for (long long frame = 0; frame < frameCount; ++frame)
+    {
+        if (frame % blockFrames == 0)
+        {
+            watch(rig.layer, static_cast<double>(frame) / hostRate);
+            rig.layer.setTransport(say(static_cast<double>(frame) / hostRate, frame / blockFrames));
+        }
+        const auto count = rig.frame(undertowTones, added);
+        for (auto index = 0; index < count; ++index)
+        {
+            const auto& now = added[static_cast<std::size_t>(index)];
+            for (std::size_t channel = 0; channel < 2; ++channel)
+            {
+                run.finite = run.finite && std::isfinite(now[channel]);
+                run.peak = std::max(run.peak, std::abs(now[channel]));
+                run.click = std::max(run.click,
+                                     std::abs(now[channel] - 2.0 * before[1][channel] + before[0][channel]));
+                if (frame >= windowFrom)
+                    run.windowEnergy += now[channel] * now[channel];
+            }
+            if (frame >= windowFrom)
+                run.window.push_back(static_cast<float>(now[0]));
+            before[0] = before[1];
+            before[1] = now;
+        }
+    }
+    run.restarts = rig.layer.restartCount();
+    run.followsHost = rig.layer.followsHost();
+    return run;
+}
+
+// Ocean's own rule for a tempo in motion. A tempo that keeps changing is a
+// ramp and is followed without a new start, however large the change from one
+// host block to the next; a change with none near it is a step, and the
+// readers begin anew for it once, a quarter second behind it.
+void testUndertowTempoRampsAndSteps()
+{
+    constexpr auto seconds = 11.0;
+    static constexpr auto rampFrom = 3.0;
+    static constexpr auto rampSeconds = 3.0;
+    constexpr auto settleSeconds = 0.25;
+    const auto nothing = [](const UndertowLayer&, double) {};
+
+    // Tempo and position of a host at a time: 120 BPM, then a way to 180 BPM
+    // over three seconds, then 180 BPM. The position is the integral of the
+    // tempo, as a host that counts every sample has it.
+    const auto smooth = [](double time)
+    {
+        const auto along = std::clamp(time - rampFrom, 0.0, rampSeconds);
+        const auto behind = std::max(time - rampFrom - rampSeconds, 0.0);
+        const auto tempo = 120.0 + 20.0 * along;
+        const auto quarters = 2.0 * std::min(time, rampFrom) + (120.0 * along + 10.0 * along * along) / 60.0
+                            + 3.0 * behind;
+        return undertowTransport(quarters, tempo, true);
+    };
+    // The same way in stairs of a tenth of a second, as a sequencer may draw it.
+    const auto stairs = [](double time)
+    {
+        constexpr auto stair = 0.1;
+        const auto along = std::clamp(time - rampFrom, 0.0, rampSeconds);
+        const auto behind = std::max(time - rampFrom - rampSeconds, 0.0);
+        const auto whole = std::min(std::floor(along / stair + 1.0e-9), rampSeconds / stair);
+        const auto tempo = 120.0 + 2.0 * whole;
+        const auto quarters = 2.0 * std::min(time, rampFrom)
+                            + stair / 60.0 * (120.0 * whole + whole * (whole - 1.0))
+                            + tempo / 60.0 * (along - whole * stair) + 3.0 * behind;
+        return undertowTransport(quarters, tempo, true);
+    };
+    // One step from 120 to 87 BPM.
+    const auto step = [](double time)
+    {
+        const auto behind = std::max(time - rampFrom, 0.0);
+        return undertowTransport(2.0 * std::min(time, rampFrom) + 1.45 * behind,
+                                 time < rampFrom ? 120.0 : 87.0, true);
+    };
+
+    for (const auto hostRate : { 44100, 48000 })
+    {
+        for (const auto blockFrames : { 64, 512, 2400, 8192 })
+        {
+            const auto label = "Undertow layer at " + std::to_string(hostRate) + " Hz in blocks of "
+                             + std::to_string(blockFrames) + ", ";
+            const auto calm = watchUndertowLayer(hostRate, blockFrames, seconds, rampFrom, [](double time, long long)
+            {
+                return undertowTransport(2.0 * time, 120.0, true);
+            }, nothing);
+            require(calm.finite && calm.restarts == 0 && calm.windowEnergy > 0.0,
+                    label + "a running transport began its readers anew");
+
+            const auto requireFollowed = [&](const UndertowWatched& run, const std::string& name)
+            {
+                const auto level = 10.0 * std::log10(run.windowEnergy / calm.windowEnergy);
+                std::cout << "[METRIC] " << label << name << ": reader restarts=" << run.restarts
+                          << ", level against a steady tempo=" << level << " dB, click measure=" << run.click
+                          << " (steady " << calm.click << ")\n";
+                require(run.finite && run.peak < 2.0, label + name + " left the layer's range");
+                // Three readers: one new start each is what a single event
+                // costs. A ramp may cost a reader one where a boundary falls
+                // into the change of a block; a storm is one at every block.
+                require(run.restarts <= 3,
+                        label + name + " began the readers anew " + std::to_string(run.restarts) + " times");
+                require(level > -3.0 && level < 3.0,
+                        label + name + " changed the layer's level by " + std::to_string(level) + " dB");
+                require(run.click <= 1.5 * calm.click, label + name + " clicks");
+                require(run.followsHost, label + name + " lost the host's position");
+            };
+            requireFollowed(watchUndertowLayer(hostRate, blockFrames, seconds, rampFrom,
+                                               [&](double time, long long) { return smooth(time); }, nothing),
+                            "tempo ramp");
+            requireFollowed(watchUndertowLayer(hostRate, blockFrames, seconds, rampFrom,
+                                               [&](double time, long long) { return stairs(time); }, nothing),
+                            "tempo ramp in stairs");
+
+            // A step: every reader begins anew once, when the settle time
+            // behind the host's word of it has passed.
+            auto firstRestart = -1.0;
+            auto restartsThen = std::int64_t { 0 };
+            const auto stepped = watchUndertowLayer(hostRate, blockFrames, seconds, rampFrom,
+                                                    [&](double time, long long) { return step(time); },
+                                                    [&](const UndertowLayer& layer, double time)
+            {
+                if (firstRestart < 0.0 && layer.restartCount() > 0)
+                {
+                    firstRestart = time;
+                    restartsThen = layer.restartCount();
+                }
+            });
+            const auto blockSeconds = static_cast<double>(blockFrames) / hostRate;
+            std::cout << "[METRIC] " << label << "tempo step at " << rampFrom << " s: reader restarts="
+                      << stepped.restarts << ", the first seen at " << firstRestart << " s, click measure="
+                      << stepped.click << '\n';
+            require(stepped.restarts == 3 && restartsThen == 3,
+                    label + "a tempo step began the readers anew " + std::to_string(stepped.restarts)
+                        + " times, not each of the three once");
+            require(firstRestart >= rampFrom + settleSeconds
+                        && firstRestart <= rampFrom + settleSeconds + 4.0 * blockSeconds + 0.01,
+                    label + "a tempo step began the readers anew at " + std::to_string(firstRestart) + " s");
+            require(stepped.finite && stepped.click <= 1.5 * calm.click && stepped.followsHost,
+                    label + "a tempo step clicks or loses the host");
+        }
+    }
+}
+
+// Ocean's own rule for a position that tells nothing. A host that says its
+// transport runs while its position stands still, is another one at every
+// block, or runs at a tempo it does not report, would have every block count
+// as a jump. After three jumps in a row the layer keeps time itself, as under
+// a stopped transport, and it follows the position again once that has run
+// for a second.
+void testUndertowPositionThatTellsNothing()
+{
+    constexpr auto seconds = 12.0;
+    constexpr auto windowFrom = 9.0;
+    const auto nothing = [](const UndertowLayer&, double) {};
+
+    for (const auto hostRate : { 44100, 48000 })
+    {
+        for (const auto blockFrames : { 64, 512, 2400, 8192 })
+        {
+            const auto label = "Undertow layer at " + std::to_string(hostRate) + " Hz in blocks of "
+                             + std::to_string(blockFrames) + ", ";
+            // What the layer does under a stopped transport, with a tempo and without.
+            const auto stopped = watchUndertowLayer(hostRate, blockFrames, seconds, windowFrom, [](double, long long)
+            {
+                return undertowTransport(0.0, 120.0, false);
+            }, nothing);
+            const auto calm = watchUndertowLayer(hostRate, blockFrames, seconds, windowFrom, [](double time, long long)
+            {
+                return undertowTransport(2.0 * time, 120.0, true);
+            }, nothing);
+            require(stopped.finite && stopped.restarts == 0 && !stopped.followsHost && stopped.windowEnergy > 0.0,
+                    label + "the stopped transport is not the measure it should be");
+
+            constexpr std::array<const char*, 3> names {
+                "a position that stands while the transport runs", "another position at every block",
+                "a position at 90 BPM without a tempo"
+            };
+            for (std::size_t scenario = 0; scenario < names.size(); ++scenario)
+            {
+                const auto run = watchUndertowLayer(hostRate, blockFrames, seconds, windowFrom,
+                                                    [&](double time, long long block)
+                {
+                    if (scenario == 0)
+                        return undertowTransport(7.25, 120.0, true);
+                    if (scenario == 1)
+                        return undertowTransport(
+                            32.0 + 31.0 * static_cast<double>(fathomNoise(static_cast<int>(block), 50)), 120.0, true);
+                    return undertowTransport(1.5 * time, 90.0, true, false);
+                }, nothing);
+
+                // Against the stopped transport: the same level, and in the
+                // end the same signal, because it is the same clock.
+                const auto level = 10.0 * std::log10(run.windowEnergy / stopped.windowEnergy);
+                auto distance = 0.0;
+                auto reference = 0.0;
+                require(run.window.size() == stopped.window.size(), label + "window lengths differ");
+                for (std::size_t index = 0; index < run.window.size(); ++index)
+                {
+                    distance = std::max(distance, static_cast<double>(std::abs(run.window[index] - stopped.window[index])));
+                    reference = std::max(reference, static_cast<double>(std::abs(stopped.window[index])));
+                }
+                std::cout << "[METRIC] " << label << names[scenario] << ": reader restarts=" << run.restarts
+                          << ", level against the stopped transport=" << level << " dB, largest distance from it="
+                          << distance / reference << " of its peak, click measure=" << run.click
+                          << " (running transport " << calm.click << ")\n";
+                require(run.finite && run.peak < 2.0, label + names[scenario] + ": left the layer's range");
+                require(!run.followsHost, label + names[scenario] + ": the layer still follows the host");
+                // Three jumps of three readers, and the start on the layer's own clock.
+                require(run.restarts <= 12,
+                        label + names[scenario] + ": the readers began anew " + std::to_string(run.restarts) + " times");
+                require(level > -0.5 && level < 0.5,
+                        label + names[scenario] + ": level " + std::to_string(level) + " dB off the stopped transport's");
+                require(distance <= 1.0e-3 * reference,
+                        label + names[scenario] + ": not the stopped transport's signal in the end");
+                require(run.click <= 1.5 * calm.click, label + names[scenario] + ": clicks");
+            }
+
+            // How far a position may run off the tempo does not depend on the
+            // block length either: 3 % fast or slow is a drift and is followed
+            // without a new start, 5 % is left.
+            for (const auto excess : { 0.03, -0.03, 0.05, -0.05 })
+            {
+                const auto run = watchUndertowLayer(hostRate, blockFrames, seconds, windowFrom,
+                                                    [&](double time, long long)
+                {
+                    return undertowTransport(2.0 * (1.0 + excess) * time, 120.0, true);
+                }, nothing);
+                const auto level = 10.0 * std::log10(run.windowEnergy / calm.windowEnergy);
+                std::cout << "[METRIC] " << label << "a position at " << 100.0 * (1.0 + excess) << " % of the tempo: "
+                          << (run.followsHost ? "followed" : "left") << ", reader restarts=" << run.restarts
+                          << ", level against a running transport=" << level << " dB, click measure=" << run.click << '\n';
+                require(run.finite && run.click <= 1.5 * calm.click,
+                        label + "a position that runs off the tempo clicks");
+                require(std::abs(excess) < 0.04 ? run.followsHost && run.restarts == 0
+                                                : !run.followsHost && run.restarts <= 12,
+                        label + "a position at " + std::to_string(100.0 * (1.0 + excess))
+                            + " % of the tempo is on the wrong side of the rule");
+                require(level > -3.0 && level < 3.0,
+                        label + "a position that runs off the tempo changed the layer's level by "
+                            + std::to_string(level) + " dB");
+            }
+
+            // A position that tells nothing for two seconds and then runs: the
+            // layer is back on it a second after it began to run, with one new
+            // start of its readers.
+            const auto blockSeconds = static_cast<double>(blockFrames) / hostRate;
+            auto followedAgain = -1.0;
+            auto lostAt = -1.0;
+            auto restartsWhileLost = std::int64_t { 0 };
+            const auto back = watchUndertowLayer(hostRate, blockFrames, seconds, windowFrom,
+                                                 [&](double time, long long block)
+            {
+                if (time < 2.0)
+                    return undertowTransport(
+                        32.0 + 31.0 * static_cast<double>(fathomNoise(static_cast<int>(block), 51)), 120.0, true);
+                return undertowTransport(5.0 + 2.0 * time, 120.0, true);
+            }, [&](const UndertowLayer& layer, double time)
+            {
+                if (lostAt < 0.0 && time > 0.0 && !layer.followsHost())
+                    lostAt = time;
+                if (lostAt >= 0.0 && followedAgain < 0.0 && layer.followsHost())
+                    followedAgain = time;
+                if (followedAgain < 0.0)
+                    restartsWhileLost = layer.restartCount();
+            });
+            std::cout << "[METRIC] " << label << "a position that runs again from 2 s: left at " << lostAt
+                      << " s, followed again at " << followedAgain << " s, reader restarts=" << back.restarts << '\n';
+            require(lostAt > 0.0 && lostAt <= 4.0 * blockSeconds + 0.02,
+                    label + "the layer did not leave a position that tells nothing");
+            require(followedAgain >= 3.0 && followedAgain <= 3.0 + 3.0 * blockSeconds + 0.01,
+                    label + "the layer followed the host again at " + std::to_string(followedAgain) + " s");
+            require(back.followsHost && back.restarts == restartsWhileLost + 3,
+                    label + "the return to the host's position is not one new start of the readers");
+            require(back.finite && back.click <= 1.5 * calm.click, label + "the return to the host's position clicks");
+
+            // A locate, and a locate straight into the end of a loop: jumps as
+            // before. Each begins the readers anew once and the layer stays
+            // on the host's position.
+            for (const auto jumps : { 1, 2 })
+            {
+                auto leftTheHost = false;
+                const auto located = watchUndertowLayer(hostRate, blockFrames, seconds, windowFrom,
+                                                        [&](double time, long long block)
+                {
+                    const auto jumpBlock = static_cast<long long>(3.0 / blockSeconds);
+                    const auto offset = block < jumpBlock ? 0.0 : block < jumpBlock + jumps - 1 ? 40.0 : 17.0;
+                    return undertowTransport(offset + 2.0 * time, 120.0, true);
+                }, [&](const UndertowLayer& layer, double time)
+                {
+                    leftTheHost = leftTheHost || (time > 0.0 && !layer.followsHost());
+                });
+                require(!leftTheHost && located.followsHost,
+                        label + std::to_string(jumps) + " jump(s) made the layer leave the host's position");
+                // The second of two jumps in a row finds the readers of the
+                // first still fading or just begun: each reader begins anew
+                // once or twice.
+                require(located.restarts >= 3 && located.restarts <= 3 * jumps,
+                        label + std::to_string(jumps) + " jump(s) began the readers anew "
+                            + std::to_string(located.restarts) + " times");
+                require(located.finite && located.click <= 1.5 * calm.click,
+                        label + std::to_string(jumps) + " jump(s) click");
+            }
+        }
+    }
+
+    // On the host's position again, the chunks are on the host's note values.
+    constexpr std::array<double, 3> noteQuarters { 1.3333333730697632, 2.0, 2.6666667461395264 };
+    UndertowLayerRig rig(44100);
+    std::array<std::int64_t, 3> counted {};
+    auto onGrid = 0;
+    for (long long frame = 0; frame < 44100 * 10; ++frame)
+    {
+        const auto time = static_cast<double>(frame) / 44100.0;
+        if (frame % 512 == 0)
+            rig.layer.setTransport(time < 2.0
+                ? undertowTransport(32.0 + 31.0 * static_cast<double>(fathomNoise(static_cast<int>(frame / 512), 52)),
+                                    120.0, true)
+                : undertowTransport(5.0 + 2.0 * time, 120.0, true));
+        rig.idleFrame();
+        for (std::size_t voice = 0; voice < 3; ++voice)
+        {
+            const auto given = rig.layer.lastChunk(static_cast<UndertowLayer::Voice>(voice));
+            if (given.count == counted[voice])
+                continue;
+            const auto first = counted[voice] == 0;
+            counted[voice] = given.count;
+            // The chunk a reader begins anew with mirrors about the block it
+            // begins at; the chunks behind it are on the grid.
+            if (time < 5.0 || first)
+                continue;
+            const auto quarters = 5.0 + undertowBoundary(given, voice == 1) * 2.0 / 44100.0;
+            require(rig.layer.followsHost()
+                        && std::abs(quarters - static_cast<double>(given.index) * noteQuarters[voice]) * 22050.0 < 1.0e-6,
+                    "Undertow chunk of voice " + std::to_string(voice)
+                        + " is off the host's grid after the layer followed the host again");
+            ++onGrid;
+        }
+    }
+    require(onGrid >= 9, "Undertow return test saw too few chunks on the host's grid");
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -7313,6 +12557,69 @@ int main(int argc, char** argv)
                     testCurrentMonoSafeVoicingSwitch },
         NamedTest { "Current sample rates, Freeze and stability",
                     testCurrentSampleRatesFreezeAndStability },
+        NamedTest { "Fathom routing at Ocean's neutral controls",
+                    testFathomRoutingAtNeutralControls },
+        NamedTest { "Fathom Low Cut, High Damping and reset through the plug-in",
+                    testFathomLoopControlsAndResetReachTheEngine },
+        NamedTest { "Fathom Width, Mix and clipper routes",
+                    testFathomWidthMixAndClipperRoutes },
+        NamedTest { "Fathom dry level against the other Characters at every Mix",
+                    testFathomDryLevelIsThatOfEveryCharacter },
+        NamedTest { "Fathom voice seed through the plug-in",
+                    testFathomVoiceSeedThroughThePlugIn },
+        NamedTest { "Fathom under Focus, Harmony, Mono Safe and Freeze",
+                    testFathomOceanOwnControls },
+        NamedTest { "Fathom sample rates and stability",
+                    testFathomSampleRatesAndStability },
+        NamedTest { "Fathom block invariance and mode switching",
+                    testFathomBlockInvarianceAndModeSwitching },
+        NamedTest { "Fathom engine golden vectors", testFathomEngineGoldenVectors },
+        NamedTest { "Fathom rate lattice and converters",
+                    testFathomRateLatticeAndConverters },
+        NamedTest { "Fathom engine determinism, clocks and parameters at rest",
+                    testFathomEngineDeterminismAndClocks },
+        NamedTest { "Fathom engine silence, hostile input and sample rates",
+                    testFathomEngineSilenceHostileInputAndRates },
+        NamedTest { "Fathom engine allocates only in prepare",
+                    testFathomEngineAllocatesOnlyInPrepare },
+        NamedTest { "Fathom outer laws", testFathomOuterLaws },
+        NamedTest { "Fathom Low Cut and High Damping in and out of the loop",
+                    testFathomOceanLoopControls },
+        NamedTest { "Fathom Freeze hold", testFathomFreezeHold },
+        NamedTest { "Fathom parameter glides", testFathomParameterGlides },
+        NamedTest { "Fathom Size in motion under a steady tone", testFathomSizeInMotion },
+        NamedTest { "Fathom engine at rest after its tail", testFathomEngineComesToRest },
+        NamedTest { "Fathom voice phase generator against the campaign's numbers",
+                    testFathomVoicePhaseGenerator },
+        NamedTest { "Fathom Tide layer determinism and voice seeds",
+                    testFathomTideDeterminismAndSeeds },
+        NamedTest { "Fathom Tide layer out of the circuit at Macro 0",
+                    testFathomTideOutOfCircuitAtMacroZero },
+        NamedTest { "Fathom Tide layer depth and plain share below full depth",
+                    testFathomTideDepthBelowFullDepth },
+        NamedTest { "Fathom Tide layer under hostile input and Macro automation",
+                    testFathomTideHostileInputAndAutomation },
+        NamedTest { "Fathom Tide layer smooth parameter motion",
+                    testFathomTideSmoothMotion },
+        NamedTest { "Undertow engine golden vectors", testUndertowEngineGoldenVectors },
+        NamedTest { "Undertow at Evolution 0", testUndertowIsFathomAtEvolutionZero },
+        NamedTest { "Undertow engine determinism, clocks, reset and Freeze",
+                    testUndertowEngineDeterminismAndClocks },
+        NamedTest { "Undertow independence of the host's block length",
+                    testUndertowHostBlockInvariance },
+        NamedTest { "Undertow transport start, stop, jump, loop and tempo",
+                    testUndertowTransportEvents },
+        NamedTest { "Undertow tempo ramps and steps in host blocks of any length",
+                    testUndertowTempoRampsAndSteps },
+        NamedTest { "Undertow position that tells nothing", testUndertowPositionThatTellsNothing },
+        NamedTest { "Undertow Macro steps", testUndertowMacroSteps },
+        NamedTest { "Undertow long run stays on the grid", testUndertowLongRunStaysOnTheGrid },
+        NamedTest { "Undertow silence, denormals and hostile input",
+                    testUndertowSilenceDenormalsAndHostileInput },
+        NamedTest { "Undertow engine allocation-free processing",
+                    testUndertowEngineAllocatesOnlyInPrepare },
+        NamedTest { "Undertow routing, crossfades and return through the plug-in",
+                    testUndertowThroughThePlugIn },
         NamedTest { "Drift low/high Evolution kick+bass 190 BPM",
                     testDriftEvolutionKickBass190 },
         NamedTest { "Veil kick+bass 190 BPM", testVeilKickBass190 },
@@ -7367,6 +12674,10 @@ int main(int argc, char** argv)
         && std::strcmp(argv[1], "--test-character-normalisation") == 0;
     const auto wantsCurrentTestsOnly = argc == 2
         && std::strcmp(argv[1], "--test-current") == 0;
+    const auto wantsFathomTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-fathom") == 0;
+    const auto wantsUndertowTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-undertow") == 0;
     auto failures = 0;
     for (const auto& test : tests)
     {
@@ -7402,6 +12713,14 @@ int main(int argc, char** argv)
             && std::strstr(test.name, "Current") == nullptr
             && std::strcmp(test.name, "no allocations in process") != 0)
             continue;
+        if (wantsFathomTestsOnly
+            && std::strstr(test.name, "Fathom") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
+        if (wantsUndertowTestsOnly
+            && std::strstr(test.name, "Undertow") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
         try
         {
             test.function();
@@ -7419,13 +12738,15 @@ int main(int argc, char** argv)
     const auto wantsDriftRender = argc == 3 && std::strcmp(argv[1], "--render-drift") == 0;
     const auto wantsVeilRender = argc == 3 && std::strcmp(argv[1], "--render-veil") == 0;
     const auto wantsCurrentRender = argc == 3 && std::strcmp(argv[1], "--render-current") == 0;
+    const auto wantsFathomRender = argc == 3 && std::strcmp(argv[1], "--render-fathom") == 0;
     if (failures == 0
         && (wantsDefaultRender || wantsBloomRender || wantsDriftRender
-            || wantsVeilRender || wantsCurrentRender))
+            || wantsVeilRender || wantsCurrentRender || wantsFathomRender))
     {
         try
         {
-            const auto mode = wantsCurrentRender ? ReverbMode::current
+            const auto mode = wantsFathomRender ? ReverbMode::fathom
+                            : wantsCurrentRender ? ReverbMode::current
                             : wantsVeilRender ? ReverbMode::veil
                             : wantsBloomRender ? ReverbMode::bloom
                             : wantsDriftRender ? ReverbMode::drift

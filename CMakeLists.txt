@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(AmanitaOcean VERSION 0.21.0 LANGUAGES C CXX)
+project(AmanitaOcean VERSION 0.22.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -43,6 +43,14 @@ add_library(AmanitaOceanDSP STATIC
     Source/dsp/CurrentField.h
     Source/dsp/DriftCharacter.cpp
     Source/dsp/DriftCharacter.h
+    Source/dsp/FathomConverter.cpp
+    Source/dsp/FathomConverter.h
+    Source/dsp/FathomEngine.cpp
+    Source/dsp/FathomEngine.h
+    Source/dsp/FathomEngineConstants.h
+    Source/dsp/FathomExactArithmetic.h
+    Source/dsp/FathomNetwork.cpp
+    Source/dsp/FathomNetwork.h
     Source/dsp/FDNReverb.cpp
     Source/dsp/FDNReverb.h
     Source/dsp/HarmonicAnalyzer.cpp
@@ -55,6 +63,9 @@ add_library(AmanitaOceanDSP STATIC
     Source/dsp/SpatialDucker.h
     Source/dsp/StereoField.cpp
     Source/dsp/StereoField.h
+    Source/dsp/UndertowConstants.h
+    Source/dsp/UndertowLayer.cpp
+    Source/dsp/UndertowLayer.h
     Source/dsp/VeilCharacter.cpp
     Source/dsp/VeilCharacter.h
 )
@@ -66,10 +77,36 @@ target_include_directories(AmanitaOceanDSP
 
 set_target_properties(AmanitaOceanDSP PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# The Fathom engine is defined by its roundings
+# (Source/dsp/FathomExactArithmetic.h). Flags that turn contraction on for
+# every file override the pragma of that header, so its sources say it once
+# more behind them on the command line. The Undertow layer is part of that
+# engine: its clock decides on the rounding of single products.
+if(NOT MSVC)
+    set_source_files_properties(
+        Source/dsp/FathomConverter.cpp
+        Source/dsp/FathomEngine.cpp
+        Source/dsp/FathomNetwork.cpp
+        Source/dsp/UndertowLayer.cpp
+        PROPERTIES COMPILE_OPTIONS -ffp-contract=off
+    )
+endif()
+
 target_link_libraries(AmanitaOceanDSP
     PRIVATE
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags
+)
+
+# Offline renderer of the Fathom engine for the scoring scripts of
+# Analyzer/Campaigns/RevOceanCharacterization; built on request only.
+add_executable(AmanitaOceanFathomRender EXCLUDE_FROM_ALL
+    Tools/FathomRender.cpp
+)
+
+target_link_libraries(AmanitaOceanFathomRender
+    PRIVATE
+        AmanitaOceanDSP
 )
 
 set(AMANITA_OCEAN_PLUGIN_FORMATS VST3)

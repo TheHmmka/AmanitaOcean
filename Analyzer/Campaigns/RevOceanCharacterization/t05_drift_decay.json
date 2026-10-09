@@ -1,0 +1,52 @@
+{
+ "2.0": {
+  "-0.06": {
+   "gainErrorPerSecond": -5.359130522362514e-06,
+   "null16to24sDb": -83.95
+  },
+  "-0.060003": {
+   "gainErrorPerSecond": -2.3599277983639885e-07,
+   "null16to24sDb": -84.83
+  }
+ },
+ "4.5": {
+  "-0.06": {
+   "gainErrorPerSecond": -5.5375823332185865e-06,
+   "null16to24sDb": -83.75
+  },
+  "-0.060003": {
+   "gainErrorPerSecond": -4.0308029673289764e-07,
+   "null16to24sDb": -84.85
+  }
+ },
+ "9.0": {
+  "-0.06": {
+   "gainErrorPerSecond": -5.420381022358534e-06,
+   "null16to24sDb": -83.66
+  },
+  "-0.060003": {
+   "gainErrorPerSecond": -2.6152884593140985e-07,
+   "null16to24sDb": -84.87
+  }
+ },
+ "25.0": {
+  "-0.06": {
+   "gainErrorPerSecond": -5.387014037803543e-06,
+   "null16to24sDb": -83.31
+  },
+  "-0.060003": {
+   "gainErrorPerSecond": -1.808426428791717e-07,
+   "null16to24sDb": -85.0
+  }
+ },
+ "45.0": {
+  "-0.06": {
+   "gainErrorPerSecond": -5.43540185605577e-06,
+   "null16to24sDb": -83.03
+  },
+  "-0.060003": {
+   "gainErrorPerSecond": -2.0344852469378338e-07,
+   "null16to24sDb": -85.05
+  }
+ }
+}

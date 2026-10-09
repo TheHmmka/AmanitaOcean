@@ -8,8 +8,32 @@ namespace amanita::ui
 namespace
 {
 constexpr auto heroProperty = "hero";
-constexpr auto characterSegmentProperty = "characterSegment";
 constexpr auto suppressFocusOutlineProperty = "suppressFocusOutline";
+
+// Design sizes of a drop-down and of its list, for a field 40 px high.
+namespace choice
+{
+constexpr float fieldHeight = 40.0f;
+constexpr float fieldCornerRadius = 10.0f;
+constexpr float fieldTextInset = 32.0f;
+constexpr float fieldFontHeight = 12.5f;
+constexpr float fieldTracking = 0.025f;
+constexpr float chevronInset = 16.0f;
+constexpr float chevronHalfWidth = 3.5f;
+constexpr float chevronRise = 1.7f;
+constexpr float chevronDrop = 1.9f;
+constexpr float chevronStroke = 1.35f;
+constexpr float listGap = 4.0f;
+constexpr float listPadding = 6.0f;
+constexpr float listCornerRadius = 10.0f;
+constexpr float itemHeight = 32.0f;
+constexpr float itemInset = 6.0f;
+constexpr float itemCornerRadius = 7.0f;
+constexpr float itemTextInset = 36.0f;
+constexpr float itemMarkCentre = 20.0f;
+constexpr float itemMarkSize = 6.0f;
+constexpr float separatorHeight = 9.0f;
+} // namespace choice
 
 [[nodiscard]] bool propertyIsEnabled(const juce::Component& component, const char* property)
 {
@@ -57,22 +81,61 @@ void drawOpticallyCentredText(juce::Graphics& graphics,
     glyphs.draw(graphics);
 }
 
-[[nodiscard]] juce::Path makeButtonPath(const juce::Button& button,
-                                         juce::Rectangle<float> bounds,
-                                         float cornerRadius)
+// A drop-down scales with its own height, which the editor sets from its canvas.
+[[nodiscard]] float choiceScale(const juce::ComboBox& box)
 {
-    juce::Path path;
-    path.addRoundedRectangle(bounds.getX(),
-                             bounds.getY(),
-                             bounds.getWidth(),
-                             bounds.getHeight(),
-                             cornerRadius,
-                             cornerRadius,
-                             !button.isConnectedOnLeft(),
-                             !button.isConnectedOnRight(),
-                             !button.isConnectedOnLeft(),
-                             !button.isConnectedOnRight());
-    return path;
+    return juce::jlimit(0.65f, 1.75f,
+                        static_cast<float>(box.getHeight()) / choice::fieldHeight);
+}
+
+// A list opened from a drop-down takes that drop-down's scale.
+[[nodiscard]] float choiceScale(const juce::PopupMenu::Options& options)
+{
+    if (const auto* box = dynamic_cast<const juce::ComboBox*>(options.getTargetComponent()))
+        return choiceScale(*box);
+
+    return 1.0f;
+}
+
+// The text of a drop-down and of the items in its list.
+[[nodiscard]] juce::Font choiceFont(float scale)
+{
+    return systemFont(choice::fieldFontHeight * scale, true, choice::fieldTracking);
+}
+
+// Relative luminance of an opaque sRGB colour, as WCAG 2 defines it.
+[[nodiscard]] float relativeLuminance(juce::Colour colour) noexcept
+{
+    const auto linear = [](float channel)
+    {
+        return channel <= 0.04045f ? channel / 12.92f
+                                   : std::pow((channel + 0.055f) / 1.055f, 2.4f);
+    };
+    return 0.2126f * linear(colour.getFloatRed())
+         + 0.7152f * linear(colour.getFloatGreen())
+         + 0.0722f * linear(colour.getFloatBlue());
+}
+
+// Contrast ratio of two opaque colours, 1 to 21, as WCAG 2 defines it.
+[[nodiscard]] float contrastRatio(juce::Colour first, juce::Colour second) noexcept
+{
+    const auto firstLuminance = relativeLuminance(first);
+    const auto secondLuminance = relativeLuminance(second);
+    return (std::max(firstLuminance, secondLuminance) + 0.05f)
+         / (std::min(firstLuminance, secondLuminance) + 0.05f);
+}
+
+// The fill of the highlighted item of a list.
+[[nodiscard]] juce::Colour listHighlight(juce::Colour accent) noexcept
+{
+    return accent.withAlpha(0.88f);
+}
+
+// The text on that fill as it is painted, over the list's surface.
+[[nodiscard]] juce::Colour listHighlightText(juce::Colour accent) noexcept
+{
+    return OceanLookAndFeel::textOn(
+        OceanLookAndFeel::surface().overlaidWith(listHighlight(accent)));
 }
 
 void addCentredArc(juce::Path& path,
@@ -106,10 +169,15 @@ OceanLookAndFeel::OceanLookAndFeel()
     setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
     setColour(juce::Label::textColourId, primaryText());
 
-    setColour(juce::TextButton::buttonColourId, surface());
-    setColour(juce::TextButton::buttonOnColourId, accentColour_.withAlpha(0.18f));
-    setColour(juce::TextButton::textColourOffId, secondaryText());
-    setColour(juce::TextButton::textColourOnId, primaryText());
+    setColour(juce::ComboBox::textColourId, primaryText());
+
+    // A list background short of opaque makes JUCE open a non-opaque window,
+    // which the rounded corners of the list need.
+    setColour(juce::PopupMenu::backgroundColourId,
+              surface().withAlpha(static_cast<juce::uint8>(254)));
+    setColour(juce::PopupMenu::textColourId, primaryText());
+    setColour(juce::PopupMenu::highlightedBackgroundColourId, listHighlight(accentColour_));
+    setColour(juce::PopupMenu::highlightedTextColourId, listHighlightText(accentColour_));
 
     setColour(juce::ToggleButton::textColourId, primaryText());
     setColour(juce::ToggleButton::tickColourId, accentColour_);
@@ -127,7 +195,8 @@ void OceanLookAndFeel::setAccentColour(juce::Colour colour) noexcept
     accentColour_ = colour;
     setColour(juce::Slider::rotarySliderFillColourId, accentColour_);
     setColour(juce::Slider::thumbColourId, accentColour_);
-    setColour(juce::TextButton::buttonOnColourId, accentColour_.withAlpha(0.18f));
+    setColour(juce::PopupMenu::highlightedBackgroundColourId, listHighlight(accentColour_));
+    setColour(juce::PopupMenu::highlightedTextColourId, listHighlightText(accentColour_));
     setColour(juce::ToggleButton::tickColourId, accentColour_);
 }
 
@@ -166,9 +235,21 @@ juce::Colour OceanLookAndFeel::secondaryText() noexcept
     return juce::Colour::fromRGB(133, 153, 156);
 }
 
+juce::Colour OceanLookAndFeel::labelText() noexcept
+{
+    return juce::Colour::fromRGB(154, 168, 167);
+}
+
 juce::Colour OceanLookAndFeel::focusColour() noexcept
 {
     return juce::Colour::fromRGB(112, 214, 194);
+}
+
+juce::Colour OceanLookAndFeel::textOn(juce::Colour fill) noexcept
+{
+    const auto dark = backgroundBottom();
+    const auto light = juce::Colours::white;
+    return contrastRatio(fill, dark) >= contrastRatio(fill, light) ? dark : light;
 }
 
 void OceanLookAndFeel::drawRotarySlider(juce::Graphics& graphics,
@@ -194,7 +275,7 @@ void OceanLookAndFeel::drawRotarySlider(juce::Graphics& graphics,
                                              static_cast<float>(width),
                                              static_cast<float>(height));
     const auto referenceDiameter = isHero ? 224.0f : 80.0f;
-    const auto controlScale = juce::jlimit(0.75f, 1.50f,
+    const auto controlScale = juce::jlimit(0.65f, 1.50f,
                                            std::min(available.getWidth(), available.getHeight())
                                                / referenceDiameter);
     available = available.reduced((isHero ? 8.0f : 6.0f) * controlScale);
@@ -279,86 +360,6 @@ void OceanLookAndFeel::drawRotarySlider(juce::Graphics& graphics,
 
 }
 
-void OceanLookAndFeel::drawButtonBackground(juce::Graphics& graphics,
-                                            juce::Button& button,
-                                            const juce::Colour& backgroundColour,
-                                            bool shouldDrawButtonAsHighlighted,
-                                            bool shouldDrawButtonAsDown)
-{
-    juce::Graphics::ScopedSaveState saveState(graphics);
-    const auto isSegment = propertyIsEnabled(button, characterSegmentProperty);
-    const auto isSelected = button.getToggleState();
-    const auto enabledAlpha = button.isEnabled() ? 1.0f : 0.42f;
-    auto bounds = button.getLocalBounds().toFloat().reduced(0.6f);
-
-    if (shouldDrawButtonAsDown)
-        bounds = bounds.reduced(0.6f);
-
-    const auto cornerRadius = isSegment ? 8.0f : std::min(10.0f, bounds.getHeight() * 0.25f);
-    const auto path = makeButtonPath(button, bounds, cornerRadius);
-
-    auto fill = isSegment ? surface().withAlpha(0.58f) : backgroundColour;
-    if (isSelected)
-        fill = accentColour_.withAlpha(shouldDrawButtonAsDown ? 0.24f : 0.17f);
-    else if (shouldDrawButtonAsHighlighted)
-        fill = surface().brighter(0.10f);
-
-    graphics.setColour(fill.withMultipliedAlpha(enabledAlpha));
-    graphics.fillPath(path);
-
-    auto edge = isSelected ? accentColour_.withAlpha(0.56f)
-                           : hairline().withAlpha(shouldDrawButtonAsHighlighted ? 0.95f : 0.68f);
-    graphics.setColour(edge.withMultipliedAlpha(enabledAlpha));
-    graphics.strokePath(path, juce::PathStrokeType(isSelected ? 1.2f : 0.8f));
-
-    if (isSegment && isSelected)
-    {
-        const auto underlineWidth = std::min(26.0f, bounds.getWidth() * 0.28f);
-        const auto underlineY = bounds.getBottom() - 3.0f;
-        graphics.setColour(accentColour_.withAlpha(0.90f * enabledAlpha));
-        graphics.drawLine(bounds.getCentreX() - underlineWidth * 0.5f,
-                          underlineY,
-                          bounds.getCentreX() + underlineWidth * 0.5f,
-                          underlineY,
-                          1.4f);
-    }
-
-    if (button.hasKeyboardFocus(true))
-    {
-        graphics.setColour(accentColour_.withAlpha(0.50f * enabledAlpha));
-        graphics.strokePath(makeButtonPath(button, bounds.reduced(2.2f),
-                                           std::max(1.0f, cornerRadius - 2.0f)),
-                            juce::PathStrokeType(0.8f));
-    }
-}
-
-void OceanLookAndFeel::drawButtonText(juce::Graphics& graphics,
-                                      juce::TextButton& button,
-                                      bool,
-                                      bool shouldDrawButtonAsDown)
-{
-    const auto isSelected = button.getToggleState();
-    const auto isSegment = propertyIsEnabled(button, characterSegmentProperty);
-    const auto alpha = button.isEnabled() ? 1.0f : 0.42f;
-    auto colour = isSelected ? primaryText() : secondaryText();
-
-    if (isSelected && isSegment)
-        colour = accentColour_.interpolatedWith(primaryText(), 0.42f);
-
-    graphics.setColour(colour.withMultipliedAlpha(alpha));
-    graphics.setFont(getTextButtonFont(button, button.getHeight()));
-
-    auto textBounds = button.getLocalBounds().reduced(7, 2);
-    if (shouldDrawButtonAsDown)
-        textBounds.translate(0, 1);
-
-    graphics.drawFittedText(button.getButtonText(),
-                            textBounds,
-                            juce::Justification::centred,
-                            1,
-                            0.82f);
-}
-
 void OceanLookAndFeel::drawToggleButton(juce::Graphics& graphics,
                                         juce::ToggleButton& button,
                                         bool,
@@ -399,6 +400,175 @@ void OceanLookAndFeel::drawToggleButton(juce::Graphics& graphics,
         bounds.withTrimmedLeft(32.0f * controlScale)
               .withTrimmedRight(10.0f * controlScale),
         false);
+}
+
+void OceanLookAndFeel::drawComboBox(juce::Graphics& graphics,
+                                    int width,
+                                    int height,
+                                    bool isButtonDown,
+                                    int,
+                                    int,
+                                    int,
+                                    int,
+                                    juce::ComboBox& box)
+{
+    juce::Graphics::ScopedSaveState saveState(graphics);
+    const auto scale = choiceScale(box);
+    const auto bounds = juce::Rectangle<float>(static_cast<float>(width),
+                                               static_cast<float>(height))
+                            .reduced(0.5f);
+    const auto cornerRadius = choice::fieldCornerRadius * scale;
+    const auto enabledAlpha = box.isEnabled() ? 1.0f : 0.42f;
+    const auto isEngaged = box.hasKeyboardFocus(true) || box.isPopupActive();
+
+    graphics.setColour((isButtonDown ? surface().brighter(0.10f) : surface())
+                           .withAlpha(0.78f * enabledAlpha));
+    graphics.fillRoundedRectangle(bounds, cornerRadius);
+    graphics.setColour((isEngaged ? accentColour_ : hairline())
+                           .withAlpha(0.86f * enabledAlpha));
+    graphics.drawRoundedRectangle(bounds, cornerRadius, 1.0f);
+
+    const auto chevronX = bounds.getRight() - choice::chevronInset * scale;
+    const auto chevronY = bounds.getCentreY();
+    juce::Path chevron;
+    chevron.startNewSubPath(chevronX - choice::chevronHalfWidth * scale,
+                            chevronY - choice::chevronRise * scale);
+    chevron.lineTo(chevronX, chevronY + choice::chevronDrop * scale);
+    chevron.lineTo(chevronX + choice::chevronHalfWidth * scale,
+                   chevronY - choice::chevronRise * scale);
+    graphics.setColour(secondaryText().withAlpha(0.88f * enabledAlpha));
+    graphics.strokePath(chevron,
+                        juce::PathStrokeType(choice::chevronStroke * scale,
+                                             juce::PathStrokeType::curved,
+                                             juce::PathStrokeType::rounded));
+}
+
+void OceanLookAndFeel::positionComboBoxText(juce::ComboBox& box, juce::Label& label)
+{
+    const auto inset = juce::roundToInt(choice::fieldTextInset * choiceScale(box));
+    label.setBounds(inset, 0, box.getWidth() - inset * 2, box.getHeight());
+    label.setFont(getComboBoxFont(box));
+    label.setJustificationType(juce::Justification::centred);
+}
+
+juce::Font OceanLookAndFeel::getComboBoxFont(juce::ComboBox& box)
+{
+    return choiceFont(choiceScale(box));
+}
+
+juce::PopupMenu::Options OceanLookAndFeel::getOptionsForComboBoxPopupMenu(juce::ComboBox& box,
+                                                                          juce::Label&)
+{
+    // The list opens under its field, as wide as the field and a gap away
+    // from it. It names no item to bring into view, which would lay the
+    // selected item over the field instead.
+    const auto scale = choiceScale(box);
+    return juce::PopupMenu::Options()
+        .withTargetComponent(&box)
+        .withTargetScreenArea(box.getScreenBounds().expanded(
+            0, juce::roundToInt(choice::listGap * scale)))
+        .withInitiallySelectedItem(box.getSelectedId())
+        .withMinimumWidth(box.getWidth())
+        .withMaximumNumColumns(1)
+        .withStandardItemHeight(juce::roundToInt(choice::itemHeight * scale));
+}
+
+void OceanLookAndFeel::drawPopupMenuBackgroundWithOptions(juce::Graphics& graphics,
+                                                          int width,
+                                                          int height,
+                                                          const juce::PopupMenu::Options& options)
+{
+    const auto bounds = juce::Rectangle<float>(static_cast<float>(width),
+                                               static_cast<float>(height))
+                            .reduced(0.5f);
+    const auto cornerRadius = choice::listCornerRadius * choiceScale(options);
+    const auto background = findColour(juce::PopupMenu::backgroundColourId);
+
+    // An opaque window has no open corners to show what lies behind it.
+    if (! juce::Desktop::canUseSemiTransparentWindows())
+        graphics.fillAll(background.withAlpha(1.0f));
+
+    graphics.setColour(background);
+    graphics.fillRoundedRectangle(bounds, cornerRadius);
+    graphics.setColour(hairline().brighter(0.07f));
+    graphics.drawRoundedRectangle(bounds, cornerRadius, 1.0f);
+}
+
+void OceanLookAndFeel::drawPopupMenuItemWithOptions(juce::Graphics& graphics,
+                                                    const juce::Rectangle<int>& area,
+                                                    bool isHighlighted,
+                                                    const juce::PopupMenu::Item& item,
+                                                    const juce::PopupMenu::Options& options)
+{
+    const auto scale = choiceScale(options);
+    const auto bounds = area.toFloat();
+
+    if (item.isSeparator)
+    {
+        graphics.setColour(hairline().withAlpha(0.86f));
+        graphics.fillRect(bounds.withSizeKeepingCentre(
+            bounds.getWidth() - 2.0f * choice::itemInset * scale, 1.0f));
+        return;
+    }
+
+    const auto showsHighlight = isHighlighted && item.isEnabled;
+    if (showsHighlight)
+    {
+        graphics.setColour(findColour(juce::PopupMenu::highlightedBackgroundColourId));
+        graphics.fillRoundedRectangle(bounds.reduced(choice::itemInset * scale, scale),
+                                      choice::itemCornerRadius * scale);
+    }
+
+    const auto textColour = findColour(showsHighlight ? juce::PopupMenu::highlightedTextColourId
+                                                      : juce::PopupMenu::textColourId)
+                                .withMultipliedAlpha(item.isEnabled ? 1.0f : 0.42f);
+
+    if (item.isTicked)
+    {
+        const auto markSize = choice::itemMarkSize * scale;
+        graphics.setColour(showsHighlight ? textColour : accentColour_);
+        graphics.fillEllipse(juce::Rectangle<float>(markSize, markSize)
+                                 .withCentre({ bounds.getX() + choice::itemMarkCentre * scale,
+                                               bounds.getCentreY() }));
+    }
+
+    graphics.setColour(textColour);
+    graphics.setFont(choiceFont(scale));
+    graphics.drawText(item.text,
+                      bounds.withTrimmedLeft(choice::itemTextInset * scale)
+                            .withTrimmedRight(choice::itemTextInset * scale),
+                      juce::Justification::centredLeft,
+                      true);
+}
+
+void OceanLookAndFeel::getIdealPopupMenuItemSizeWithOptions(
+    const juce::String& text,
+    bool isSeparator,
+    int standardMenuItemHeight,
+    int& idealWidth,
+    int& idealHeight,
+    const juce::PopupMenu::Options& options)
+{
+    const auto scale = choiceScale(options);
+    const auto insets = 2.0f * choice::itemTextInset * scale;
+
+    if (isSeparator)
+    {
+        idealWidth = juce::roundToInt(insets);
+        idealHeight = juce::roundToInt(choice::separatorHeight * scale);
+        return;
+    }
+
+    idealWidth = juce::roundToInt(std::ceil(
+        juce::GlyphArrangement::getStringWidth(choiceFont(scale), text) + insets));
+    idealHeight = standardMenuItemHeight > 0
+        ? standardMenuItemHeight
+        : juce::roundToInt(choice::itemHeight * scale);
+}
+
+int OceanLookAndFeel::getPopupMenuBorderSizeWithOptions(const juce::PopupMenu::Options& options)
+{
+    return juce::roundToInt(choice::listPadding * choiceScale(options));
 }
 
 void OceanLookAndFeel::drawLabel(juce::Graphics& graphics, juce::Label& label)
@@ -444,14 +614,6 @@ void OceanLookAndFeel::drawLabel(juce::Graphics& graphics, juce::Label& label)
                                       4.0f,
                                       1.0f);
     }
-}
-
-juce::Font OceanLookAndFeel::getTextButtonFont(juce::TextButton& button, int buttonHeight)
-{
-    const auto isSegment = propertyIsEnabled(button, characterSegmentProperty);
-    const auto height = std::min(isSegment ? 13.0f : 14.0f,
-                                 static_cast<float>(buttonHeight) * 0.40f);
-    return systemFont(std::max(9.0f, height), true, isSegment ? 0.045f : 0.02f);
 }
 
 juce::Font OceanLookAndFeel::getLabelFont(juce::Label& label)

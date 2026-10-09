@@ -8,22 +8,46 @@
 
 namespace
 {
-// Match the calm 4 px vertical rhythm used by Amanita Analog Filter while
-// retaining Ocean's own hierarchy: selector first, character caption below.
+// The calm 4 px vertical rhythm of Amanita Analog Filter with Ocean's own
+// hierarchy: the Character drop-down on the window's vertical axis as the
+// heading of the group under it, the description block and the Evolution knob
+// mirrored about that axis.
 namespace layout
 {
+constexpr float axisX = 480.0f;
 constexpr float titleY = 18.0f;
 constexpr float subtitleY = 44.0f;
 constexpr float headerRuleY = 80.0f;
-constexpr float characterSelectorY = 104.0f;
+constexpr float characterSelectorY = 112.0f;
+constexpr float characterSelectorWidth = 340.0f;
 constexpr float characterSelectorHeight = 40.0f;
-constexpr float characterCaptionY = 152.0f;
-constexpr float evolutionY = 184.0f;
-constexpr float evolutionHeight = 268.0f;
+// The Evolution knob is placed by the centre of its dial. The outer edge of
+// its ring lies 103.6 / 224 of the dial's size from that centre, as
+// OceanLookAndFeel draws it.
+constexpr float evolutionCentreX = 614.0f;
+constexpr float evolutionCentreY = 296.0f;
+constexpr float evolutionWidth = amanita::ui::ParameterKnob::heroWidth;
+constexpr float evolutionHeight = amanita::ui::ParameterKnob::heroHeight;
+constexpr float evolutionDialSize = amanita::ui::ParameterKnob::heroDialSize;
+constexpr float evolutionRingShare = 103.6f / 224.0f;
+constexpr float evolutionX = evolutionCentreX - 0.5f * evolutionWidth;
+constexpr float evolutionY = evolutionCentreY - 0.5f * evolutionDialSize;
+// The description block ends as far left of the axis as the ring begins right
+// of it and stands round the middle of the whole Evolution control. resized()
+// takes both from the knob as it is laid out.
+constexpr float descriptionWidth = amanita::ui::CharacterDescription::designWidth;
+constexpr float descriptionHeight = amanita::ui::CharacterDescription::designHeight;
+constexpr float contourFieldY = 126.0f;
+constexpr float contourFieldHeight = 346.0f;
 constexpr float footerRuleY = 484.0f;
 constexpr float lowerRowY = 500.0f;
 constexpr float lowerDividerY = 508.0f;
 } // namespace layout
+
+static_assert(amanita::ui::CharacterSelector::characterCount
+              == amanita::ui::DeepCurrentRenderer::characterCount);
+static_assert(amanita::ui::CharacterSelector::characterCount
+              == amanita::ui::OceanShaderBackground::characterCount);
 
 [[nodiscard]] juce::Font uiFont(float height,
                                 int style = juce::Font::plain,
@@ -95,9 +119,9 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
       focusKnob_(processorToUse.getParameterState(), "focus", "Focus",
                  decimalPercentValue),
       mixKnob_(processorToUse.getParameterState(), "mix", "Mix", decimalPercentValue),
-      currentAccent_(amanita::ui::characterAccent(characterSelector_.getSelectedIndex())),
+      currentAccent_(amanita::ui::characterAccent(characterSelector_.getSelectedItemIndex())),
       targetAccent_(currentAccent_),
-      visualCharacter_(characterSelector_.getSelectedIndex())
+      visualCharacter_(characterSelector_.getSelectedItemIndex())
 {
     setComponentID("amanita-ocean-editor");
     setName("Amanita Ocean");
@@ -109,15 +133,16 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
     setLookAndFeel(&lookAndFeel_);
 
     lookAndFeel_.setAccentColour(currentAccent_);
-    characterSelector_.onSelectionChanged = [this](int index)
+    characterDescription_.setCharacter(visualCharacter_);
+    characterSelector_.onChange = [this]
     {
-        updateCharacterVisuals(index);
+        updateCharacterVisuals(characterSelector_.getSelectedItemIndex());
     };
 
-    for (auto* component : std::array<juce::Component*, 11> {
-             &characterSelector_, &evolutionKnob_, &preDelayKnob_, &sizeKnob_,
-             &decayKnob_, &lowCutKnob_, &dampingKnob_, &harmonyKnob_,
-             &widthKnob_, &focusKnob_, &mixKnob_
+    for (auto* component : std::array<juce::Component*, 12> {
+             &characterSelector_, &characterDescription_, &evolutionKnob_,
+             &preDelayKnob_, &sizeKnob_, &decayKnob_, &lowCutKnob_, &dampingKnob_,
+             &harmonyKnob_, &widthKnob_, &focusKnob_, &mixKnob_
          })
         addAndMakeVisible(*component);
 
@@ -239,8 +264,11 @@ void AmanitaOceanAudioProcessorEditor::paint(juce::Graphics& graphics)
 
     if (! shaderReady)
     {
-        const auto heroField = scaledBounds(32.0f, 126.0f, 896.0f, 346.0f).toFloat();
-        drawBathymetricField(graphics, heroField, deepCurrent_.getEvolution());
+        const auto contourField = scaledBounds(0.0f, layout::contourFieldY,
+                                               defaultWidth, layout::contourFieldHeight)
+                                      .toFloat();
+        drawBathymetricField(graphics, contourField, evolutionDialCentre(),
+                             deepCurrent_.getEvolution());
     }
 
     const auto sx = static_cast<float>(getWidth()) / defaultWidth;
@@ -271,32 +299,34 @@ void AmanitaOceanAudioProcessorEditor::paint(juce::Graphics& graphics)
     graphics.fillRect(scaledBounds(32.0f + 2.0f * 896.0f / 3.0f,
                                    layout::lowerDividerY, 1.0f, 105.0f));
 
-    graphics.setColour(amanita::ui::OceanLookAndFeel::secondaryText().withAlpha(0.78f));
-    graphics.setFont(uiFont(10.0f * scale, juce::Font::bold, 0.12f));
-    graphics.drawText(descriptionForCharacter(visualCharacter_).toUpperCase(),
-                      scaledBounds(320.0f, layout::characterCaptionY,
-                                   320.0f, 16.0f),
-                      juce::Justification::centred, false);
-
     graphics.setColour(amanita::ui::OceanLookAndFeel::hairline().withAlpha(0.55f));
     graphics.drawRoundedRectangle(bounds.reduced(0.5f), 8.0f * scale, 1.0f);
 }
 
 void AmanitaOceanAudioProcessorEditor::resized()
 {
-    deepCurrent_.setSize(getWidth(), getHeight());
-    if (shaderBackground_ == nullptr || ! shaderBackground_->isReady())
-        deepCurrent_.render(currentAccent_);
-    else
-        shaderBackground_->triggerRepaint();
-    backgroundDirty_ = false;
-
     characterSelector_.setBounds(
-        scaledBounds(184.0f, layout::characterSelectorY,
-                     592.0f, layout::characterSelectorHeight));
+        scaledBounds(layout::axisX - 0.5f * layout::characterSelectorWidth,
+                     layout::characterSelectorY,
+                     layout::characterSelectorWidth, layout::characterSelectorHeight));
     evolutionKnob_.setBounds(
-        scaledBounds(360.0f, layout::evolutionY,
-                     240.0f, layout::evolutionHeight));
+        scaledBounds(layout::evolutionX, layout::evolutionY,
+                     layout::evolutionWidth, layout::evolutionHeight));
+    // The description block takes the whole pixels nearest to the mirror
+    // image of the Evolution ring's left edge about the window's axis and to
+    // the middle of the Evolution control, and sets its text on that middle
+    // itself.
+    const auto ringLeft = evolutionDialCentre().x - evolutionRingRadius();
+    const auto controlMiddle = evolutionControlMiddle();
+    const auto descriptionSize = scaledBounds(0.0f, 0.0f, layout::descriptionWidth,
+                                              layout::descriptionHeight);
+    const auto descriptionBounds = descriptionSize.withPosition(
+        juce::roundToInt(static_cast<float>(getWidth()) - ringLeft)
+            - descriptionSize.getWidth(),
+        juce::roundToInt(controlMiddle - 0.5f * static_cast<float>(descriptionSize.getHeight())));
+    characterDescription_.setBounds(descriptionBounds);
+    characterDescription_.setTextCentre(controlMiddle
+                                        - static_cast<float>(descriptionBounds.getY()));
     constexpr auto freezeHeight = 34.0f;
     const auto freezeWidth = fittedToggleWidth(freezeButton_.getButtonText(),
                                                freezeHeight, 72.0f, 120.0f);
@@ -321,6 +351,27 @@ void AmanitaOceanAudioProcessorEditor::resized()
         knobs[index]->setBounds(scaledBounds(x + 2.0f, layout::lowerRowY,
                                              cellWidth - 4.0f, 126.0f));
     }
+
+    // The background gathers round the Evolution knob and lies low behind the
+    // description block, wherever this size has put them.
+    const auto width = static_cast<float>(getWidth());
+    const auto height = static_cast<float>(getHeight());
+    const auto focalPoint = evolutionDialCentre();
+    const auto calmRegion = characterDescription_.getBounds().toFloat();
+    deepCurrent_.setFocalPoint(focalPoint.x / width, focalPoint.y / height);
+    deepCurrent_.setSize(getWidth(), getHeight());
+    if (shaderBackground_ != nullptr)
+        shaderBackground_->setLayout({ focalPoint.x / width, focalPoint.y / height },
+                                     { calmRegion.getX() / width,
+                                       calmRegion.getY() / height,
+                                       calmRegion.getWidth() / width,
+                                       calmRegion.getHeight() / height });
+
+    if (shaderBackground_ == nullptr || ! shaderBackground_->isReady())
+        deepCurrent_.render(currentAccent_);
+    else
+        shaderBackground_->triggerRepaint();
+    backgroundDirty_ = false;
 }
 
 void AmanitaOceanAudioProcessorEditor::timerCallback()
@@ -385,6 +436,7 @@ void AmanitaOceanAudioProcessorEditor::timerCallback()
                      &focusKnob_, &mixKnob_
                  })
                 knob->repaint();
+            characterSelector_.repaint();
             freezeButton_.repaint();
             monoSafeButton_.repaint();
         }
@@ -405,18 +457,20 @@ void AmanitaOceanAudioProcessorEditor::timerCallback()
 
 void AmanitaOceanAudioProcessorEditor::updateCharacterVisuals(int characterIndex)
 {
-    visualCharacter_ = juce::jlimit(0, 4, characterIndex);
+    visualCharacter_ = juce::jlimit(
+        0, amanita::ui::CharacterSelector::characterCount - 1, characterIndex);
     targetAccent_ = amanita::ui::characterAccent(visualCharacter_);
+    characterDescription_.setCharacter(visualCharacter_);
     backgroundDirty_ = true;
     repaint();
 }
 
 void AmanitaOceanAudioProcessorEditor::drawBathymetricField(juce::Graphics& graphics,
                                                              juce::Rectangle<float> field,
+                                                             juce::Point<float> centre,
                                                              float evolution) const
 {
-    const auto centre = field.getCentre().translated(0.0f, -5.0f);
-    const auto scale = field.getWidth() / 896.0f;
+    const auto scale = field.getWidth() / defaultWidth;
     const auto phase = static_cast<float>(deepCurrent_.getTimeSeconds() * 0.096);
     const auto& characterBlend = deepCurrent_.getCharacterBlend();
     const auto currentFlowX = deepCurrent_.getCurrentFieldFlowX();
@@ -470,16 +524,32 @@ void AmanitaOceanAudioProcessorEditor::drawBathymetricField(juce::Graphics& grap
             const auto currentY = baseY
                 + currentDepth * (0.58f * currentFlowY + 0.20f * slow);
 
+            const auto fathomSwell = std::sin(phase * 0.56f - spread * 1.2f);
+            const auto fathom = evolution * (3.0f + 10.0f * spread) * scale;
+            const auto fathomX = baseX + fathom * std::cos(angle) * fathomSwell;
+            const auto fathomY = baseY - fathom * 0.62f * std::sin(angle) * fathomSwell
+                + fathom * 0.16f * fine;
+
+            const auto undertowSwell = std::sin(phase * 0.43f + spread * 1.2f);
+            const auto undertow = evolution * (2.6f + 8.5f * spread) * scale;
+            const auto undertowX = baseX + undertow * std::cos(angle) * undertowSwell;
+            const auto undertowY = baseY - undertow * 0.62f * std::sin(angle) * undertowSwell
+                + undertow * 0.16f * fine;
+
             const auto x = characterBlend[0] * defaultX
                          + characterBlend[1] * bloomX
                          + characterBlend[2] * driftX
                          + characterBlend[3] * veilX
-                         + characterBlend[4] * currentX;
+                         + characterBlend[4] * currentX
+                         + characterBlend[5] * fathomX
+                         + characterBlend[6] * undertowX;
             const auto y = characterBlend[0] * defaultY
                          + characterBlend[1] * bloomY
                          + characterBlend[2] * driftY
                          + characterBlend[3] * veilY
-                         + characterBlend[4] * currentY;
+                         + characterBlend[4] * currentY
+                         + characterBlend[5] * fathomY
+                         + characterBlend[6] * undertowY;
 
             if (point == 0)
                 path.startNewSubPath(x, y);
@@ -514,11 +584,22 @@ juce::Rectangle<int> AmanitaOceanAudioProcessorEditor::scaledBounds(float x,
         .toNearestInt();
 }
 
-juce::String AmanitaOceanAudioProcessorEditor::descriptionForCharacter(int characterIndex)
+juce::Point<float> AmanitaOceanAudioProcessorEditor::evolutionDialCentre() const
 {
-    constexpr std::array<const char*, 5> descriptions {
-        "Pure / Open", "Rising / Diffusion", "Spectral / Motion", "Soft / Cloud",
-        "Coherent / Flow"
-    };
-    return descriptions[static_cast<std::size_t>(juce::jlimit(0, 4, characterIndex))];
+    const auto& dial = evolutionKnob_.getSlider();
+    return getLocalArea(&dial, dial.getLocalBounds()).toFloat().getCentre();
+}
+
+float AmanitaOceanAudioProcessorEditor::evolutionRingRadius() const
+{
+    return static_cast<float>(evolutionKnob_.getSlider().getWidth())
+         * layout::evolutionRingShare;
+}
+
+float AmanitaOceanAudioProcessorEditor::evolutionControlMiddle()
+{
+    const auto ringTop = evolutionDialCentre().y - evolutionRingRadius();
+    const auto valueFoot = static_cast<float>(evolutionKnob_.getY())
+                         + evolutionKnob_.getValueBaseline();
+    return 0.5f * (ringTop + valueFoot);
 }

@@ -1,73 +1,125 @@
 #include "CharacterSelector.h"
-#include "CharacterPalette.h"
+#include "OceanLookAndFeel.h"
 
-#include <cmath>
+#include <array>
 
 namespace amanita::ui
 {
 namespace
 {
 constexpr auto parameterId = "algorithm";
-constexpr int radioGroupId = 0x414d;
-constexpr float selectedTextAlpha = 0.98f;
-constexpr float inactiveTextAlpha = 0.20f;
 
-constexpr std::array<const char*, CharacterSelector::characterCount> characterNames {
-    "Default", "Bloom", "Drift", "Veil", "Current"
-};
+// The one table of the texts shown for the Characters, in the order of the
+// choices of the host parameter.
+constexpr std::array<CharacterDescription::Text, CharacterSelector::characterCount>
+    characterTexts {{
+        { "DEFAULT",
+          "8-LINE FEEDBACK DELAY NETWORK",
+          "Open water on a windless day. The sound settles into a clear, even space and "
+          "fades without leaving a colour of its own. Evolution stirs the surface, slowly, "
+          "from below." },
+        { "BLOOM",
+          "RISING TAPS, DOUBLE DIFFUSION",
+          "The note goes under, and a moment later the water answers. A slow swell rises "
+          "behind every sound and opens like something blooming in the dark. Evolution "
+          "lets it rise longer and fuller." },
+        { "DRIFT",
+          "SPECTRAL FEEDBACK KERNELS",
+          "A tail that never stays where it began. It leaves the surface as light and air "
+          "and sinks, turn by turn, into warmth and weight. Evolution sends it further on "
+          "its way." },
+        { "VEIL",
+          "ALL-PASS TRANSIENT DISPERSER",
+          "Every attack dissolves before it lands, like a shape seen through moving water. "
+          "Drums and plucked strings arrive as soft clouds, their edges gone. Evolution "
+          "draws the veil closer." },
+        { "CURRENT",
+          "COHERENT FLOW FIELD",
+          "One slow current carries the whole space with it. Colour, depth and direction "
+          "turn together, the way a body of water turns: wide, liquid, never still. "
+          "Evolution sets how hard it pulls." },
+        { "FATHOM",
+          "MODELLED 16-LINE TIDAL NETWORK",
+          "Deep water with a tide of its own. The space opens and closes in long, slow "
+          "breaths, dense and smooth as the dark below the light. Evolution brings the "
+          "tide in; at zero the depth stands still." },
+        { "UNDERTOW",
+          "REVERSED VOICES IN TEMPO",
+          "What you just played is pulled back under and returned in reverse: at pitch, an "
+          "octave above, an octave below, in step with the tempo of the song. Evolution "
+          "lets the three voices in, one by one." }
+    }};
 
-constexpr std::array<const char*, CharacterSelector::characterCount> componentIds {
-    "character-default", "character-bloom", "character-drift", "character-veil",
-    "character-current"
-};
-
-constexpr std::array<const char*, CharacterSelector::characterCount> descriptions {
-    "Selects the balanced Default reverb character.",
-    "Selects the expanding Bloom reverb character.",
-    "Selects the moving Drift reverb character.",
-    "Selects the softened Veil reverb character.",
-    "Selects the coherent Current field reverb character."
-};
-
-class SegmentButton final : public juce::TextButton
+// Design measures of the description block. Its parts are set apart by the
+// clear space between their ink: from a baseline down to the capitals or to
+// the hairline under it.
+namespace block
 {
-public:
-    explicit SegmentButton(const juce::String& name)
-        : juce::TextButton(name)
-    {
-    }
+constexpr float nameFontHeight = 20.0f;
+constexpr float nameTracking = 0.055f;
+constexpr float nameToSubtitle = 15.0f;
+constexpr float subtitleFontHeight = 8.5f;
+constexpr float subtitleTracking = 0.095f;
+constexpr float subtitleToRule = 18.0f;
+constexpr float ruleThickness = 1.0f;
+constexpr float ruleToParagraph = 16.0f;
+constexpr float paragraphFontHeight = 10.5f;
+constexpr float paragraphTracking = 0.012f;
+constexpr float paragraphLineHeight = 14.0f;
+// The lines of a paragraph may be narrowed by this share of their width to
+// give a widow company.
+constexpr float widowAllowance = 0.15f;
+} // namespace block
 
-    void setSelectionProgress(float progress)
-    {
-        const auto nextProgress = juce::jlimit(0.0f, 1.0f, progress);
-        if (std::abs(selectionProgress_ - nextProgress) <= 1.0e-6f)
-            return;
+[[nodiscard]] juce::Font blockFont(float height, bool bold, float tracking)
+{
+    return juce::Font { juce::FontOptions(juce::Font::getDefaultSansSerifFontName(),
+                                          height,
+                                          bold ? juce::Font::bold : juce::Font::plain)
+                            .withKerningFactor(tracking) };
+}
 
-        selectionProgress_ = nextProgress;
-        repaint();
-    }
+[[nodiscard]] juce::Font nameFont()
+{
+    return blockFont(block::nameFontHeight, true, block::nameTracking);
+}
 
-    void paintButton(juce::Graphics& graphics, bool, bool) override
-    {
-        const auto bounds = getLocalBounds().toFloat();
-        const auto inactiveColour = findColour(juce::TextButton::textColourOffId);
-        const auto selectedColour = findColour(juce::TextButton::textColourOnId);
-        graphics.setColour(inactiveColour.interpolatedWith(selectedColour,
-                                                           selectionProgress_)
-                               .withMultipliedAlpha(isEnabled() ? 1.0f : 0.45f));
+[[nodiscard]] juce::Font subtitleFont()
+{
+    return blockFont(block::subtitleFontHeight, true, block::subtitleTracking);
+}
 
-        const auto fontHeight = juce::jlimit(10.5f, 21.0f, bounds.getHeight() * 0.31f);
-        graphics.setFont(getLookAndFeel().getTextButtonFont(*this, getHeight())
-                             .withHeight(fontHeight)
-                             .withExtraKerningFactor(0.045f));
-        graphics.drawFittedText(getButtonText(), getLocalBounds().reduced(7, 2),
-                                juce::Justification::centred, 1, 0.8f);
+[[nodiscard]] juce::Font paragraphFont()
+{
+    return blockFont(block::paragraphFontHeight, false, block::paragraphTracking);
+}
 
-    }
+// How far the capitals of a font rise above its baseline.
+[[nodiscard]] float capitalHeight(const juce::Font& font)
+{
+    juce::GlyphArrangement glyphs;
+    glyphs.addLineOfText(font, "H", 0.0f, 0.0f);
+    juce::Path outline;
+    glyphs.createPath(outline);
+    return -outline.getBounds().getY();
+}
 
-private:
-    float selectionProgress_ = 0.0f;
-};
+// Draws one line on its baseline with its ink beginning at the left edge of
+// the block, where the hairline and the paragraph begin.
+void drawLineOfText(juce::Graphics& graphics,
+                    const juce::Font& font,
+                    const char* text,
+                    float baseline,
+                    juce::Colour colour)
+{
+    juce::GlyphArrangement glyphs;
+    glyphs.addLineOfText(font, text, 0.0f, baseline);
+    juce::Path outline;
+    glyphs.createPath(outline);
+    glyphs.moveRangeOfGlyphs(0, -1, -outline.getBounds().getX(), 0.0f);
+    graphics.setColour(colour);
+    glyphs.draw(graphics);
+}
 } // namespace
 
 CharacterSelector::CharacterSelector(juce::AudioProcessorValueTreeState& state)
@@ -75,221 +127,193 @@ CharacterSelector::CharacterSelector(juce::AudioProcessorValueTreeState& state)
     setComponentID("character-selector");
     setAccessible(true);
     setTitle("Reverb character");
-    setDescription("Selects the reverb character. Use the left and right arrow keys to navigate.");
-    setHelpText("Choose Default, Bloom, Drift, Veil, or Current.");
-    setWantsKeyboardFocus(true);
-    setFocusContainerType(juce::Component::FocusContainerType::keyboardFocusContainer);
+    setDescription("Selects the reverb character. The arrow keys change it; "
+                   "Return or Space opens the list.");
 
-    parameterCombo_.setName("Reverb character parameter");
-    parameterCombo_.setComponentID(parameterId);
-    parameterCombo_.setAccessible(false);
-    parameterCombo_.setVisible(false);
-    addChildComponent(parameterCombo_);
-
-    for (int index = 0; index < characterCount; ++index)
-    {
-        const auto arrayIndex = static_cast<std::size_t>(index);
-        parameterCombo_.addItem(characterNames[arrayIndex], index + 1);
-
-        auto button = std::make_unique<SegmentButton>(characterNames[arrayIndex]);
-        button->setAccessible(true);
-        button->setWantsKeyboardFocus(false);
-        button->getProperties().set("characterSegment", true);
-        button->setComponentID(componentIds[arrayIndex]);
-        button->setTitle(juce::String(characterNames[arrayIndex]) + " reverb character");
-        button->setDescription(descriptions[arrayIndex]);
-        button->setHelpText("Activate this button to select the character.");
-        button->setClickingTogglesState(true);
-        button->setRadioGroupId(radioGroupId, juce::dontSendNotification);
-        button->setMouseCursor(juce::MouseCursor::PointingHandCursor);
-        button->setColour(juce::TextButton::textColourOffId,
-                          juce::Colours::white.withAlpha(inactiveTextAlpha));
-        button->setColour(juce::TextButton::textColourOnId,
-                          characterAccent(index).withAlpha(selectedTextAlpha));
-        button->onClick = [this, index]
-        {
-            selectIndex(index);
-        };
-
-        addAndMakeVisible(*button);
-        buttons_[arrayIndex] = std::move(button);
-    }
-
-    parameterCombo_.onChange = [this]
-    {
-        updateButtonStates(true);
-
-        const auto selectedIndex = getSelectedIndex();
-        if (selectedIndex == lastNotifiedIndex_)
-            return;
-
-        lastNotifiedIndex_ = selectedIndex;
-        if (onSelectionChanged != nullptr)
-            onSelectionChanged(selectedIndex);
-    };
+    auto* parameter = dynamic_cast<juce::AudioParameterChoice*>(
+        state.getParameter(parameterId));
+    jassert(parameter != nullptr && parameter->choices.size() == characterCount);
+    if (parameter != nullptr)
+        addItemList(parameter->choices, 1);
 
     attachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-        state, parameterId, parameterCombo_);
-
-    updateButtonStates(false);
-    lastNotifiedIndex_ = getSelectedIndex();
-}
-
-CharacterSelector::~CharacterSelector()
-{
-    stopTimer();
-    parameterCombo_.onChange = nullptr;
-
-    for (auto& button : buttons_)
-        button->onClick = nullptr;
-
-    attachment_.reset();
-}
-
-void CharacterSelector::paint(juce::Graphics& graphics)
-{
-    auto bounds = getLocalBounds().toFloat().reduced(0.5f);
-    if (bounds.isEmpty())
-        return;
-
-    const auto scale = juce::jlimit(0.75f, 1.50f, bounds.getHeight() / 44.0f);
-    const auto cornerRadius = 9.0f * scale;
-    graphics.setColour(juce::Colours::black.withAlpha(0.18f));
-    graphics.fillRoundedRectangle(bounds, cornerRadius);
-
-    graphics.setColour(juce::Colours::white.withAlpha(0.075f));
-    graphics.drawRoundedRectangle(bounds, cornerRadius, 1.0f * scale);
-
-    graphics.setColour(juce::Colours::white.withAlpha(0.055f));
-    const auto segmentWidth = bounds.getWidth() / static_cast<float>(characterCount);
-    for (int index = 1; index < characterCount; ++index)
-    {
-        const auto x = bounds.getX() + segmentWidth * static_cast<float>(index);
-        graphics.drawVerticalLine(juce::roundToInt(x), bounds.getY() + 9.0f * scale,
-                                  bounds.getBottom() - 9.0f * scale);
-    }
-
-}
-
-void CharacterSelector::resized()
-{
-    const auto bounds = getLocalBounds();
-
-    for (int index = 0; index < characterCount; ++index)
-    {
-        const auto left = bounds.getX() + bounds.getWidth() * index / characterCount;
-        const auto right = bounds.getX() + bounds.getWidth() * (index + 1) / characterCount;
-        buttons_[static_cast<std::size_t>(index)]->setBounds(left, bounds.getY(),
-                                                             right - left, bounds.getHeight());
-    }
-
-    parameterCombo_.setBounds({});
+        state, parameterId, *this);
 }
 
 bool CharacterSelector::keyPressed(const juce::KeyPress& key)
 {
-    if (key.isKeyCode(juce::KeyPress::leftKey))
+    // Only the bare keys are the drop-down's: a key pressed with a modifier
+    // compares unequal to its code and is passed on.
+    const auto step = key == juce::KeyPress::upKey || key == juce::KeyPress::leftKey ? -1
+                    : key == juce::KeyPress::downKey || key == juce::KeyPress::rightKey ? 1
+                    : 0;
+    if (step != 0)
     {
-        moveSelection(-1);
+        // An open list hands Left and Right on to its drop-down. The keys are
+        // the list's then, and the Character stays until an item is chosen.
+        if (! isPopupActive())
+            moveSelection(step);
         return true;
     }
 
-    if (key.isKeyCode(juce::KeyPress::rightKey))
-    {
-        moveSelection(1);
-        return true;
-    }
+    // The list opens on Return in the base class; Space opens it as well.
+    if (key == juce::KeyPress::spaceKey)
+        return juce::ComboBox::keyPressed(juce::KeyPress(juce::KeyPress::returnKey));
 
-    return false;
-}
-
-int CharacterSelector::getSelectedIndex() const noexcept
-{
-    return parameterCombo_.getSelectedItemIndex();
-}
-
-void CharacterSelector::selectIndex(int index)
-{
-    if (! juce::isPositiveAndBelow(index, characterCount))
-        return;
-
-    if (index != getSelectedIndex())
-    {
-        const juce::Component::SafePointer<CharacterSelector> safeThis(this);
-        parameterCombo_.setSelectedItemIndex(index, juce::sendNotificationSync);
-        if (safeThis == nullptr)
-            return;
-    }
-    else
-        updateButtonStates(true);
-
+    return juce::ComboBox::keyPressed(key);
 }
 
 void CharacterSelector::moveSelection(int offset)
 {
-    auto selectedIndex = getSelectedIndex();
-    if (! juce::isPositiveAndBelow(selectedIndex, characterCount))
-        selectedIndex = 0;
+    const auto count = getNumItems();
+    if (count == 0)
+        return;
 
-    const auto wrappedIndex = (selectedIndex + offset + characterCount) % characterCount;
-    selectIndex(wrappedIndex);
+    const auto selectedIndex = juce::jlimit(0, count - 1, getSelectedItemIndex());
+    setSelectedItemIndex((selectedIndex + offset + count) % count, juce::sendNotificationSync);
 }
 
-void CharacterSelector::updateButtonStates(bool animate)
+CharacterDescription::CharacterDescription()
 {
-    const auto selectedIndex = getSelectedIndex();
+    setComponentID("character-description");
+    setAccessible(true);
+    setInterceptsMouseClicks(false, false);
+    setCharacter(0);
+}
 
-    for (int index = 0; index < characterCount; ++index)
-        buttons_[static_cast<std::size_t>(index)]->setToggleState(
-            index == selectedIndex, juce::dontSendNotification);
+void CharacterDescription::paint(juce::Graphics& graphics)
+{
+    const auto scale = designScale();
+    const auto& content = text(characterIndex_);
 
-    if (animate)
-    {
-        startTimerHz(60);
-    }
-    else
-    {
-        stopTimer();
-        for (int index = 0; index < characterCount; ++index)
-        {
-            const auto arrayIndex = static_cast<std::size_t>(index);
-            selectionProgress_[arrayIndex] = index == selectedIndex ? 1.0f : 0.0f;
-            static_cast<SegmentButton&>(*buttons_[arrayIndex])
-                .setSelectionProgress(selectionProgress_[arrayIndex]);
-        }
-    }
+    // The hairline keeps to whole pixels and to the full width of the block,
+    // whose right end mirrors the ring of the Evolution knob.
+    graphics.setColour(OceanLookAndFeel::hairline().withAlpha(0.75f));
+    graphics.fillRect(0,
+                      juce::roundToInt(textCentre_ + rows_.rule * scale),
+                      getWidth(),
+                      juce::jmax(1, juce::roundToInt(block::ruleThickness * scale)));
 
+    juce::Graphics::ScopedSaveState saveState(graphics);
+    graphics.addTransform(juce::AffineTransform::scale(scale).translated(0.0f, textCentre_));
+
+    drawLineOfText(graphics, nameFont(), content.name, rows_.nameBaseline,
+                   OceanLookAndFeel::primaryText());
+    drawLineOfText(graphics, subtitleFont(), content.subtitle, rows_.subtitleBaseline,
+                   OceanLookAndFeel::secondaryText());
+    paragraph_.draw(graphics,
+                    juce::Rectangle<float>(0.0f, rows_.paragraph,
+                                           static_cast<float>(designWidth),
+                                           paragraph_.getHeight()));
+}
+
+std::unique_ptr<juce::AccessibilityHandler> CharacterDescription::createAccessibilityHandler()
+{
+    return std::make_unique<juce::AccessibilityHandler>(*this,
+                                                        juce::AccessibilityRole::staticText);
+}
+
+void CharacterDescription::setCharacter(int characterIndex)
+{
+    characterIndex_ = juce::jlimit(0, CharacterSelector::characterCount - 1, characterIndex);
+    const auto& content = text(characterIndex_);
+    paragraph_ = paragraphLayout(content.paragraph, static_cast<float>(designWidth));
+
+    // The text is as tall as its paragraph has lines; its rows are measured
+    // from its middle.
+    const auto nameCapitals = capitalHeight(nameFont());
+    const auto subtitleCapitals = capitalHeight(subtitleFont());
+    const auto paragraphCapitals = capitalHeight(paragraphFont());
+    const auto lineCount = paragraph_.getNumLines();
+    const auto firstBaseline = lineCount > 0 ? paragraph_.getLine(0).lineOrigin.y : 0.0f;
+    const auto lastBaseline = lineCount > 0 ? paragraph_.getLine(lineCount - 1).lineOrigin.y
+                                            : 0.0f;
+    const auto textHeight = nameCapitals + block::nameToSubtitle
+                          + subtitleCapitals + block::subtitleToRule
+                          + block::ruleThickness + block::ruleToParagraph
+                          + paragraphCapitals + lastBaseline - firstBaseline;
+    rows_.nameBaseline = nameCapitals - 0.5f * textHeight;
+    rows_.subtitleBaseline = rows_.nameBaseline + block::nameToSubtitle + subtitleCapitals;
+    rows_.rule = rows_.subtitleBaseline + block::subtitleToRule;
+    rows_.paragraph = rows_.rule + block::ruleThickness + block::ruleToParagraph
+                    + paragraphCapitals - firstBaseline;
+    rows_.lastBaseline = rows_.paragraph + lastBaseline;
+
+    setTitle(content.name);
+    setDescription(juce::String(content.subtitle) + ". " + content.paragraph);
     repaint();
 }
 
-void CharacterSelector::timerCallback()
+void CharacterDescription::setTextCentre(float centreY)
 {
-    constexpr auto transitionAmount = 0.16f;
-    constexpr auto completionThreshold = 0.002f;
-    const auto selectedIndex = getSelectedIndex();
-    auto isAnimating = false;
+    textCentre_ = centreY;
+    repaint();
+}
 
-    for (int index = 0; index < characterCount; ++index)
+const CharacterDescription::Text& CharacterDescription::text(int characterIndex) noexcept
+{
+    return characterTexts[static_cast<std::size_t>(
+        juce::jlimit(0, CharacterSelector::characterCount - 1, characterIndex))];
+}
+
+juce::TextLayout CharacterDescription::paragraphLayout(const char* text, float width)
+{
+    juce::AttributedString paragraph;
+    paragraph.setJustification(juce::Justification::topLeft);
+    paragraph.setWordWrap(juce::AttributedString::byWord);
+    paragraph.setLineSpacing(block::paragraphLineHeight - block::paragraphFontHeight);
+    paragraph.append(text,
+                     paragraphFont(),
+                     OceanLookAndFeel::primaryText().interpolatedWith(
+                         OceanLookAndFeel::secondaryText(), 0.45f));
+
+    const auto hasWidow = [width](const juce::TextLayout& layout)
     {
-        const auto arrayIndex = static_cast<std::size_t>(index);
-        const auto target = index == selectedIndex ? 1.0f : 0.0f;
-        const auto difference = target - selectionProgress_[arrayIndex];
+        return layout.getNumLines() > 1
+            && layout.getLine(layout.getNumLines() - 1).getLineBoundsX().getLength()
+                   < widowShare * width;
+    };
 
-        if (std::abs(difference) > completionThreshold)
-        {
-            selectionProgress_[arrayIndex] += difference * transitionAmount;
-            isAnimating = true;
-        }
-        else
-        {
-            selectionProgress_[arrayIndex] = target;
-        }
+    juce::TextLayout layout;
+    layout.createLayout(paragraph, width);
+    if (! hasWidow(layout))
+        return layout;
 
-        static_cast<SegmentButton&>(*buttons_[arrayIndex])
-            .setSelectionProgress(selectionProgress_[arrayIndex]);
+    const auto narrowestWidth = (1.0f - block::widowAllowance) * width;
+    for (auto narrowedWidth = width - 1.0f; narrowedWidth >= narrowestWidth;
+         narrowedWidth -= 1.0f)
+    {
+        juce::TextLayout narrowed;
+        narrowed.createLayout(paragraph, narrowedWidth);
+        if (narrowed.getNumLines() == layout.getNumLines() && ! hasWidow(narrowed))
+            return narrowed;
     }
 
-    if (! isAnimating)
-        stopTimer();
+    return layout;
+}
+
+bool CharacterDescription::textFits() const
+{
+    const auto& content = text(characterIndex_);
+    const auto width = static_cast<float>(designWidth);
+    const auto scale = designScale();
+    const auto fitsOnOneLine = [width](const juce::Font& font, const char* line)
+    {
+        return juce::GlyphArrangement::getStringWidth(font, line) <= width;
+    };
+
+    return fitsOnOneLine(nameFont(), content.name)
+        && fitsOnOneLine(subtitleFont(), content.subtitle)
+        && paragraph_.getNumLines() <= maximumParagraphLines
+        && paragraph_.getWidth() <= width
+        && textCentre_ + scale * (rows_.nameBaseline - capitalHeight(nameFont())) >= 0.0f
+        && textCentre_ + scale * (rows_.lastBaseline + paragraphFont().getDescent())
+               <= static_cast<float>(getHeight());
+}
+
+float CharacterDescription::designScale() const noexcept
+{
+    return juce::jmin(static_cast<float>(getWidth()) / designWidth,
+                      static_cast<float>(getHeight()) / designHeight);
 }
 } // namespace amanita::ui

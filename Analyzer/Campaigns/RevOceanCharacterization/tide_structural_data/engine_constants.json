@@ -1,0 +1,1047 @@
+{
+ "schema": {
+  "version": 1,
+  "generatedBy": "emit_engine_constants.py",
+  "sources": {
+   "network.json": "28e5555af1389e2dd4b8bc60f887995c6e4a1c025033bc567bdffbac1bbcb361",
+   "tide_stage.json": "0c74119ffe45383ce8d70cad7a9eb10d9421efe34cc19981b9d80e17aa6d9bee",
+   "tide_model.json": "bb83173f3f745b2d955273fd16ee39c3a1db64e71ef0706b1a71134aa35bb424",
+   "converters.json": "5dca9543cad258d3d2ea54c7abedfd85067bce1dac767dd2f9fbfa96c5218013"
+  },
+  "note": [
+   "Sections follow the processing order of SPEC.md: timing and converters, preDelay, equaliser, comb, lines (input gains, oscillators, attenuation), feedback, taps, voices, phase, outer.",
+   "Numbers are double precision. A key ending in Single holds a single-precision number as the double that equals it; the engine must hold it as a float.",
+   "Filter sections give the audio-EQ-cookbook parameters and the coefficients at 44.1 kHz: y[n] = b[0] x[n] + b[1] x[n-1] + b[2] x[n-2] - a[0] y[n-1] - a[1] y[n-2].",
+   "Arrays over the lines have 16 entries, line 1 first; arrays [2][16] are [group][line], group 0 = left output.",
+   "converters.rates holds the six standard host rates; any other rate follows converters.rule (SPEC.md, section 3).",
+   "referenceKnobs holds the reference's own parameter laws; only a scorer that sets the reference's knobs needs them."
+  ]
+ },
+ "internalRateHz": 44100,
+ "timing": {
+  "reportedLatencyRule": "4 * floor(11 * hostRate / 44100 + 0.5) host samples",
+  "reportedLatencyInternalSamples": 44,
+  "lineWriteDelaySamples": 44,
+  "voiceBlockSamples": 44
+ },
+ "converters": {
+  "rule": {
+   "cutoff": 0.9,
+   "zeroCrossings": 17,
+   "kaiserBeta": 6.0,
+   "entriesPerCrossing": 4096,
+   "tableEntries": 69632,
+   "entriesDroppedOnTheWingAfter": 1,
+   "lookaheadMarginSamples": 10,
+   "clockDrift": 1.1641532182693481e-10,
+   "table": "fl32(cutoff * sinc(cutoff * i / 4096) * I0(beta * sqrt(1 - (i / 69631)^2)) / I0(beta)), i = 0 .. 69631"
+  },
+  "table": {
+   "entries": 69632,
+   "sum": 2048.7946187000753,
+   "float32LittleEndianSha256": "eb00d151829ba5c675f3cec913792b0a4295a78374033f5c43ac2b0785697cca",
+   "samples": {
+    "0": 0.8999999761581421,
+    "1": 0.8999999165534973,
+    "2": 0.899999737739563,
+    "4095": 0.09766650944948196,
+    "4096": 0.09743523597717285,
+    "8191": -0.0901578888297081,
+    "34816": -0.016114231199026108,
+    "65536": 0.0006538678426295519,
+    "69630": -0.00022514160082209855,
+    "69631": -0.0002251933328807354
+   }
+  },
+  "measuredClockSigns": {
+   "48000": [
+    -1,
+    1
+   ],
+   "56000": [
+    -1,
+    -1
+   ],
+   "64000": [
+    -1,
+    -1
+   ],
+   "88200": [
+    0,
+    0
+   ],
+   "96000": [
+    -1,
+    1
+   ],
+   "176400": [
+    0,
+    0
+   ],
+   "192000": [
+    1,
+    -1
+   ],
+   "384000": [
+    1,
+    -1
+   ]
+  },
+  "rates": {
+   "44100": {
+    "latticeStepsPerInternalSample": 1,
+    "latticeStepsPerHostSample": 1,
+    "reportedLatencySamples": 44,
+    "converters": false,
+    "outputDelayInternalSamples": 44,
+    "engineOutputDelayInternalSamples": 0
+   },
+   "48000": {
+    "latticeStepsPerInternalSample": 160,
+    "latticeStepsPerHostSample": 147,
+    "reportedLatencySamples": 48,
+    "converters": true,
+    "inputLookaheadHostSamples": 29,
+    "outputBlocks": 2,
+    "inputDelayLatticeSteps": 4250,
+    "outputDelayLatticeSteps": 18592,
+    "engineOutputDelayLatticeSteps": 11536,
+    "inputGain": 0.91875,
+    "outputGain": 1.0,
+    "clockSigns": {
+     "input": -1,
+     "output": 1,
+     "source": "measured"
+    },
+    "inputBranches": {
+     "count": 147,
+     "tapsPerBranch": [
+      37,
+      38
+     ],
+     "firstOffset": -18,
+     "lastOffset": 19,
+     "coefficientSum": 147.0570350181517,
+     "coefficientAbsoluteSum": 284.9597400035353,
+     "coefficientsSha256": "9dadbab60fa623be861ced352039cd4153b4290ed83f6b92901b2926d44bab05"
+    },
+    "outputBranches": {
+     "count": 160,
+     "tapsPerBranch": [
+      33,
+      34
+     ],
+     "firstOffset": -16,
+     "lastOffset": 17,
+     "coefficientSum": 160.06230412465447,
+     "coefficientAbsoluteSum": 310.16003603500485,
+     "coefficientsSha256": "5ac7680abdfea2105aedcc676983e253720d43210d2f87ba81b820cee1d60e98"
+    }
+   },
+   "88200": {
+    "latticeStepsPerInternalSample": 2,
+    "latticeStepsPerHostSample": 1,
+    "reportedLatencySamples": 88,
+    "converters": true,
+    "inputLookaheadHostSamples": 46,
+    "outputBlocks": 1,
+    "inputDelayLatticeSteps": 45,
+    "outputDelayLatticeSteps": 144,
+    "engineOutputDelayLatticeSteps": 56,
+    "inputGain": 0.5,
+    "outputGain": 1.0,
+    "clockSigns": {
+     "input": 0,
+     "output": 0,
+     "source": "measured"
+    },
+    "inputBranches": {
+     "count": 1,
+     "tapsPerBranch": [
+      67,
+      67
+     ],
+     "firstOffset": -33,
+     "lastOffset": 33,
+     "coefficientSum": 1.0002726869424805,
+     "coefficientAbsoluteSum": 1.9508897924679331,
+     "coefficientsSha256": "493f7cc33311d55f415b034b1fb07d9b6685ba7d6107cfb1d230dca6399a849d"
+    },
+    "outputBranches": {
+     "count": 2,
+     "tapsPerBranch": [
+      33,
+      34
+     ],
+     "firstOffset": -16,
+     "lastOffset": 17,
+     "coefficientSum": 2.000545373884961,
+     "coefficientAbsoluteSum": 3.9017795849358663,
+     "coefficientsSha256": "9f1cad0cae02bd2a81525918d7235809461292f814f3ff649013508e694d582f"
+    }
+   },
+   "96000": {
+    "latticeStepsPerInternalSample": 320,
+    "latticeStepsPerHostSample": 147,
+    "reportedLatencySamples": 96,
+    "converters": true,
+    "inputLookaheadHostSamples": 49,
+    "outputBlocks": 2,
+    "inputDelayLatticeSteps": 7030,
+    "outputDelayLatticeSteps": 37184,
+    "engineOutputDelayLatticeSteps": 23072,
+    "inputGain": 0.459375,
+    "outputGain": 1.0,
+    "clockSigns": {
+     "input": -1,
+     "output": 1,
+     "source": "measured"
+    },
+    "inputBranches": {
+     "count": 147,
+     "tapsPerBranch": [
+      74,
+      75
+     ],
+     "firstOffset": -37,
+     "lastOffset": 37,
+     "coefficientSum": 147.05703562964857,
+     "coefficientAbsoluteSum": 284.9596554889748,
+     "coefficientsSha256": "55416bac9fc5a366a8cbea5201d67230fa7e1a52e26a361507cf32d76d25a2f2"
+    },
+    "outputBranches": {
+     "count": 320,
+     "tapsPerBranch": [
+      33,
+      34
+     ],
+     "firstOffset": -16,
+     "lastOffset": 17,
+     "coefficientSum": 320.1243843871257,
+     "coefficientAbsoluteSum": 620.3201132860681,
+     "coefficientsSha256": "00e6c5bebc4a1c4e5803752edc507176a8a5d5aeaf18f97fec062f39b10f0512"
+    }
+   },
+   "176400": {
+    "latticeStepsPerInternalSample": 4,
+    "latticeStepsPerHostSample": 1,
+    "reportedLatencySamples": 176,
+    "converters": true,
+    "inputLookaheadHostSamples": 82,
+    "outputBlocks": 1,
+    "inputDelayLatticeSteps": 79,
+    "outputDelayLatticeSteps": 288,
+    "engineOutputDelayLatticeSteps": 112,
+    "inputGain": 0.25,
+    "outputGain": 1.0,
+    "clockSigns": {
+     "input": 0,
+     "output": 0,
+     "source": "measured"
+    },
+    "inputBranches": {
+     "count": 1,
+     "tapsPerBranch": [
+      135,
+      135
+     ],
+     "firstOffset": -67,
+     "lastOffset": 67,
+     "coefficientSum": 1.0002223668161605,
+     "coefficientAbsoluteSum": 1.9448365533426113,
+     "coefficientsSha256": "16aaf00a464471c959f0c593b0c357b8472a739d4a0020f1299ce0b15b9d7c20"
+    },
+    "outputBranches": {
+     "count": 4,
+     "tapsPerBranch": [
+      33,
+      34
+     ],
+     "firstOffset": -16,
+     "lastOffset": 17,
+     "coefficientSum": 4.000889467264642,
+     "coefficientAbsoluteSum": 7.779346213370445,
+     "coefficientsSha256": "48b387a47640bc1ee239c3ee0864b08f80731d2df37184f55a17af84a307d8b7"
+    }
+   },
+   "192000": {
+    "latticeStepsPerInternalSample": 640,
+    "latticeStepsPerHostSample": 147,
+    "reportedLatencySamples": 192,
+    "converters": true,
+    "inputLookaheadHostSamples": 88,
+    "outputBlocks": 2,
+    "inputDelayLatticeSteps": 12443,
+    "outputDelayLatticeSteps": 74368,
+    "engineOutputDelayLatticeSteps": 46144,
+    "inputGain": 0.2296875,
+    "outputGain": 1.0,
+    "clockSigns": {
+     "input": 1,
+     "output": -1,
+     "source": "measured"
+    },
+    "inputBranches": {
+     "count": 147,
+     "tapsPerBranch": [
+      148,
+      149
+     ],
+     "firstOffset": -74,
+     "lastOffset": 75,
+     "coefficientSum": 147.05708705037208,
+     "coefficientAbsoluteSum": 284.95947747751643,
+     "coefficientsSha256": "3f2f9eef9e9494d3884503416da302bfcaeadfd0cc6da73d11754c35952feedd"
+    },
+    "outputBranches": {
+     "count": 640,
+     "tapsPerBranch": [
+      34,
+      34
+     ],
+     "firstOffset": -17,
+     "lastOffset": 17,
+     "coefficientSum": 640.2483170667905,
+     "coefficientAbsoluteSum": 1240.6401271362615,
+     "coefficientsSha256": "920351c13ebc91e7a10929e3d6d760ff7532982c4e055bc85dff9030f8bf117b"
+    }
+   }
+  }
+ },
+ "preDelay": {
+  "law": "max(0, floor(milliseconds * hostRate / 1000) - 1) whole host samples in front of the input converter"
+ },
+ "equaliser": {
+  "place": "per input channel, behind the input converter and in front of the comb",
+  "sections": [
+   {
+    "kind": "peaking",
+    "frequency_hz": 200.0,
+    "gain_db": 0.5,
+    "q": 0.4,
+    "b": [
+     1.001981819721075,
+     -1.9323225733505953,
+     0.9311255177452129
+    ],
+    "a": [
+     -1.9323225733505953,
+     0.9331073374662877
+    ]
+   },
+   {
+    "kind": "peaking",
+    "frequency_hz": 1750.0,
+    "gain_db": -0.5,
+    "q": 0.4,
+    "b": [
+     0.9865209110346379,
+     -1.4711369258407723,
+     0.531559170653515
+    ],
+    "a": [
+     -1.4711369258407723,
+     0.5180800816881529
+    ]
+   }
+  ]
+ },
+ "comb": {
+  "delayMidSamples": 431.2075,
+  "delaySwingSamples": 236.036,
+  "delayMidSingle": 431.2074890136719,
+  "delaySwingSingle": 236.03599548339844,
+  "periodSamples": 8820000.0,
+  "originSamples": 85.7,
+  "rightInputLeadPeriods": 0.25,
+  "feedback": -0.4,
+  "highPass": {
+   "cornerHz": 30.0,
+   "k": 0.0021371411132822355,
+   "highPass": {
+    "gain": 0.9978674165185535,
+    "pole": 0.995734833037107
+   },
+   "lowPass": {
+    "gain": 0.0021325834814465297,
+    "pole": 0.995734833037107
+   }
+  },
+  "lowPass": {
+   "cornerHz": 20000.0,
+   "k": 6.798795776462871,
+   "highPass": {
+    "gain": 0.12822492454771628,
+    "pole": -0.7435501509045674
+   },
+   "lowPass": {
+    "gain": 0.8717750754522837,
+    "pole": -0.7435501509045674
+   }
+  },
+  "mix": "undelayed path cos(pi/2 * macro), delayed path sin(pi/2 * macro)"
+ },
+ "lines": {
+  "prime": [
+   [
+    1031,
+    1097,
+    1187,
+    1289,
+    1423,
+    1583,
+    1783,
+    2027,
+    2333,
+    2699,
+    3163,
+    3719,
+    4409,
+    5261,
+    6299,
+    7589
+   ],
+   [
+    1039,
+    1109,
+    1193,
+    1301,
+    1429,
+    1597,
+    1787,
+    2039,
+    2333,
+    2707,
+    3163,
+    3719,
+    4409,
+    5261,
+    6299,
+    7589
+   ]
+  ],
+  "widthWeight": [
+   0.272,
+   0.272,
+   0.272,
+   0.272,
+   0.272,
+   0.272,
+   1.0,
+   0.9191111111111111,
+   0.8382222222222222,
+   0.7573333333333333,
+   0.6764444444444444,
+   0.5955555555555556,
+   0.5146666666666666,
+   0.4337777777777778,
+   0.3528888888888889,
+   0.272
+  ],
+  "inputGainFirst": 0.24397766367314302,
+  "inputGainLastOverFirst": 0.236,
+  "inputGainShape": 3.36,
+  "inputGain": [
+   0.24397766367314302,
+   0.20911273000061084,
+   0.18683736056876793,
+   0.17260552270022217,
+   0.1635127348236255,
+   0.15770331005835925,
+   0.1539916413642996,
+   0.15162023885009027,
+   0.1499361534499145,
+   0.14756475093570517,
+   0.14385308224164553,
+   0.13804365747637928,
+   0.1289508695997826,
+   0.11471903173123682,
+   0.09244366229939392,
+   0.05757872862686175
+  ],
+  "ownGain": [
+   0.15516979409611897,
+   0.1329956962803885,
+   0.1188285613217364,
+   0.1097771124373413,
+   0.10399409934782582,
+   0.10029930519711648,
+   0.1539916413642996,
+   0.1454880425232644,
+   0.13780798459307697,
+   0.12966022782217296,
+   0.1205808502701082,
+   0.11012816229782259,
+   0.09765879191023535,
+   0.08224079919221555,
+   0.06253300178652335,
+   0.03662007140668407
+  ],
+  "crossGain": [
+   0.08880786957702407,
+   0.07611703372022234,
+   0.06800879924703153,
+   0.06282841026288087,
+   0.05951863547579968,
+   0.057404004861242766,
+   0.0,
+   0.006132196326825874,
+   0.012128168856837531,
+   0.01790452311353223,
+   0.023272231971537324,
+   0.027915495178556696,
+   0.03129207768954725,
+   0.03247823253902127,
+   0.029910660512870564,
+   0.020958657220177677
+  ],
+  "length": "floorf(fl32(prime * sizeScale) + 0.5f), single precision",
+  "attenuation": "10^(-3 * prime * sizeScale / (44100 * decaySeconds)), unrounded length"
+ },
+ "oscillator": {
+  "rateHz": 0.6,
+  "depthMs": 0.88,
+  "depthSamplesSingle": 38.80800247192383,
+  "incrementSingle": 8.548551704734564e-05,
+  "twoPiSingle": 6.2831854820251465,
+  "halfPiSingle": 1.5707963705062866,
+  "halfPi": 1.5707963267948966,
+  "phaseStepRad": 11.25,
+  "startPhaseSingle": [
+   [
+    0.0,
+    22.5,
+    45.0,
+    67.5,
+    90.0,
+    112.5,
+    135.0,
+    157.5,
+    180.0,
+    202.5,
+    225.0,
+    247.5,
+    270.0,
+    292.5,
+    315.0,
+    337.5
+   ],
+   [
+    11.25,
+    33.75,
+    56.25,
+    78.75,
+    101.25,
+    123.75,
+    146.25,
+    168.75,
+    191.25,
+    213.75,
+    236.25,
+    258.75,
+    281.25,
+    303.75,
+    326.25,
+    348.75
+   ]
+  ]
+ },
+ "feedback": {
+  "scale": 0.25,
+  "matrixSign": [
+   [
+    1,
+    -1,
+    -1,
+    1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    1,
+    -1,
+    -1,
+    1
+   ],
+   [
+    1,
+    1,
+    -1,
+    -1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    1,
+    1,
+    -1,
+    -1
+   ],
+   [
+    1,
+    -1,
+    1,
+    -1,
+    -1,
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    1,
+    -1,
+    1,
+    -1
+   ],
+   [
+    1,
+    1,
+    1,
+    1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    1,
+    1,
+    1,
+    1
+   ],
+   [
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    -1
+   ],
+   [
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    1
+   ],
+   [
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    -1,
+    -1,
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    -1,
+    1
+   ],
+   [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1,
+    -1
+   ],
+   [
+    1,
+    -1,
+    -1,
+    1,
+    -1,
+    1,
+    1,
+    -1,
+    1,
+    -1,
+    -1,
+    1,
+    -1,
+    1,
+    1,
+    -1
+   ],
+   [
+    1,
+    1,
+    -1,
+    -1,
+    -1,
+    -1,
+    1,
+    1,
+    1,
+    1,
+    -1,
+    -1,
+    -1,
+    -1,
+    1,
+    1
+   ],
+   [
+    1,
+    -1,
+    1,
+    -1,
+    -1,
+    1,
+    -1,
+    1,
+    1,
+    -1,
+    1,
+    -1,
+    -1,
+    1,
+    -1,
+    1
+   ],
+   [
+    1,
+    1,
+    1,
+    1,
+    -1,
+    -1,
+    -1,
+    -1,
+    1,
+    1,
+    1,
+    1,
+    -1,
+    -1,
+    -1,
+    -1
+   ],
+   [
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    1
+   ],
+   [
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    -1,
+    1,
+    1,
+    -1,
+    -1
+   ],
+   [
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    -1,
+    1,
+    -1
+   ],
+   [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+   ]
+  ],
+  "matrix": "matrixSign[line written][line read] = (-1)^popcount((15 - written) & read), lines counted from 0",
+  "kernel": [
+   {
+    "kind": "low_shelf",
+    "frequency_hz": 1221.0,
+    "gain_db": -0.28,
+    "q": 0.484,
+    "b": [
+     0.9973522246905882,
+     -1.6690026450940447,
+     0.6968154327427423
+    ],
+    "a": [
+     -1.6685904245039256,
+     0.6945798780234493
+    ]
+   },
+   {
+    "kind": "high_shelf",
+    "frequency_hz": 12840.0,
+    "gain_db": -0.12,
+    "q": 0.26,
+    "b": [
+     0.9937298148435365,
+     0.18010442552892503,
+     -0.2982019962506739
+    ],
+    "a": [
+     0.17651929870961477,
+     -0.3008870545878271
+    ]
+   }
+  ]
+ },
+ "taps": {
+  "decayLowSeconds": 0.5,
+  "decayKneeSeconds": 6.0,
+  "first": [
+   0.46,
+   0.228
+  ],
+  "last": [
+   0.336,
+   0.428
+  ],
+  "lastDecayShape": -2.6,
+  "earlyShape": 4.0,
+  "lateShape": 2.0,
+  "weightAtHalfSecond": [
+   0.45999999999999996,
+   0.6338568501697525,
+   0.6978152110540282,
+   0.721344177114377,
+   0.73,
+   0.7386558228856229,
+   0.7621847889459717,
+   0.8261431498302475,
+   1.0,
+   0.8328674910728784,
+   0.7384847345051092,
+   0.6851850814662431,
+   0.650814918533757,
+   0.5975152654948909,
+   0.5031325089271217,
+   0.3360000000000001
+  ],
+  "weightFromSixSeconds": [
+   0.22799999999999998,
+   0.4765509043167573,
+   0.5679876720994627,
+   0.6016253791338871,
+   0.614,
+   0.6263746208661128,
+   0.6600123279005373,
+   0.7514490956832427,
+   1.0,
+   0.8560244049603711,
+   0.7747187773146422,
+   0.728804015961884,
+   0.6991959840381159,
+   0.6532812226853577,
+   0.5719755950396288,
+   0.42799999999999994
+  ]
+ },
+ "voices": {
+  "lines": [
+   [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   [
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+   ]
+  ],
+  "voiceBOffsetCycles": 0.5,
+  "amountPerMacro": 0.88,
+  "fullDepthAmount": 0.05,
+  "curveBend": 3.0,
+  "cutoffTopHz": 20000.0,
+  "cutoffEndHz": 10.0,
+  "gainTop": 1.4142135623730951,
+  "restQ": 1.0,
+  "qKnotHz": [
+   0.0,
+   1000.0,
+   3000.0,
+   5000.0,
+   15000.0,
+   20000.0
+  ],
+  "qAt0Hz": 3.365,
+  "qAt1kHz": 7.01,
+  "qAt3kHzMacro0And1": [
+   10.0,
+   2.09
+  ],
+  "qPlateauMacro0And1": [
+   7.0,
+   1.36
+  ],
+  "qSmoothingBlocks": 10.0,
+  "qSmoothingCoefficient": 0.09516258196404048,
+  "restLowPass": {
+   "kind": "low_pass",
+   "frequency_hz": 20000.0,
+   "q": 1.0,
+   "b": [
+    0.8556377924705625,
+    1.711275584941125,
+    0.8556377924705625
+   ],
+   "a": [
+    1.6742539186051173,
+    0.7482972512771328
+   ]
+  }
+ },
+ "phase": {
+  "rateAtMacro0": 0.0502375,
+  "rateAtMacro100": 0.0564238,
+  "rateShape": 0.63,
+  "gridHz": [
+   0.136,
+   0.16
+  ],
+  "levelLow": [
+   0.184,
+   -0.007
+  ],
+  "levelHigh": [
+   0.591,
+   0.433
+  ],
+  "startSameHalfProbability": 0.83
+ },
+ "outer": {
+  "width": "mid gain sqrt(2 / (1 + s)), side gain s * sqrt(2 / (1 + s)), s = widthScale",
+  "mix": "dry gain min(1, 2 * (1 - mix)), wet gain min(1, 2 * mix)",
+  "clipThreshold": 2.51188643150958,
+  "clipCeiling": 3.9810717055349722,
+  "levelStage": {
+   "kneeDb": 9.98306,
+   "slope": 0.7142857142857143,
+   "thresholdDbfs": 0.0,
+   "attackSeconds": 0.005,
+   "releaseSeconds": 0.3,
+   "firstInputPeakThatReducesTheWet": 0.5628899568562369
+  }
+ },
+ "referenceKnobs": {
+  "decaySeconds": {
+   "low": 0.5,
+   "high": 60.0,
+   "shape": 4.4,
+   "law": "low + (high - low) * (expf(shape * x) - 1) / (expf(shape) - 1), single precision"
+  },
+  "sizePercent": {
+   "low": 30.0,
+   "high": 200.0,
+   "shape": 0.71337,
+   "law": "sizeScale = fma(1.7f, r, 0.3f), r = fl32((expf(fl32(shape * x)) - 1) * fl32(1 / (expf(shape) - 1)))"
+  },
+  "preDelayMilliseconds": {
+   "low": 0.0,
+   "high": 2000.0,
+   "shape": 6.0,
+   "law": "high * (expf(shape * x) - 1) / (expf(shape) - 1), single precision"
+  },
+  "width": "widthScale = 2 x; Width in percent = 200 * (1 - 4^-x)",
+  "macro": "x",
+  "mix": "x"
+ }
+}

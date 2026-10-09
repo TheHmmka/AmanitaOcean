@@ -1,0 +1,1576 @@
+{
+ "kernel": {
+  "cutoff": 0.9,
+  "zeroCrossings": 17,
+  "kaiserBeta": 6.0,
+  "entriesPerCrossing": 4096,
+  "interpolation": "none (entry at or below)",
+  "entriesSinglePrecision": "from findings/first_order.md; not resolved here (see the ablations)",
+  "lastEntryNotUsedAfterOutputSample": 1,
+  "lookaheadMarginSamples": 10
+ },
+ "operatingPoint": {
+  "macro_percent": 0,
+  "mix_percent": 100,
+  "warmup_seconds": 10.0,
+  "trains": "Decay 0.5 s",
+  "programme": "Decay 1.5 s, datasets.network_programme seed 4242 at 0.8"
+ },
+ "latency": {
+  "rule": "4 * floor(11 * rate / 44100 + 0.5) host samples",
+  "rates": 48,
+  "mismatches": 0,
+  "table": {
+   "44100": {
+    "measured": 44,
+    "rule": 44
+   },
+   "45000": {
+    "measured": 44,
+    "rule": 44
+   },
+   "45999": {
+    "measured": 44,
+    "rule": 44
+   },
+   "46000": {
+    "measured": 44,
+    "rule": 44
+   },
+   "46001": {
+    "measured": 44,
+    "rule": 44
+   },
+   "46010": {
+    "measured": 44,
+    "rule": 44
+   },
+   "47000": {
+    "measured": 48,
+    "rule": 48
+   },
+   "47250": {
+    "measured": 48,
+    "rule": 48
+   },
+   "48000": {
+    "measured": 48,
+    "rule": 48
+   },
+   "49000": {
+    "measured": 48,
+    "rule": 48
+   },
+   "50000": {
+    "measured": 48,
+    "rule": 48
+   },
+   "50001": {
+    "measured": 48,
+    "rule": 48
+   },
+   "50113": {
+    "measured": 48,
+    "rule": 48
+   },
+   "50114": {
+    "measured": 52,
+    "rule": 52
+   },
+   "51000": {
+    "measured": 52,
+    "rule": 52
+   },
+   "52000": {
+    "measured": 52,
+    "rule": 52
+   },
+   "54000": {
+    "measured": 52,
+    "rule": 52
+   },
+   "55125": {
+    "measured": 56,
+    "rule": 56
+   },
+   "58000": {
+    "measured": 56,
+    "rule": 56
+   },
+   "58131": {
+    "measured": 56,
+    "rule": 56
+   },
+   "58132": {
+    "measured": 60,
+    "rule": 60
+   },
+   "60000": {
+    "measured": 60,
+    "rule": 60
+   },
+   "62000": {
+    "measured": 60,
+    "rule": 60
+   },
+   "64000": {
+    "measured": 64,
+    "rule": 64
+   },
+   "65999": {
+    "measured": 64,
+    "rule": 64
+   },
+   "66000": {
+    "measured": 64,
+    "rule": 64
+   },
+   "66001": {
+    "measured": 64,
+    "rule": 64
+   },
+   "66100": {
+    "measured": 64,
+    "rule": 64
+   },
+   "66149": {
+    "measured": 64,
+    "rule": 64
+   },
+   "66150": {
+    "measured": 68,
+    "rule": 68
+   },
+   "70000": {
+    "measured": 68,
+    "rule": 68
+   },
+   "72000": {
+    "measured": 72,
+    "rule": 72
+   },
+   "74000": {
+    "measured": 72,
+    "rule": 72
+   },
+   "78000": {
+    "measured": 76,
+    "rule": 76
+   },
+   "88200": {
+    "measured": 88,
+    "rule": 88
+   },
+   "90000": {
+    "measured": 88,
+    "rule": 88
+   },
+   "96000": {
+    "measured": 96,
+    "rule": 96
+   },
+   "100000": {
+    "measured": 100,
+    "rule": 100
+   },
+   "110000": {
+    "measured": 108,
+    "rule": 108
+   },
+   "110250": {
+    "measured": 112,
+    "rule": 112
+   },
+   "132300": {
+    "measured": 132,
+    "rule": 132
+   },
+   "144000": {
+    "measured": 144,
+    "rule": 144
+   },
+   "154350": {
+    "measured": 156,
+    "rule": 156
+   },
+   "176400": {
+    "measured": 176,
+    "rule": 176
+   },
+   "192000": {
+    "measured": 192,
+    "rule": 192
+   },
+   "250000": {
+    "measured": 248,
+    "rule": 248
+   },
+   "352800": {
+    "measured": 352,
+    "rule": 352
+   },
+   "384000": {
+    "measured": 384,
+    "rule": 384
+   }
+  }
+ },
+ "rates": {
+  "44100": {
+   "hostRateHz": 44100,
+   "latticeHostPerInternal": [
+    1,
+    1
+   ],
+   "reportedLatencySamples": 44,
+   "inputLookaheadHostSamples": null,
+   "outputLookaheadInternalSamples": null,
+   "outputBlocks": 1,
+   "inputDelayLatticeSteps": 0,
+   "outputDelayLatticeSteps": 44,
+   "inputDelayInternalSamples": 0.0,
+   "outputDelayInternalSamples": 44.0,
+   "fixedDelayHostSamples": 88.0,
+   "fixedDelayMs": 1.9954648526077097,
+   "inputGain": 1.0,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 0,
+    "output": 0
+   }
+  },
+  "45000": {
+   "hostRateHz": 45000,
+   "latticeHostPerInternal": [
+    50,
+    49
+   ],
+   "reportedLatencySamples": 44,
+   "inputLookaheadHostSamples": 28,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 1371,
+   "outputDelayLatticeSteps": 5712,
+   "inputDelayInternalSamples": 27.42,
+   "outputDelayInternalSamples": 114.24,
+   "fixedDelayHostSamples": 189.44897959183675,
+   "fixedDelayMs": 4.209977324263039,
+   "inputGain": 0.98,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 1,
+    "output": -1
+   },
+   "relationProgrammeNullDb": -132.30667538834183,
+   "clock": {
+    "input": 1,
+    "output": -1,
+    "blockHostSamples": 44,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.87729722950473,
+    "input clock taken as low": -82.40662017278862,
+    "input clock taken as exact": -86.42613893803954,
+    "output clock taken as exact": -84.42993412192854,
+    "output clock taken as high": -82.45863806935122
+   }
+  },
+  "47250": {
+   "hostRateHz": 47250,
+   "latticeHostPerInternal": [
+    15,
+    14
+   ],
+   "reportedLatencySamples": 48,
+   "inputLookaheadHostSamples": 29,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 405,
+   "outputDelayLatticeSteps": 1764,
+   "inputDelayInternalSamples": 27.0,
+   "outputDelayInternalSamples": 117.6,
+   "fixedDelayHostSamples": 202.07142857142858,
+   "fixedDelayMs": 4.276643990929705,
+   "inputGain": 0.9333333333333333,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": -1,
+    "output": -1
+   },
+   "relationProgrammeNullDb": -132.44864620902501,
+   "clock": {
+    "input": -1,
+    "output": -1,
+    "blockHostSamples": 48,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -129.10043939980858,
+    "input clock taken as exact": -81.93546815247687,
+    "output clock taken as exact": -81.89145335488091,
+    "input clock taken as high": -79.77341035482392,
+    "output clock taken as high": -79.67928443008502
+   }
+  },
+  "48000": {
+   "hostRateHz": 48000,
+   "latticeHostPerInternal": [
+    160,
+    147
+   ],
+   "reportedLatencySamples": 48,
+   "inputLookaheadHostSamples": 29,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 4250,
+   "outputDelayLatticeSteps": 18592,
+   "inputDelayInternalSamples": 26.5625,
+   "outputDelayInternalSamples": 116.2,
+   "fixedDelayHostSamples": 203.27891156462584,
+   "fixedDelayMs": 4.234977324263038,
+   "inputGain": 0.91875,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": -1,
+    "output": 1
+   },
+   "relationProgrammeNullDb": -132.36848005756153,
+   "clock": {
+    "input": -1,
+    "output": 1,
+    "blockHostSamples": 48,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.71470712119665,
+    "output clock taken as low": -76.42352175561223,
+    "input clock taken as exact": -79.6171831616665,
+    "output clock taken as exact": -79.27769843164165,
+    "input clock taken as high": -76.84984177832362
+   }
+  },
+  "50000": {
+   "hostRateHz": 50000,
+   "latticeHostPerInternal": [
+    500,
+    441
+   ],
+   "reportedLatencySamples": 48,
+   "inputLookaheadHostSamples": 30,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 13171,
+   "outputDelayLatticeSteps": 56336,
+   "inputDelayInternalSamples": 26.342,
+   "outputDelayInternalSamples": 112.672,
+   "fixedDelayHostSamples": 207.49886621315193,
+   "fixedDelayMs": 4.1499773242630384,
+   "inputGain": 0.882,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": -1,
+    "output": -1
+   },
+   "relationProgrammeNullDb": -132.18806906724834,
+   "clock": {
+    "input": -1,
+    "output": -1,
+    "blockHostSamples": 48,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.6853813626645,
+    "input clock taken as exact": -93.58950943887584,
+    "output clock taken as exact": -92.50711233950682,
+    "input clock taken as high": -91.3189683154049,
+    "output clock taken as high": -90.10364763714676
+   }
+  },
+  "55125": {
+   "hostRateHz": 55125,
+   "latticeHostPerInternal": [
+    5,
+    4
+   ],
+   "reportedLatencySamples": 56,
+   "inputLookaheadHostSamples": 32,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 127,
+   "outputDelayLatticeSteps": 588,
+   "inputDelayInternalSamples": 25.4,
+   "outputDelayInternalSamples": 117.6,
+   "fixedDelayHostSamples": 233.75,
+   "fixedDelayMs": 4.240362811791384,
+   "inputGain": 0.8,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 0,
+    "output": -1
+   },
+   "relationProgrammeNullDb": -132.2661907588477,
+   "clock": {
+    "input": 0,
+    "output": -1,
+    "blockHostSamples": 56,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.7899198553267,
+    "input clock taken as low": -77.0054574170808,
+    "output clock taken as exact": -76.8041795662935,
+    "input clock taken as high": -80.22933664770159,
+    "output clock taken as high": -74.56144974471084
+   }
+  },
+  "60000": {
+   "hostRateHz": 60000,
+   "latticeHostPerInternal": [
+    200,
+    147
+   ],
+   "reportedLatencySamples": 60,
+   "inputLookaheadHostSamples": 34,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 4945,
+   "outputDelayLatticeSteps": 23240,
+   "inputDelayInternalSamples": 24.725,
+   "outputDelayInternalSamples": 116.2,
+   "fixedDelayHostSamples": 251.59863945578232,
+   "fixedDelayMs": 4.1933106575963714,
+   "inputGain": 0.735,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 1,
+    "output": -1
+   },
+   "relationProgrammeNullDb": -132.35237946413125,
+   "clock": {
+    "input": 1,
+    "output": -1,
+    "blockHostSamples": 60,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.65377557992164,
+    "input clock taken as low": -84.30481967643826,
+    "input clock taken as exact": -86.35834806476456,
+    "output clock taken as exact": -85.63257572212348,
+    "output clock taken as high": -83.28120317475793
+   }
+  },
+  "64000": {
+   "hostRateHz": 64000,
+   "latticeHostPerInternal": [
+    640,
+    441
+   ],
+   "reportedLatencySamples": 64,
+   "inputLookaheadHostSamples": 36,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 15677,
+   "outputDelayLatticeSteps": 74368,
+   "inputDelayInternalSamples": 24.4953125,
+   "outputDelayInternalSamples": 116.2,
+   "fixedDelayHostSamples": 268.03854875283446,
+   "fixedDelayMs": 4.188102324263038,
+   "inputGain": 0.6890625,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": -1,
+    "output": -1
+   },
+   "relationProgrammeNullDb": -132.29758718628267,
+   "clock": {
+    "input": -1,
+    "output": -1,
+    "blockHostSamples": 64,
+    "settledAfterBlocks": 2,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.59255150778444,
+    "input clock taken as exact": -78.95960433936432,
+    "output clock taken as exact": -79.13638895581076,
+    "input clock taken as high": -76.46939370046644,
+    "output clock taken as high": -76.36094800499737
+   }
+  },
+  "66150": {
+   "hostRateHz": 66150,
+   "latticeHostPerInternal": [
+    3,
+    2
+   ],
+   "reportedLatencySamples": 68,
+   "inputLookaheadHostSamples": 37,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 73,
+   "outputDelayLatticeSteps": 356,
+   "inputDelayInternalSamples": 24.333333333333332,
+   "outputDelayInternalSamples": 118.66666666666667,
+   "fixedDelayHostSamples": 280.5,
+   "fixedDelayMs": 4.240362811791384,
+   "inputGain": 0.6666666666666666,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 0,
+    "output": -1
+   },
+   "relationProgrammeNullDb": -132.20523924070497,
+   "clock": {
+    "input": 0,
+    "output": -1,
+    "blockHostSamples": 68,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.80271562298213,
+    "input clock taken as low": -77.40528025320988,
+    "output clock taken as exact": -74.92499820197342,
+    "input clock taken as high": -74.5858001618844,
+    "output clock taken as high": -72.75632143671737
+   }
+  },
+  "72000": {
+   "hostRateHz": 72000,
+   "latticeHostPerInternal": [
+    80,
+    49
+   ],
+   "reportedLatencySamples": 72,
+   "inputLookaheadHostSamples": 39,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 1880,
+   "outputDelayLatticeSteps": 9296,
+   "inputDelayInternalSamples": 23.5,
+   "outputDelayInternalSamples": 116.2,
+   "fixedDelayHostSamples": 299.9183673469388,
+   "fixedDelayMs": 4.165532879818595,
+   "inputGain": 0.6125,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": -1,
+    "output": -1
+   },
+   "relationProgrammeNullDb": -132.2729837277334,
+   "clock": {
+    "input": -1,
+    "output": -1,
+    "blockHostSamples": 72,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.72384052952782,
+    "input clock taken as exact": -79.50452040000953,
+    "output clock taken as exact": -78.98254213219063,
+    "input clock taken as high": -77.05361359478967,
+    "output clock taken as high": -76.48308705036676
+   }
+  },
+  "88200": {
+   "hostRateHz": 88200,
+   "latticeHostPerInternal": [
+    2,
+    1
+   ],
+   "reportedLatencySamples": 88,
+   "inputLookaheadHostSamples": 46,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 1,
+   "inputDelayLatticeSteps": 45,
+   "outputDelayLatticeSteps": 144,
+   "inputDelayInternalSamples": 22.5,
+   "outputDelayInternalSamples": 72.0,
+   "fixedDelayHostSamples": 277.0,
+   "fixedDelayMs": 3.1405895691609977,
+   "inputGain": 0.5,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 0,
+    "output": 0
+   },
+   "relationProgrammeNullDb": -132.19655074178422,
+   "clock": {
+    "input": 0,
+    "output": 0,
+    "blockHostSamples": 88,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.66820676879752,
+    "input clock taken as low": -70.7366307128095,
+    "output clock taken as low": -70.7254539481144,
+    "input clock taken as high": -72.35711145136972,
+    "output clock taken as high": -72.39249086151563
+   }
+  },
+  "96000": {
+   "hostRateHz": 96000,
+   "latticeHostPerInternal": [
+    320,
+    147
+   ],
+   "reportedLatencySamples": 96,
+   "inputLookaheadHostSamples": 49,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 7030,
+   "outputDelayLatticeSteps": 37184,
+   "inputDelayInternalSamples": 21.96875,
+   "outputDelayInternalSamples": 116.2,
+   "fixedDelayHostSamples": 396.5578231292517,
+   "fixedDelayMs": 4.130810657596372,
+   "inputGain": 0.459375,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": -1,
+    "output": 1
+   },
+   "relationProgrammeNullDb": -132.24365157387126,
+   "clock": {
+    "input": -1,
+    "output": 1,
+    "blockHostSamples": 96,
+    "settledAfterBlocks": 1,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -127.9969241930841,
+    "output clock taken as low": -76.6573327959167,
+    "input clock taken as exact": -79.4817233803954,
+    "output clock taken as exact": -79.16399602516624,
+    "input clock taken as high": -76.85729788925035
+   }
+  },
+  "100000": {
+   "hostRateHz": 100000,
+   "latticeHostPerInternal": [
+    1000,
+    441
+   ],
+   "reportedLatencySamples": 100,
+   "inputLookaheadHostSamples": 50,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 21491,
+   "outputDelayLatticeSteps": 116200,
+   "inputDelayInternalSamples": 21.491,
+   "outputDelayInternalSamples": 116.2,
+   "fixedDelayHostSamples": 411.99773242630386,
+   "fixedDelayMs": 4.119977324263038,
+   "inputGain": 0.441,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": -1,
+    "output": 1
+   },
+   "relationProgrammeNullDb": -132.19606244515063,
+   "clock": {
+    "input": -1,
+    "output": 1,
+    "blockHostSamples": 100,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.2433272443721,
+    "output clock taken as low": -90.97678410015341,
+    "input clock taken as exact": -92.81754043025013,
+    "output clock taken as exact": -93.64620289190405,
+    "input clock taken as high": -90.65086824572147
+   }
+  },
+  "110250": {
+   "hostRateHz": 110250,
+   "latticeHostPerInternal": [
+    5,
+    2
+   ],
+   "reportedLatencySamples": 112,
+   "inputLookaheadHostSamples": 55,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 107,
+   "outputDelayLatticeSteps": 588,
+   "inputDelayInternalSamples": 21.4,
+   "outputDelayInternalSamples": 117.6,
+   "fixedDelayHostSamples": 457.5,
+   "fixedDelayMs": 4.149659863945578,
+   "inputGain": 0.4,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 0,
+    "output": 1
+   },
+   "relationProgrammeNullDb": -132.10554956617864,
+   "clock": {
+    "input": 0,
+    "output": 1,
+    "blockHostSamples": 112,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.15082790185497,
+    "input clock taken as low": -76.5740564343877,
+    "output clock taken as low": -74.81264004854833,
+    "output clock taken as exact": -80.36602359744313,
+    "input clock taken as high": -79.58161751109421
+   }
+  },
+  "132300": {
+   "hostRateHz": 132300,
+   "latticeHostPerInternal": [
+    3,
+    1
+   ],
+   "reportedLatencySamples": 132,
+   "inputLookaheadHostSamples": 64,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 1,
+   "inputDelayLatticeSteps": 62,
+   "outputDelayLatticeSteps": 216,
+   "inputDelayInternalSamples": 20.666666666666668,
+   "outputDelayInternalSamples": 72.0,
+   "fixedDelayHostSamples": 410.0,
+   "fixedDelayMs": 3.0990173847316704,
+   "inputGain": 0.3333333333333333,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 0,
+    "output": 1
+   },
+   "relationProgrammeNullDb": -131.94591184259033,
+   "clock": {
+    "input": 0,
+    "output": 1,
+    "blockHostSamples": 132,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.35394294458717,
+    "input clock taken as low": -74.17521737893242,
+    "output clock taken as low": -72.84858135312743,
+    "output clock taken as exact": -78.0645823311257,
+    "input clock taken as high": -76.66682778297479
+   }
+  },
+  "144000": {
+   "hostRateHz": 144000,
+   "latticeHostPerInternal": [
+    160,
+    49
+   ],
+   "reportedLatencySamples": 144,
+   "inputLookaheadHostSamples": 68,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 3221,
+   "outputDelayLatticeSteps": 18592,
+   "inputDelayInternalSamples": 20.13125,
+   "outputDelayInternalSamples": 116.2,
+   "fixedDelayHostSamples": 588.8367346938776,
+   "fixedDelayMs": 4.089143990929705,
+   "inputGain": 0.30625,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": -1,
+    "output": -1
+   },
+   "relationProgrammeNullDb": -131.89346244690142,
+   "clock": {
+    "input": -1,
+    "output": -1,
+    "blockHostSamples": 144,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.05674910980332,
+    "input clock taken as exact": -78.95785999297152,
+    "output clock taken as exact": -79.07126566721914,
+    "input clock taken as high": -76.88631285806588,
+    "output clock taken as high": -76.46800050441263
+   }
+  },
+  "176400": {
+   "hostRateHz": 176400,
+   "latticeHostPerInternal": [
+    4,
+    1
+   ],
+   "reportedLatencySamples": 176,
+   "inputLookaheadHostSamples": 82,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 1,
+   "inputDelayLatticeSteps": 79,
+   "outputDelayLatticeSteps": 288,
+   "inputDelayInternalSamples": 19.75,
+   "outputDelayInternalSamples": 72.0,
+   "fixedDelayHostSamples": 543.0,
+   "fixedDelayMs": 3.078231292517007,
+   "inputGain": 0.25,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 0,
+    "output": 0
+   },
+   "relationProgrammeNullDb": -131.90052952769062,
+   "clock": {
+    "input": 0,
+    "output": 0,
+    "blockHostSamples": 176,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -127.66331545306929,
+    "input clock taken as low": -71.3309421801803,
+    "output clock taken as low": -71.33026350614315,
+    "input clock taken as high": -72.24512438225162,
+    "output clock taken as high": -72.24379098889665
+   }
+  },
+  "192000": {
+   "hostRateHz": 192000,
+   "latticeHostPerInternal": [
+    640,
+    147
+   ],
+   "reportedLatencySamples": 192,
+   "inputLookaheadHostSamples": 88,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 12443,
+   "outputDelayLatticeSteps": 74368,
+   "inputDelayInternalSamples": 19.4421875,
+   "outputDelayInternalSamples": 116.2,
+   "fixedDelayHostSamples": 782.1156462585034,
+   "fixedDelayMs": 4.073518990929705,
+   "inputGain": 0.2296875,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 1,
+    "output": -1
+   },
+   "relationProgrammeNullDb": -131.71213613584752,
+   "clock": {
+    "input": 1,
+    "output": -1,
+    "blockHostSamples": 192,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -128.0275180101658,
+    "input clock taken as low": -77.00605029415384,
+    "input clock taken as exact": -79.41640839859234,
+    "output clock taken as exact": -79.16853383995756,
+    "output clock taken as high": -76.58608336040275
+   }
+  },
+  "352800": {
+   "hostRateHz": 352800,
+   "latticeHostPerInternal": [
+    8,
+    1
+   ],
+   "reportedLatencySamples": 352,
+   "inputLookaheadHostSamples": 154,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 1,
+   "inputDelayLatticeSteps": 147,
+   "outputDelayLatticeSteps": 576,
+   "inputDelayInternalSamples": 18.375,
+   "outputDelayInternalSamples": 72.0,
+   "fixedDelayHostSamples": 1075.0,
+   "fixedDelayMs": 3.0470521541950113,
+   "inputGain": 0.125,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 0,
+    "output": 0
+   },
+   "relationProgrammeNullDb": -131.02192994356184,
+   "clock": {
+    "input": 0,
+    "output": 0,
+    "blockHostSamples": 352,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -127.25617773059415,
+    "input clock taken as low": -71.777214260184,
+    "output clock taken as low": -71.83907657218214,
+    "input clock taken as high": -72.29905816645282,
+    "output clock taken as high": -72.27876014535332
+   }
+  },
+  "384000": {
+   "hostRateHz": 384000,
+   "latticeHostPerInternal": [
+    1280,
+    147
+   ],
+   "reportedLatencySamples": 384,
+   "inputLookaheadHostSamples": 166,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 23269,
+   "outputDelayLatticeSteps": 148736,
+   "inputDelayInternalSamples": 18.17890625,
+   "outputDelayInternalSamples": 116.2,
+   "fixedDelayHostSamples": 1553.2312925170068,
+   "fixedDelayMs": 4.044873157596372,
+   "inputGain": 0.11484375,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 1,
+    "output": -1
+   },
+   "relationProgrammeNullDb": -130.91187436469937,
+   "clock": {
+    "input": 1,
+    "output": -1,
+    "blockHostSamples": 384,
+    "settledAfterBlocks": 0,
+    "sameAsConverters": true
+   },
+   "clockSignTestsProbeNullDb": {
+    "converters.py": -127.02066540212401,
+    "input clock taken as low": -76.87509248196783,
+    "input clock taken as exact": -78.6339617974267,
+    "output clock taken as exact": -79.23950344498279,
+    "output clock taken as high": -76.82659797213027
+   }
+  }
+ },
+ "ablations": {
+  "48000": {
+   "converters.py": -128.71470712119665,
+   "last table entry kept on the wing after the output sample": -92.99623530069607,
+   "input delay + 1 lattice step": -41.36684921230779,
+   "output delay + 1 lattice step": -41.367028721579935,
+   "input and output delay moved by one internal sample, sum unchanged": -48.022332201628636,
+   "table in double precision": -128.81025795223093,
+   "window ending one entry after the table (i / 69632)": -117.1836705695363,
+   "table of 2048 entries per crossing": -67.36164257212644,
+   "table of 8192 entries per crossing": -73.47449821100338,
+   "table of 262144 entries per crossing (as good as the exact kernel)": -68.51429320664084,
+   "Kaiser beta 5.9": -61.978703474054136,
+   "cut-off 0.899": -52.442318000463025,
+   "16 zero crossings": -44.96416134592253
+  },
+  "66150": {
+   "converters.py": -128.80271562298213,
+   "table position of the down-converter not accumulated (exact)": -77.30078711867655,
+   "last table entry kept on the wing after the output sample": -77.56309412274886,
+   "input delay + 1 lattice step": -6.935240513545878,
+   "output delay + 1 lattice step": -6.9361918287642865,
+   "input and output delay moved by one internal sample, sum unchanged": -48.191676856233485,
+   "table in double precision": -128.84818334728772,
+   "window ending one entry after the table (i / 69632)": -117.9489205275754,
+   "table of 2048 entries per crossing": -68.81580381303955,
+   "table of 8192 entries per crossing": -74.2674040691014,
+   "table of 262144 entries per crossing (as good as the exact kernel)": -69.57411865891856,
+   "Kaiser beta 5.9": -62.755896320006926,
+   "cut-off 0.899": -53.72847710814882,
+   "16 zero crossings": -45.74723748416909
+  },
+  "88200": {
+   "converters.py": -128.66820676879752,
+   "input delay + 1 lattice step": -3.8562452801473057,
+   "output delay + 1 lattice step": -3.8572184933303006,
+   "input and output delay moved by one internal sample, sum unchanged": -48.22205344057211,
+   "table in double precision": -128.6281131030389,
+   "window ending one entry after the table (i / 69632)": -117.85662569669556,
+   "table of 2048 entries per crossing": -117.76860380573798,
+   "table of 8192 entries per crossing": -122.81357725501861,
+   "table of 262144 entries per crossing (as good as the exact kernel)": -117.9994311696549,
+   "Kaiser beta 5.9": -62.581185927681105,
+   "cut-off 0.899": -53.62579891857595,
+   "16 zero crossings": -45.59889987304375
+  },
+  "96000": {
+   "converters.py": -127.9969241930841,
+   "last table entry kept on the wing after the output sample": -98.52478757962625,
+   "input delay + 1 lattice step": -47.497949832398746,
+   "output delay + 1 lattice step": -47.50718982616144,
+   "input and output delay moved by one internal sample, sum unchanged": -48.23209922680276,
+   "table in double precision": -127.99374752733458,
+   "window ending one entry after the table (i / 69632)": -117.30473215320872,
+   "table of 2048 entries per crossing": -67.45721974026318,
+   "table of 8192 entries per crossing": -73.36928636367982,
+   "table of 262144 entries per crossing (as good as the exact kernel)": -68.38403047100583,
+   "Kaiser beta 5.9": -62.09349926408062,
+   "cut-off 0.899": -52.063332344001154,
+   "16 zero crossings": -45.09705976090581
+  },
+  "132300": {
+   "converters.py": -128.35394294458717,
+   "table position of the down-converter not accumulated (exact)": -82.01091932740638,
+   "last table entry kept on the wing after the output sample": -77.66867016917539,
+   "input delay + 1 lattice step": -7.0506386769023734,
+   "output delay + 1 lattice step": -7.0508634485868384,
+   "input and output delay moved by one internal sample, sum unchanged": -48.42127986581281,
+   "table in double precision": -128.16637225192324,
+   "window ending one entry after the table (i / 69632)": -117.27006333565274,
+   "table of 2048 entries per crossing": -68.32848134279352,
+   "table of 8192 entries per crossing": -73.76187351323594,
+   "table of 262144 entries per crossing (as good as the exact kernel)": -69.08051753753944,
+   "Kaiser beta 5.9": -61.94062193413146,
+   "cut-off 0.899": -53.310474698365056,
+   "16 zero crossings": -44.95676024617943
+  },
+  "192000": {
+   "converters.py": -128.0275180101658,
+   "delays (a + 2, b - 2) with both clock signs reversed": -89.89155979483449,
+   "last table entry kept on the wing after the output sample": -98.89129013332958,
+   "input delay + 1 lattice step": -53.455323157676816,
+   "output delay + 1 lattice step": -53.45682491145399,
+   "input and output delay moved by one internal sample, sum unchanged": -48.25322416542302,
+   "table in double precision": -127.93223318948795,
+   "window ending one entry after the table (i / 69632)": -117.96608927124696,
+   "table of 2048 entries per crossing": -67.59109974197389,
+   "table of 8192 entries per crossing": -73.57191662815198,
+   "table of 262144 entries per crossing (as good as the exact kernel)": -68.58583758135634,
+   "Kaiser beta 5.9": -62.92682922872996,
+   "cut-off 0.899": -53.23741506278624,
+   "16 zero crossings": -45.91103057410321
+  }
+ },
+ "clockBlockSize": {
+  "ratesWithDriftingClock": 16,
+  "reportedLatency": 16,
+  "reportedLatencyTimes": {
+   "1/4": 13,
+   "1/2": 13,
+   "3/4": 13,
+   "5/4": 7,
+   "3/2": 6,
+   "2/1": 6,
+   "3/1": 4,
+   "4/1": 4
+  },
+  "reportedLatencyPlus": {
+   "-8": 13,
+   "-4": 14,
+   "-2": 14,
+   "-1": 16,
+   "1": 13,
+   "2": 13,
+   "4": 12,
+   "8": 9
+  },
+  "oneMillisecondRounded": 15,
+  "bestFixedBlock": {
+   "matches": 14,
+   "blocks": [
+    44,
+    48
+   ],
+   "blocksTried": 131
+  },
+  "ratesWithSameSignsFromPrimedStart": 19
+ },
+ "otherWarmups": [
+  {
+   "hostRateHz": 96000,
+   "warmupSeconds": 4.3125,
+   "warmupSamples": 414000,
+   "warmupModuloBlock": 48,
+   "coreWarmupSeconds": 4.0,
+   "relationNullDb": -128.43516462818968
+  },
+  {
+   "hostRateHz": 48000,
+   "warmupSeconds": 59.0625,
+   "warmupSamples": 2835000,
+   "warmupModuloBlock": 24,
+   "coreWarmupSeconds": 58.5,
+   "relationNullDb": -128.5204089718424
+  },
+  {
+   "hostRateHz": 96000,
+   "warmupSeconds": 58.71875,
+   "warmupSamples": 5637000,
+   "warmupModuloBlock": 72,
+   "coreWarmupSeconds": 58.5,
+   "relationNullDb": -128.2466429039418
+  },
+  {
+   "hostRateHz": 192000,
+   "warmupSeconds": 57.3125,
+   "warmupSamples": 11004000,
+   "warmupModuloBlock": 96,
+   "coreWarmupSeconds": 57.0,
+   "relationNullDb": -127.77945708597521
+  }
+ ],
+ "movedSettings": {
+  "hostRateHz": 96000,
+  "settings": {
+   "decay": 7.3,
+   "size": 62.0,
+   "width": 130.0
+  },
+  "relationNullDb": -127.57472378678855
+ },
+ "hostBlockSizeBitIdentical": {
+  "88200": {
+   "64": true,
+   "960": true
+  },
+  "96000": {
+   "64": true,
+   "960": true
+  },
+  "192000": {
+   "64": true,
+   "960": true
+  }
+ },
+ "firstPass": {
+  "network": "first_order_model.Network with tide_structural_data/first_order.json, unchanged",
+  "window": "network times of raw [1200, 2500) at 48 kHz",
+  "workingTrains": [
+   {
+    "hostRateHz": 44100,
+    "seed": 7001,
+    "seconds": 60.0,
+    "impulses": 51,
+    "window": [
+     1004,
+     2199
+    ],
+    "nullDb": -80.07752410362093,
+    "bestDb": -82.32937462709087,
+    "medianDb": -80.29441554552926,
+    "worstDb": -77.60503108644829
+   },
+   {
+    "hostRateHz": 48000,
+    "seed": 7001,
+    "seconds": 60.0,
+    "impulses": 51,
+    "window": [
+     1200,
+     2500
+    ],
+    "nullDb": -80.39053265259376,
+    "bestDb": -82.07067509760859,
+    "medianDb": -80.57347053929496,
+    "worstDb": -78.71452004391536
+   },
+   {
+    "hostRateHz": 50000,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     1246,
+     2600
+    ],
+    "nullDb": -80.41688075849778,
+    "bestDb": -82.01290320442482,
+    "medianDb": -80.41509704503572,
+    "worstDb": -78.94865699785889
+   },
+   {
+    "hostRateHz": 64000,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     1597,
+     3331
+    ],
+    "nullDb": -80.37874829026849,
+    "bestDb": -81.92974554035334,
+    "medianDb": -80.52662246665128,
+    "worstDb": -78.893031443615
+   },
+   {
+    "hostRateHz": 66150,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     1655,
+     3446
+    ],
+    "nullDb": -80.34166409446905,
+    "bestDb": -81.95047387208075,
+    "medianDb": -80.4273097407602,
+    "worstDb": -78.40541919448589
+   },
+   {
+    "hostRateHz": 88200,
+    "seed": 7001,
+    "seconds": 60.0,
+    "impulses": 51,
+    "window": [
+     2109,
+     4498
+    ],
+    "nullDb": -80.46350126933952,
+    "bestDb": -82.18469874927779,
+    "medianDb": -80.83106323501134,
+    "worstDb": -78.10527415867216
+   },
+   {
+    "hostRateHz": 96000,
+    "seed": 7001,
+    "seconds": 60.0,
+    "impulses": 51,
+    "window": [
+     2390,
+     4990
+    ],
+    "nullDb": -80.36384837659058,
+    "bestDb": -82.30170154813192,
+    "medianDb": -80.58227093683008,
+    "worstDb": -77.32983276205167
+   },
+   {
+    "hostRateHz": 132300,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     3158,
+     6741
+    ],
+    "nullDb": -80.28113175370368,
+    "bestDb": -81.90853499039333,
+    "medianDb": -80.55116518654893,
+    "worstDb": -78.40863271767194
+   },
+   {
+    "hostRateHz": 176400,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     4206,
+     8984
+    ],
+    "nullDb": -80.37375682562174,
+    "bestDb": -82.25704253620144,
+    "medianDb": -80.77487584134963,
+    "worstDb": -78.81162588499089
+   },
+   {
+    "hostRateHz": 192000,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     4769,
+     9969
+    ],
+    "nullDb": -80.39272809948676,
+    "bestDb": -82.25585738448765,
+    "medianDb": -80.78894886577538,
+    "worstDb": -78.80760328114818
+   }
+  ],
+  "freshTrains": [
+   {
+    "hostRateHz": 88200,
+    "seed": 7002,
+    "seconds": 30.0,
+    "impulses": 25,
+    "window": [
+     2109,
+     4498
+    ],
+    "nullDb": -80.1135548029145,
+    "bestDb": -81.88466998279887,
+    "medianDb": -79.88500805682612,
+    "worstDb": -77.92711658357857
+   },
+   {
+    "hostRateHz": 96000,
+    "seed": 7002,
+    "seconds": 30.0,
+    "impulses": 25,
+    "window": [
+     2390,
+     4990
+    ],
+    "nullDb": -80.07926694782499,
+    "bestDb": -81.73880743258492,
+    "medianDb": -79.83844560224716,
+    "worstDb": -77.61448513233138
+   },
+   {
+    "hostRateHz": 176400,
+    "seed": 7002,
+    "seconds": 20.0,
+    "impulses": 17,
+    "window": [
+     4206,
+     8984
+    ],
+    "nullDb": -80.19504534455348,
+    "bestDb": -81.69765529706746,
+    "medianDb": -80.12408220094464,
+    "worstDb": -78.86117758088508
+   },
+   {
+    "hostRateHz": 192000,
+    "seed": 7002,
+    "seconds": 20.0,
+    "impulses": 17,
+    "window": [
+     4769,
+     9969
+    ],
+    "nullDb": -80.36620999699564,
+    "bestDb": -81.86806246399841,
+    "medianDb": -80.4090241387616,
+    "worstDb": -79.24892917239653
+   }
+  ],
+  "latticeDelaysOnly": [
+   {
+    "hostRateHz": 48000,
+    "seed": 7001,
+    "seconds": 60.0,
+    "impulses": 51,
+    "window": [
+     1200,
+     2500
+    ],
+    "nullDb": -74.63042518103512,
+    "bestDb": -79.66787913081939,
+    "medianDb": -76.33490230563464,
+    "worstDb": -69.61409761178962
+   },
+   {
+    "hostRateHz": 50000,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     1246,
+     2600
+    ],
+    "nullDb": -80.16071769296666,
+    "bestDb": -81.71827532492016,
+    "medianDb": -80.24595140441215,
+    "worstDb": -78.55939425340699
+   },
+   {
+    "hostRateHz": 64000,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     1597,
+     3331
+    ],
+    "nullDb": -75.45033612897433,
+    "bestDb": -78.29714933976948,
+    "medianDb": -76.4863559330979,
+    "worstDb": -69.59539462128446
+   },
+   {
+    "hostRateHz": 66150,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     1655,
+     3446
+    ],
+    "nullDb": -71.0712264965118,
+    "bestDb": -74.86546451096177,
+    "medianDb": -73.2106970126232,
+    "worstDb": -68.17330686130012
+   },
+   {
+    "hostRateHz": 88200,
+    "seed": 7001,
+    "seconds": 60.0,
+    "impulses": 51,
+    "window": [
+     2109,
+     4498
+    ],
+    "nullDb": -80.46350126933952,
+    "bestDb": -82.18469874927779,
+    "medianDb": -80.83106323501134,
+    "worstDb": -78.10527415867216
+   },
+   {
+    "hostRateHz": 96000,
+    "seed": 7001,
+    "seconds": 60.0,
+    "impulses": 51,
+    "window": [
+     2390,
+     4990
+    ],
+    "nullDb": -75.43843016983125,
+    "bestDb": -78.96851335560055,
+    "medianDb": -76.47019267151494,
+    "worstDb": -69.27846857261032
+   },
+   {
+    "hostRateHz": 132300,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     3158,
+     6741
+    ],
+    "nullDb": -75.02463648138244,
+    "bestDb": -76.56972543403877,
+    "medianDb": -75.86585149529502,
+    "worstDb": -73.0604069558305
+   },
+   {
+    "hostRateHz": 176400,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     4206,
+     8984
+    ],
+    "nullDb": -80.37375682562174,
+    "bestDb": -82.25704253620144,
+    "medianDb": -80.77487584134963,
+    "worstDb": -78.81162588499089
+   },
+   {
+    "hostRateHz": 192000,
+    "seed": 7001,
+    "seconds": 40.0,
+    "impulses": 34,
+    "window": [
+     4769,
+     9969
+    ],
+    "nullDb": -75.5881246615103,
+    "bestDb": -77.44394459633747,
+    "medianDb": -76.6029911318846,
+    "worstDb": -70.6539035379144
+   }
+  ]
+ },
+ "unmeasuredRatesInferred": {
+  "22050": {
+   "hostRateHz": 22050,
+   "latticeHostPerInternal": [
+    1,
+    2
+   ],
+   "reportedLatencySamples": 24,
+   "inputLookaheadHostSamples": 28,
+   "outputLookaheadInternalSamples": 46,
+   "outputBlocks": 1,
+   "inputDelayLatticeSteps": 57,
+   "outputDelayLatticeSteps": 94,
+   "inputDelayInternalSamples": 57.0,
+   "outputDelayInternalSamples": 94.0,
+   "fixedDelayHostSamples": 97.5,
+   "fixedDelayMs": 4.421768707482993,
+   "inputGain": 1.0,
+   "outputGain": 0.5,
+   "clockSigns": {
+    "input": 0,
+    "output": 0
+   }
+  },
+  "32000": {
+   "hostRateHz": 32000,
+   "latticeHostPerInternal": [
+    320,
+    441
+   ],
+   "reportedLatencySamples": 32,
+   "inputLookaheadHostSamples": 28,
+   "outputLookaheadInternalSamples": 34,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 12469,
+   "outputDelayLatticeSteps": 39104,
+   "inputDelayInternalSamples": 38.965625,
+   "outputDelayInternalSamples": 122.2,
+   "fixedDelayHostSamples": 148.87301587301587,
+   "fixedDelayMs": 4.652281746031746,
+   "inputGain": 1.0,
+   "outputGain": 0.7256235827664399,
+   "clockSigns": {
+    "input": -1,
+    "output": -1
+   }
+  },
+  "705600": {
+   "hostRateHz": 705600,
+   "latticeHostPerInternal": [
+    16,
+    1
+   ],
+   "reportedLatencySamples": 704,
+   "inputLookaheadHostSamples": 298,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 1,
+   "inputDelayLatticeSteps": 283,
+   "outputDelayLatticeSteps": 1152,
+   "inputDelayInternalSamples": 17.6875,
+   "outputDelayInternalSamples": 72.0,
+   "fixedDelayHostSamples": 2139.0,
+   "fixedDelayMs": 3.0314625850340136,
+   "inputGain": 0.0625,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 0,
+    "output": 0
+   }
+  },
+  "768000": {
+   "hostRateHz": 768000,
+   "latticeHostPerInternal": [
+    2560,
+    147
+   ],
+   "reportedLatencySamples": 768,
+   "inputLookaheadHostSamples": 323,
+   "outputLookaheadInternalSamples": 28,
+   "outputBlocks": 2,
+   "inputDelayLatticeSteps": 45068,
+   "outputDelayLatticeSteps": 297472,
+   "inputDelayInternalSamples": 17.6046875,
+   "outputDelayInternalSamples": 116.2,
+   "fixedDelayHostSamples": 3096.4625850340135,
+   "fixedDelayMs": 4.031852324263038,
+   "inputGain": 0.057421875,
+   "outputGain": 1.0,
+   "clockSigns": {
+    "input": 1,
+    "output": 1
+   }
+  }
+ }
+}

@@ -37,18 +37,26 @@ private:
     void updateCharacterVisuals(int characterIndex);
     void drawBathymetricField(juce::Graphics& graphics,
                               juce::Rectangle<float> field,
+                              juce::Point<float> centre,
                               float evolution) const;
     [[nodiscard]] juce::Rectangle<int> scaledBounds(float x,
                                                     float y,
                                                     float width,
                                                     float height) const;
-    [[nodiscard]] static juce::String descriptionForCharacter(int characterIndex);
+    [[nodiscard]] juce::Point<float> evolutionDialCentre() const;
+    // The outer edge of the Evolution ring from that centre, as the dial is
+    // laid out.
+    [[nodiscard]] float evolutionRingRadius() const;
+    // The height at which the whole Evolution control has its middle: half way
+    // from the top of its ring to the foot of its value's digits.
+    [[nodiscard]] float evolutionControlMiddle();
 
     AmanitaOceanAudioProcessor& processor_;
     amanita::ui::OceanLookAndFeel lookAndFeel_;
     std::unique_ptr<amanita::ui::OceanShaderBackground> shaderBackground_;
     amanita::ui::DeepCurrentRenderer deepCurrent_;
     amanita::ui::CharacterSelector characterSelector_;
+    amanita::ui::CharacterDescription characterDescription_;
     amanita::ui::ParameterKnob evolutionKnob_;
     amanita::ui::ParameterKnob preDelayKnob_;
     amanita::ui::ParameterKnob sizeKnob_;

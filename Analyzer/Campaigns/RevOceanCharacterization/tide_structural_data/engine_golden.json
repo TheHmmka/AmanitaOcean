@@ -1,0 +1,832 @@
+{
+ "schema": {
+  "version": 1,
+  "generatedBy": "emit_engine_constants.py golden",
+  "arrays": "engine_golden.npz",
+  "note": [
+   "capture vectors: a fresh instance, `warmupFrames` of silence, then the stimulus (single-precision samples), with `parameters` set from the start (Width 100 %, Mix 100 %, level stage idle: every input sample is at or below 0.5).",
+   "`reference` is the excerpt of the reference's raw output (float32), `model` the same excerpt from reference_render.py (float64). Raw frame N counts from the first stimulus frame and holds the reported latency.",
+   "An engine with the contract of EbbEngine.h returns raw frame N as its wet output for input frame N minus the reported latency (`engineFirstFrame` of an excerpt).",
+   "`modelAgainstReferenceDb` is 20 log10(rms(model - reference) / rms(reference)); a port should meet the model far more closely than the model meets the reference.",
+   "Vectors above Macro 0 belong to one realisation of the reference; they need its phase, given under `phase`."
+  ]
+ },
+ "vectors": {
+  "impulses_44100": {
+   "kind": "capture",
+   "hostRate": 44100,
+   "reportedLatencySamples": 44,
+   "warmupFrames": 441000,
+   "stimulusFrames": 22050,
+   "referenceKnobsDisplay": {
+    "decay": 0.5,
+    "size": 100.0
+   },
+   "referenceKnobsNormalised": {
+    "decay": 0.0,
+    "size": 0.5000025033950806,
+    "predelay": 0.0,
+    "macro": 0.0
+   },
+   "parameters": {
+    "decaySeconds": 0.5,
+    "sizeScale": 1.0000001192092896,
+    "preDelaySeconds": 0.0,
+    "macro": 0.0
+   },
+   "preDelaySamples": 0,
+   "stimulus": {
+    "impulses": [
+     [
+      1984,
+      0,
+      0.5
+     ],
+     [
+      8820,
+      1,
+      -0.375
+     ]
+    ],
+    "note": "[frame, channel, amplitude]; silence elsewhere"
+   },
+   "modelAgainstReferenceDb": -118.76,
+   "excerpts": [
+    {
+     "rawFirstFrame": 3013,
+     "frames": 512,
+     "engineFirstFrame": 2969,
+     "reference": "impulses_44100/reference0",
+     "model": "impulses_44100/model0",
+     "modelAgainstReferenceDb": -122.28
+    },
+    {
+     "rawFirstFrame": 12789,
+     "frames": 512,
+     "engineFirstFrame": 12745,
+     "reference": "impulses_44100/reference1",
+     "model": "impulses_44100/model1",
+     "modelAgainstReferenceDb": -112.71
+    }
+   ]
+  },
+  "impulses_48000": {
+   "kind": "capture",
+   "hostRate": 48000,
+   "reportedLatencySamples": 48,
+   "warmupFrames": 480000,
+   "stimulusFrames": 24000,
+   "referenceKnobsDisplay": {
+    "decay": 2.0,
+    "size": 80.1
+   },
+   "referenceKnobsNormalised": {
+    "decay": 0.2518089711666107,
+    "size": 0.3750377595424652,
+    "predelay": 0.0,
+    "macro": 0.0
+   },
+   "parameters": {
+    "decaySeconds": 1.9999998807907104,
+    "sizeScale": 0.80100017786026,
+    "preDelaySeconds": 0.0,
+    "macro": 0.0
+   },
+   "preDelaySamples": 0,
+   "stimulus": {
+    "impulses": [
+     [
+      2160,
+      0,
+      0.5
+     ],
+     [
+      9600,
+      1,
+      -0.375
+     ]
+    ],
+    "note": "[frame, channel, amplitude]; silence elsewhere"
+   },
+   "modelAgainstReferenceDb": -108.45,
+   "excerpts": [
+    {
+     "rawFirstFrame": 3167,
+     "frames": 512,
+     "engineFirstFrame": 3119,
+     "reference": "impulses_48000/reference0",
+     "model": "impulses_48000/model0",
+     "modelAgainstReferenceDb": -128.98
+    },
+    {
+     "rawFirstFrame": 13920,
+     "frames": 512,
+     "engineFirstFrame": 13872,
+     "reference": "impulses_48000/reference1",
+     "model": "impulses_48000/model1",
+     "modelAgainstReferenceDb": -111.35
+    }
+   ]
+  },
+  "impulses_88200": {
+   "kind": "capture",
+   "hostRate": 88200,
+   "reportedLatencySamples": 88,
+   "warmupFrames": 882000,
+   "stimulusFrames": 44100,
+   "referenceKnobsDisplay": {
+    "decay": 1.0,
+    "size": 162.1
+   },
+   "referenceKnobsNormalised": {
+    "decay": 0.11737373471260071,
+    "size": 0.83079993724823,
+    "predelay": 0.0,
+    "macro": 0.0
+   },
+   "parameters": {
+    "decaySeconds": 1.0,
+    "sizeScale": 1.6210002899169922,
+    "preDelaySeconds": 0.0,
+    "macro": 0.0
+   },
+   "preDelaySamples": 0,
+   "stimulus": {
+    "impulses": [
+     [
+      3969,
+      0,
+      0.5
+     ],
+     [
+      17640,
+      1,
+      -0.375
+     ]
+    ],
+    "note": "[frame, channel, amplitude]; silence elsewhere"
+   },
+   "modelAgainstReferenceDb": -113.41,
+   "excerpts": [
+    {
+     "rawFirstFrame": 7483,
+     "frames": 512,
+     "engineFirstFrame": 7395,
+     "reference": "impulses_88200/reference0",
+     "model": "impulses_88200/model0",
+     "modelAgainstReferenceDb": -124.34
+    },
+    {
+     "rawFirstFrame": 25578,
+     "frames": 512,
+     "engineFirstFrame": 25490,
+     "reference": "impulses_88200/reference1",
+     "model": "impulses_88200/model1",
+     "modelAgainstReferenceDb": -109.81
+    }
+   ]
+  },
+  "impulses_96000": {
+   "kind": "capture",
+   "hostRate": 96000,
+   "reportedLatencySamples": 96,
+   "warmupFrames": 960000,
+   "stimulusFrames": 48000,
+   "referenceKnobsDisplay": {
+    "decay": 4.0,
+    "size": 57.3
+   },
+   "referenceKnobsNormalised": {
+    "decay": 0.3968488574028015,
+    "size": 0.21666793525218964,
+    "predelay": 0.0,
+    "macro": 0.0
+   },
+   "parameters": {
+    "decaySeconds": 3.999999761581421,
+    "sizeScale": 0.5730000138282776,
+    "preDelaySeconds": 0.0,
+    "macro": 0.0
+   },
+   "preDelaySamples": 0,
+   "stimulus": {
+    "impulses": [
+     [
+      4320,
+      0,
+      0.5
+     ],
+     [
+      19200,
+      1,
+      -0.375
+     ]
+    ],
+    "note": "[frame, channel, amplitude]; silence elsewhere"
+   },
+   "modelAgainstReferenceDb": -108.18,
+   "excerpts": [
+    {
+     "rawFirstFrame": 5871,
+     "frames": 512,
+     "engineFirstFrame": 5775,
+     "reference": "impulses_96000/reference0",
+     "model": "impulses_96000/model0",
+     "modelAgainstReferenceDb": -131.18
+    },
+    {
+     "rawFirstFrame": 27840,
+     "frames": 512,
+     "engineFirstFrame": 27744,
+     "reference": "impulses_96000/reference1",
+     "model": "impulses_96000/model1",
+     "modelAgainstReferenceDb": -107.75
+    }
+   ]
+  },
+  "impulses_176400": {
+   "kind": "capture",
+   "hostRate": 176400,
+   "reportedLatencySamples": 176,
+   "warmupFrames": 1764000,
+   "stimulusFrames": 88200,
+   "referenceKnobsDisplay": {
+    "decay": 0.7,
+    "size": 130.0
+   },
+   "referenceKnobsNormalised": {
+    "decay": 0.05439772456884384,
+    "size": 0.6695579290390015,
+    "predelay": 0.0,
+    "macro": 0.0
+   },
+   "parameters": {
+    "decaySeconds": 0.6999999284744263,
+    "sizeScale": 1.3000000715255737,
+    "preDelaySeconds": 0.0,
+    "macro": 0.0
+   },
+   "preDelaySamples": 0,
+   "stimulus": {
+    "impulses": [
+     [
+      7938,
+      0,
+      0.5
+     ],
+     [
+      35280,
+      1,
+      -0.375
+     ]
+    ],
+    "note": "[frame, channel, amplitude]; silence elsewhere"
+   },
+   "modelAgainstReferenceDb": -109.34,
+   "excerpts": [
+    {
+     "rawFirstFrame": 13684,
+     "frames": 512,
+     "engineFirstFrame": 13508,
+     "reference": "impulses_176400/reference0",
+     "model": "impulses_176400/model0",
+     "modelAgainstReferenceDb": -127.39
+    },
+    {
+     "rawFirstFrame": 51156,
+     "frames": 512,
+     "engineFirstFrame": 50980,
+     "reference": "impulses_176400/reference1",
+     "model": "impulses_176400/model1",
+     "modelAgainstReferenceDb": -99.37
+    }
+   ]
+  },
+  "impulses_192000": {
+   "kind": "capture",
+   "hostRate": 192000,
+   "reportedLatencySamples": 192,
+   "warmupFrames": 1920000,
+   "stimulusFrames": 96000,
+   "referenceKnobsDisplay": {
+    "decay": 3.3,
+    "size": 180.1,
+    "predelay": 12.3
+   },
+   "referenceKnobsNormalised": {
+    "decay": 0.3558361232280731,
+    "size": 0.9137088060379028,
+    "predelay": 0.2075960636138916,
+    "macro": 0.0
+   },
+   "parameters": {
+    "decaySeconds": 3.299999952316284,
+    "sizeScale": 1.8010001182556152,
+    "preDelaySeconds": 0.012300000190734864,
+    "macro": 0.0
+   },
+   "preDelaySamples": 2360,
+   "stimulus": {
+    "impulses": [
+     [
+      8640,
+      0,
+      0.5
+     ],
+     [
+      38400,
+      1,
+      -0.375
+     ]
+    ],
+    "note": "[frame, channel, amplitude]; silence elsewhere"
+   },
+   "modelAgainstReferenceDb": -107.99,
+   "excerpts": [
+    {
+     "rawFirstFrame": 19723,
+     "frames": 512,
+     "engineFirstFrame": 19531,
+     "reference": "impulses_192000/reference0",
+     "model": "impulses_192000/model0",
+     "modelAgainstReferenceDb": -128.68
+    },
+    {
+     "rawFirstFrame": 55680,
+     "frames": 512,
+     "engineFirstFrame": 55488,
+     "reference": "impulses_192000/reference1",
+     "model": "impulses_192000/model1",
+     "modelAgainstReferenceDb": -114.34
+    }
+   ]
+  },
+  "programme_44100": {
+   "kind": "capture",
+   "hostRate": 44100,
+   "reportedLatencySamples": 44,
+   "warmupFrames": 441000,
+   "stimulusFrames": 17640,
+   "referenceKnobsDisplay": {
+    "decay": 1.5,
+    "size": 100.0,
+    "predelay": 5.5
+   },
+   "referenceKnobsNormalised": {
+    "decay": 0.19438980519771576,
+    "size": 0.5000025033950806,
+    "predelay": 0.1241854801774025,
+    "macro": 0.0
+   },
+   "parameters": {
+    "decaySeconds": 1.5,
+    "sizeScale": 1.0000001192092896,
+    "preDelaySeconds": 0.0055,
+    "macro": 0.0
+   },
+   "preDelaySamples": 241,
+   "stimulus": {
+    "array": "programme_44100/stimulus",
+    "firstFrame": 1000,
+    "note": "silence elsewhere"
+   },
+   "modelAgainstReferenceDb": -106.97,
+   "excerpts": [
+    {
+     "rawFirstFrame": 2269,
+     "frames": 512,
+     "engineFirstFrame": 2225,
+     "reference": "programme_44100/reference0",
+     "model": "programme_44100/model0",
+     "modelAgainstReferenceDb": -115.82
+    },
+    {
+     "rawFirstFrame": 5993,
+     "frames": 512,
+     "engineFirstFrame": 5949,
+     "reference": "programme_44100/reference1",
+     "model": "programme_44100/model1",
+     "modelAgainstReferenceDb": -109.78
+    }
+   ]
+  },
+  "programme_48000": {
+   "kind": "capture",
+   "hostRate": 48000,
+   "reportedLatencySamples": 48,
+   "warmupFrames": 480000,
+   "stimulusFrames": 19200,
+   "referenceKnobsDisplay": {
+    "decay": 0.9,
+    "size": 118.0
+   },
+   "referenceKnobsNormalised": {
+    "decay": 0.09825721383094788,
+    "size": 0.6041756272315979,
+    "predelay": 0.0,
+    "macro": 0.0
+   },
+   "parameters": {
+    "decaySeconds": 0.8999999761581421,
+    "sizeScale": 1.1800000667572021,
+    "preDelaySeconds": 0.0,
+    "macro": 0.0
+   },
+   "preDelaySamples": 0,
+   "stimulus": {
+    "array": "programme_48000/stimulus",
+    "firstFrame": 1000,
+    "note": "silence elsewhere"
+   },
+   "modelAgainstReferenceDb": -114.67,
+   "excerpts": [
+    {
+     "rawFirstFrame": 2436,
+     "frames": 512,
+     "engineFirstFrame": 2388,
+     "reference": "programme_48000/reference0",
+     "model": "programme_48000/model0",
+     "modelAgainstReferenceDb": -128.67
+    },
+    {
+     "rawFirstFrame": 6344,
+     "frames": 512,
+     "engineFirstFrame": 6296,
+     "reference": "programme_48000/reference1",
+     "model": "programme_48000/model1",
+     "modelAgainstReferenceDb": -115.22
+    }
+   ]
+  },
+  "tide_44100": {
+   "kind": "capture",
+   "hostRate": 44100,
+   "reportedLatencySamples": 44,
+   "warmupFrames": 441000,
+   "stimulusFrames": 264600,
+   "referenceKnobsDisplay": {
+    "decay": 1.2,
+    "size": 100.0,
+    "macro": 1.0
+   },
+   "referenceKnobsNormalised": {
+    "decay": 0.1513688713312149,
+    "size": 0.5000025033950806,
+    "predelay": 0.0,
+    "macro": 1.0
+   },
+   "parameters": {
+    "decaySeconds": 1.2000000476837158,
+    "sizeScale": 1.0000001192092896,
+    "preDelaySeconds": 0.0,
+    "macro": 1.0
+   },
+   "preDelaySamples": 0,
+   "stimulus": {
+    "impulses": [
+     [
+      2205,
+      0,
+      0.5
+     ],
+     [
+      18522,
+      1,
+      0.5
+     ],
+     [
+      34839,
+      0,
+      0.5
+     ],
+     [
+      51156,
+      1,
+      0.5
+     ],
+     [
+      67473,
+      0,
+      0.5
+     ],
+     [
+      83790,
+      1,
+      0.5
+     ],
+     [
+      100107,
+      0,
+      0.5
+     ],
+     [
+      116424,
+      1,
+      0.5
+     ],
+     [
+      132741,
+      0,
+      0.5
+     ],
+     [
+      149058,
+      1,
+      0.5
+     ],
+     [
+      165375,
+      0,
+      0.5
+     ],
+     [
+      181692,
+      1,
+      0.5
+     ]
+    ],
+    "note": "[frame, channel, amplitude]; silence elsewhere"
+   },
+   "phase": {
+    "rateCyclesPerSecond": [
+     0.0564232615,
+     0.0564268558
+    ],
+    "knotSeconds": [
+     [
+      11.2065084,
+      16.9479372
+     ],
+     [
+      10.4073026,
+      14.6042638,
+      20.802885
+     ]
+    ],
+    "knotCycles": [
+     [
+      0.435660053,
+      0.477830957
+     ],
+     [
+      0.325783344,
+      0.34016141,
+      0.25570758
+     ]
+    ],
+    "realisation": 60,
+    "note": "voice A of each output: rate * t + level(t), t in seconds since the first processed frame; the level is knotCycles[0] before knotSeconds[0], moves from knot to knot along (1 - cos(pi x)) / 2 and stays at the last value; voice B is half a cycle later"
+   },
+   "modelAgainstReferenceDb": -93.17,
+   "excerpts": [
+    {
+     "rawFirstFrame": 85995,
+     "frames": 512,
+     "engineFirstFrame": 85951,
+     "reference": "tide_44100/reference0",
+     "model": "tide_44100/model0",
+     "modelAgainstReferenceDb": -93.67
+    },
+    {
+     "rawFirstFrame": 183897,
+     "frames": 512,
+     "engineFirstFrame": 183853,
+     "reference": "tide_44100/reference1",
+     "model": "tide_44100/model1",
+     "modelAgainstReferenceDb": -83.82
+    }
+   ]
+  },
+  "tide_48000": {
+   "kind": "capture",
+   "hostRate": 48000,
+   "reportedLatencySamples": 48,
+   "warmupFrames": 480000,
+   "stimulusFrames": 288000,
+   "referenceKnobsDisplay": {
+    "decay": 1.2,
+    "size": 100.0,
+    "macro": 1.0
+   },
+   "referenceKnobsNormalised": {
+    "decay": 0.1513688713312149,
+    "size": 0.5000025033950806,
+    "predelay": 0.0,
+    "macro": 1.0
+   },
+   "parameters": {
+    "decaySeconds": 1.2000000476837158,
+    "sizeScale": 1.0000001192092896,
+    "preDelaySeconds": 0.0,
+    "macro": 1.0
+   },
+   "preDelaySamples": 0,
+   "stimulus": {
+    "impulses": [
+     [
+      2400,
+      0,
+      0.5
+     ],
+     [
+      20160,
+      1,
+      0.5
+     ],
+     [
+      37920,
+      0,
+      0.5
+     ],
+     [
+      55680,
+      1,
+      0.5
+     ],
+     [
+      73440,
+      0,
+      0.5
+     ],
+     [
+      91200,
+      1,
+      0.5
+     ],
+     [
+      108960,
+      0,
+      0.5
+     ],
+     [
+      126720,
+      1,
+      0.5
+     ],
+     [
+      144480,
+      0,
+      0.5
+     ],
+     [
+      162240,
+      1,
+      0.5
+     ],
+     [
+      180000,
+      0,
+      0.5
+     ],
+     [
+      197760,
+      1,
+      0.5
+     ]
+    ],
+    "note": "[frame, channel, amplitude]; silence elsewhere"
+   },
+   "phase": {
+    "rateCyclesPerSecond": [
+     0.0564273851,
+     0.0564239699
+    ],
+    "knotSeconds": [
+     [
+      7.6707636,
+      20.7020292
+     ],
+     [
+      12.3559022,
+      14.3534878,
+      23.0678918
+     ]
+    ],
+    "knotCycles": [
+     [
+      0.271667655,
+      0.550531597
+     ],
+     [
+      0.353336751,
+      0.227245307,
+      0.244209996
+     ]
+    ],
+    "realisation": 60,
+    "note": "voice A of each output: rate * t + level(t), t in seconds since the first processed frame; the level is knotCycles[0] before knotSeconds[0], moves from knot to knot along (1 - cos(pi x)) / 2 and stays at the last value; voice B is half a cycle later"
+   },
+   "modelAgainstReferenceDb": -90.99,
+   "excerpts": [
+    {
+     "rawFirstFrame": 93600,
+     "frames": 512,
+     "engineFirstFrame": 93552,
+     "reference": "tide_48000/reference0",
+     "model": "tide_48000/model0",
+     "modelAgainstReferenceDb": -98.79
+    },
+    {
+     "rawFirstFrame": 200160,
+     "frames": 512,
+     "engineFirstFrame": 200112,
+     "reference": "tide_48000/reference1",
+     "model": "tide_48000/model1",
+     "modelAgainstReferenceDb": -85.77
+    }
+   ]
+  },
+  "clip": {
+   "kind": "law",
+   "input": "clip/input",
+   "output": "clip/output"
+  },
+  "width": {
+   "kind": "law",
+   "widthScale": "width/scale",
+   "input": "width/input",
+   "output": "width/output",
+   "note": "output[scale][frame][channel] of the frames in input"
+  },
+  "mix": {
+   "kind": "law",
+   "mix": "mix/mix",
+   "dryAndWetGain": "mix/dryAndWetGain"
+  },
+  "levelStage": {
+   "kind": "law",
+   "hostRate": 48000,
+   "input": "levelStage/input",
+   "reductionDb": "levelStage/reductionDb",
+   "note": "reduction in dB after each input frame, single precision, state zero at the first frame; the wet of the same engine frame is multiplied by 10^(reductionDb / 20)"
+  },
+  "converters": {
+   "kind": "converters",
+   "hostNoise": "converters/hostNoise",
+   "internalNoise": "converters/internalNoise",
+   "note": "frames count from the first processed frame; a signal is zero outside its array. toInternal: host frames hostFirstFrame .. give the internal samples internalFirstSample ..; toHost: internal samples internalFirstSample .. give the raw host frames hostFirstFrame .. (the engine's frame is that minus the reported latency)",
+   "rates": {
+    "48000": {
+     "toInternal": {
+      "hostFirstFrame": 1000,
+      "internalFirstSample": 926,
+      "output": "converters/48000/toInternal"
+     },
+     "toHost": {
+      "internalFirstSample": 900,
+      "hostFirstFrame": 1086,
+      "output": "converters/48000/toHost"
+     }
+    },
+    "88200": {
+     "toInternal": {
+      "hostFirstFrame": 1000,
+      "internalFirstSample": 503,
+      "output": "converters/88200/toInternal"
+     },
+     "toHost": {
+      "internalFirstSample": 900,
+      "hostFirstFrame": 1908,
+      "output": "converters/88200/toHost"
+     }
+    },
+    "96000": {
+     "toInternal": {
+      "hostFirstFrame": 1000,
+      "internalFirstSample": 462,
+      "output": "converters/96000/toInternal"
+     },
+     "toHost": {
+      "internalFirstSample": 900,
+      "hostFirstFrame": 2172,
+      "output": "converters/96000/toHost"
+     }
+    },
+    "176400": {
+     "toInternal": {
+      "hostFirstFrame": 1000,
+      "internalFirstSample": 250,
+      "output": "converters/176400/toInternal"
+     },
+     "toHost": {
+      "internalFirstSample": 900,
+      "hostFirstFrame": 3816,
+      "output": "converters/176400/toHost"
+     }
+    },
+    "192000": {
+     "toInternal": {
+      "hostFirstFrame": 1000,
+      "internalFirstSample": 230,
+      "output": "converters/192000/toInternal"
+     },
+     "toHost": {
+      "internalFirstSample": 900,
+      "hostFirstFrame": 4345,
+      "output": "converters/192000/toHost"
+     }
+    }
+   }
+  }
+ }
+}

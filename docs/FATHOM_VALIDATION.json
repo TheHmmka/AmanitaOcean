@@ -1,0 +1,3991 @@
+{
+ "schema": "amanita-ocean.fathom-validation/1",
+ "date": "2026-10-07",
+ "status": "Local development model in the working tree. Not a release: version unchanged, nothing installed, published or signed for distribution, nothing listened to. Five independent reviews have been through it (engine, integration, listening by measurement, behaviour, editor). The owner's decisions are applied: the name Fathom and the accent #2F7FE0, Ocean's linear Mix, a voice seed of its own for every instance, the reference's level stage and clipper kept, and the editor (a Character drop-down over the description of the selected Character and the Evolution knob). build-ebb/listening-build-01.json describes the frozen build of this revision; it is not installed.",
+ "document": "docs/FATHOM.md",
+ "character": {
+  "name": "Fathom",
+  "accent": "#2F7FE0",
+  "namedOn": "2026-10-07, by the owner; it went by a working name before, which the campaign's findings of before that day keep",
+  "index": 5,
+  "hostParameter": "Character",
+  "vst3ParameterId": 225490031,
+  "normalisedValue": 1.0,
+  "pluginVersion": "0.21.0",
+  "engineInterface": "Source/dsp/FathomEngine.h; its comments say which of the reference's outer laws the plug-in takes (Width, level stage, clipper) and that the Mix law serves the renderer and the tests",
+  "voiceSeed": "drawn by every instance of the plug-in when it is created, kept for its lifetime, not stored in the state; the DSP classes and the renderer keep 0x45626245 (FathomEngine::defaultVoiceSeed) until a seed is set",
+  "mix": "Ocean's linear Mix at every position (dry 1 - m, wet m; the wet as it is at 100 %); the reference's law is not used by the plug-in",
+  "levelStageAndClipper": "the reference's, kept by the owner's decision; the clipper acts on dry and wet together, behind the Mix"
+ },
+ "reference": {
+  "name": "Rev OCEAN",
+  "manufacturer": "Arturia",
+  "version": "1.0.0.5848",
+  "format": "VST3",
+  "mode": "Tide (factory preset Cleaner Tides); every other control at its neutral value",
+  "binarySha256": "eb43f0bde6dacc5e566784829bff5f9c50d1f901f8158fbbdc6b95bb94b5ad26",
+  "processorLibrarySha256": "ec29614feb7d274773d0a4d557b874b609afebdcde623c06ba43953a7c3ca433",
+  "pinnedIn": "Analyzer/Campaigns/RevOceanCharacterization/revocean.py",
+  "measuredAs": "A black box through its public host interface in its normal demo mode, from input and output alone. Its code was never disassembled or inspected and its files were not read; the hashes are the campaign's pins, checked by its capture function."
+ },
+ "tools": {
+  "analyzer": {
+   "name": "Amanita Analyzer",
+   "version": "0.3",
+   "sha256": "9eeb76c3a2c84961120307fc9a9d172aec133b6f867330db185a2e2d4d04b697",
+   "checkedBy": "revocean.identity() and render_candidate.capture() on every run"
+  },
+  "python": "3.12.10",
+  "numpy": "2.3.5",
+  "scipy": "1.16.1",
+  "compiler": "Apple clang 21.0.0 (clang-2100.3.34.2), arm64-apple-darwin25.6.0",
+  "cmake": "3.27.7",
+  "juce": "8.0.14",
+  "os": "macOS 26.7 (25G229)",
+  "machine": "Apple M4 Max"
+ },
+ "build": {
+  "folder": "build-ebb",
+  "configuration": "Release, arm64, deployment target 11.0, Ninja",
+  "installed": false,
+  "signing": "ad hoc, by the project's own post-build step inside build-ebb",
+  "sha256": {
+   "VST3 binary (the one rendered and scored)": "cf73a49015f574cdc036bdcc9c4d590a4bbe4b5a470829b197983570f027e54b",
+   "AU binary": "5cc3b251596a94e30cdcf8db50541f0b8fc3526f886c22a2e3d2591aa55faf01",
+   "CLAP binary": "1a7e5e6d8fb2247825152eab83ab672e1b36dda4b01d464c58218fb9d4d33158",
+   "the renderer that was scored (AmanitaOceanFathomRender)": "3b9a5af3b3785ee44b97d149c2ea1881da0b01bc4f7d894debfc5836f9e8078b"
+  },
+  "scoredPluginBinarySha256": [
+   "cf73a49015f574cdc036bdcc9c4d590a4bbe4b5a470829b197983570f027e54b"
+  ],
+  "binaryTheReviewsJudged": "e614cbff50624deeaac7a971a697a732a40d0684a157e0b2f12c6969f2d302c7",
+  "binaryBeforeTheOwnersDecisions": "0a45195f87b13e941ef8fa5728258d030d1058d8dee5581c5fc2a2d8b7ded558",
+  "frozenListeningBuild": {
+   "manifest": "build-ebb/listening-build-01.json",
+   "builtAt": "Oct  7 2026, 18:49:45 EEST (the date and time JUCE compiled into the plug-in)",
+   "note": "JUCE compiles the date and time of the build into the plug-in, so a clean rebuild of the same sources gives other hashes for the three bundles; the renderer, which holds no JUCE code, keeps its hash"
+  },
+  "binaryOfTheWaveBefore": "703f1e503c3868be30228914ac35be1698d49962e7502d18623b63baf45e2199",
+  "rendererBeforeTheTwoClockSignPairs": "bae038f14c112e4c0c734d87ef64b9a6c6d0eb27ce43e9dcae430cd254929660"
+ },
+ "sourcesSha256": {
+  "Source/dsp/FathomEngine.h": "76f8f1d2164e2f88b24c60eb8d3c99c6b156fe6598e878b05627711c7679ce17",
+  "Source/dsp/FathomEngine.cpp": "b304d349843e9092e0f8979cb2435b1ffe9497faf850f3b78675ac31eaefb465",
+  "Source/dsp/FathomNetwork.h": "d6931257b2fab7c2c1669db88e8f310a54e1058046e855dc068d17688ee4e16e",
+  "Source/dsp/FathomNetwork.cpp": "cb66cb15081e98069e2e7dbb17839cded29c70097db33443049a53f0f2610eb9",
+  "Source/dsp/FathomConverter.h": "39f963b7dd190693ed22824c4541f4ae2c927a4cc6430ac11ed87f6bb00002ee",
+  "Source/dsp/FathomConverter.cpp": "79070f4a5dcc50ad6f172825e7630a6f3f0740679bb85bbc8ba8364808902d1a",
+  "Source/dsp/FathomEngineConstants.h": "6d1de1a71fbf33427abd0c9ae7ea147b4746efc8a043192b01ee45d2865b2c68",
+  "Source/dsp/FathomExactArithmetic.h": "5b2cfbf8fa64a30e9d23e23b880e159b93e7f2c8927275d8ce97b089619c0429",
+  "Source/dsp/FDNReverb.h": "a9a8b75600e29dd0ac7d2bfbc247ccc40cf95988ccc75809cae9a0d3f6e77cdf",
+  "Source/dsp/FDNReverb.cpp": "a7cb697a2b515eb022fd4e63196acf721f819f7b7b22a602c5ad5a7c8c6d44b4",
+  "Source/PluginProcessor.h": "7f50305e2dc42bf720216ce82fd44ba94a69e45253880b0df72f4d523368e60e",
+  "Source/PluginProcessor.cpp": "f96a8cf068218d27a6b2fe76d24de231769e445a80b865f7adf345fac7682258",
+  "Tools/FathomRender.cpp": "f59027601bf15516b4a13ac311514891c489d69ffdd659eb46b78061a0e81fbe",
+  "Tests/DspTests.cpp": "3fb948fbf8e903ca9540992bcb54717aae44bfee319efd9bd8cb47c9dc778167",
+  "Tests/StateTests.cpp": "00fc4eb8c0bb9cf56a960b19755f4416a0cc8e560f9d9bcf90aad5391f8b04fb",
+  "Tests/FathomGoldenVectors.h": "7d9724e9f5ef93676c2a03ed1a5b87b271ef84da31d289f5716150f30ad4d92a",
+  "CMakeLists.txt": "db77502c796d59f09a6f416f870d2ce3b8dbfcdd3cb4902c8f3f7a2e19add36c",
+  "Source/ui/AbyssalFlowShaders.h": "6b21a6e6c068ff1c8a745aee972b09a8e772a9d1b475134ba0821e8b64c0dcb2",
+  "Source/ui/CharacterPalette.h": "d0f7f296f5ab3a6a47ac10e3b15205b6c915a4fd66f111abcc297af47924c377",
+  "Source/ui/CharacterSelector.cpp": "811a825b2ed57f4e899597b45e4951d43aec3a1c7369da2e05786d59f124f8f9",
+  "Source/ui/CharacterSelector.h": "c2448190dfae932b0d2909c763dee04a759e7c7cfea5ab29db95e6ed0990cd1a",
+  "Source/ui/DeepCurrentRenderer.cpp": "fa9b06233f7340ec98b7ea84a29fb0d0bcd0176e76af72d421bded72b902eca5",
+  "Source/ui/DeepCurrentRenderer.h": "4dbb8e27be52404e4f608a8d3f5bd014e1a0400b0b1e02cf9d93b733ca0270eb",
+  "Source/ui/OceanLookAndFeel.cpp": "6b7ac30b5075e599d047082eafd1f118e73148f1d06bc5bc6664c60e2d36406b",
+  "Source/ui/OceanLookAndFeel.h": "034857b98efe91d086126745030a1549aa5de5035591c7ed22d1eadc257dcee0",
+  "Source/ui/OceanShaderBackground.cpp": "20853e20d5deed8752f3a331db8e49e6fb85e7c63c8651a70ba50040b98dc3f9",
+  "Source/ui/OceanShaderBackground.h": "2bba3659a05e8f3eb5d1036a7b1741982d79e27ace91686646e5e9bc9d9d29e5",
+  "Source/ui/ParameterKnob.cpp": "10d86625dfc4216c12d8b77a274e8f9f17572980b23d12e4fd6946f8974545a8",
+  "Source/ui/ParameterKnob.h": "5f4d2678ff725d1388fef0d8440e83ff9b23fdadc97f7b96fbe429f8bd7f9bda",
+  "Source/ui/PluginEditor.cpp": "10bbcc47f758a1c75ca3d6d341eedaeb60b31bcdd170e7fe903c2b73bca813ab",
+  "Source/ui/PluginEditor.h": "cd3df9456776fcccfd92a44657f118b32bb92c5081f6ccd7a64efb7bab2915d1"
+ },
+ "campaignSha256": {
+  "SPEC.md": "979f88ab1fea926a584f64833347db07ccd7a81cebce312d89dde13571094c94",
+  "README.md": "15762b1dc6d5b754d745a39976b57df16a545095b1e4e2145f9084a4c4a4cc87",
+  "revocean.py": "82b6541a72c6c861955fc137317bb9ecf86a1a09ee334772617fcc6c9ee23c28",
+  "reference_render.py": "0fa2be1a3eb9e88e6fa93c6946e6c4cca1bf15a4e4854402618f0ddd46e66782",
+  "converters.py": "2082bb98e8c47bd0d8bae6834c77a108beb4f2b8c2be68248396212e1fb04898",
+  "network_model.py": "1b7227f150b38f2cae24523f09f8877e240fe81acb8e95019f0796967ffda179",
+  "tide_model.py": "02562be3abb352654a1637593690ab806f7812dda8d614fa4258dc996a5f4844",
+  "tide_stage.py": "4d2ab17dc84585a0c474e750c8560821368e3f71155c1a66540b774927a053db",
+  "tide_phase.py": "4eb02c2a07b1a2819b64bee4cd58d8911a59b32e9aecdd0fb8c734484a57796d",
+  "datasets.py": "eca24e87a38f9fdcefc9a27dedf966683281b35b4ff7f2dfcafc7430ad941240",
+  "descriptors.py": "c5e2df89199c04c4207ea2c127eef0d948804c85ba47b55de60178b1ce800f69",
+  "score_network.py": "65661bccf9ddef2cc0cb748ff8ad5b2c262dcec962f736ccc941c3adf8b64e75",
+  "score_tide.py": "4cbc8863f6ddef8e0a2cceb1e24a004dbf30e8e8d2e2f92736486080de21af31",
+  "score_engine.py": "8edfb74222703f291b3a824452755af1c386f7f234ff60472796f11d093843ba",
+  "render_candidate.py": "b2a92a08ef3f843000153c650c89b85b299233545c1a95b228bbd59140ae065f",
+  "emit_engine_header.py": "a9c90768418dfea79131f671ac7a13336f23a3224878902a653b7c5efb638882",
+  "tide_structural_data/engine_constants.json": "68ed935494946863041f259b7dba8095c5c2636e8b7bb63cf2a66e698663f97d",
+  "tide_structural_data/engine_golden.json": "99eb3967e4ebf6ae532c49cef5ae8969c9a3977524054bd92d636900e4363618",
+  "tide_structural_data/engine_golden.npz": "4659e393d9abc46da8ed97044392f707da409a943d5575bc72695db6720dbd8c",
+  "tide_structural_data/targets.json": "9a2f0e92511382dce75d120d508e7c8a3268c1c968f7efc11161f734038c3ec0",
+  "tide_structural_data/tide_model.json": "bb83173f3f745b2d955273fd16ee39c3a1db64e71ef0706b1a71134aa35bb424",
+  "emit_engine_constants.py": "c91b4635064d22dbfaffcff0b014c62b3c111786f823ecd4a2c16b2711eef59a"
+ },
+ "scores": {
+  "convention": "null = 20 log10(rms(candidate - reference) / rms(reference)) in dB, no gain, delay or polarity fitted; above Macro 0 only the voice phase is fitted",
+  "report": "Analyzer/Results/RevOceanCharacterization/work/engine/score_engine.json (not in Git); every part was run on 7 October 2026 with the frozen build. Every figure of the engine equals the report of before the rename leaf by leaf (4292 figures in ten parts; five labels read \"measured\" where they read \"simulated\"), and so do the 628 figures of the plug-in at Macro 0. The plug-in's figures above Macro 0 are of the instances that run drew.",
+  "generatedHeaders": {
+   "upToDate": true,
+   "check": [
+    "Source/dsp/FathomEngineConstants.h: up to date",
+    "Tests/FathomGoldenVectors.h: up to date"
+   ]
+  },
+  "campaignModel": {
+   "source": "Analyzer/Campaigns/RevOceanCharacterization/README.md and SPEC.md section 16",
+   "macro0LockedHoldout": {
+    "worstDb": -114.07,
+    "meanDb": -116.79
+   },
+   "macro0FreshCaptures": {
+    "count": 46,
+    "worstDb": -108,
+    "bestDb": -121
+   },
+   "wholeChainWithOuterControlsMoved": {
+    "inputPeakAtOrBelowHalf": {
+     "worstDb": -117.7,
+     "bestDb": -127.7
+    },
+    "loud": {
+     "worstDb": -112.7,
+     "bestDb": -123.5
+    }
+   },
+   "phaseFitted": {
+    "macro100": {
+     "worstDb": -88.78,
+     "meanDb": -98.5
+    },
+    "macro50": {
+     "worstDb": -91.62,
+     "meanDb": -100.19
+    },
+    "macro25": {
+     "worstDb": -96.1,
+     "meanDb": -98.96
+    }
+   },
+   "statistical": "89 listening descriptors within the reference's own spread"
+  },
+  "engine": {
+   "macro0LockedHoldout": {
+    "worstDb": -114.06,
+    "meanDb": -116.78,
+    "perCaseDb": [
+     -118.39,
+     -116.38,
+     -114.06,
+     -118.92,
+     -115.35,
+     -115.2,
+     -119.19
+    ],
+    "stretch6to14sDb": [
+     -101.92,
+     -102.25,
+     -104.25,
+     -101.37,
+     -101.95,
+     -102.16,
+     -102.07
+    ],
+    "warmupThroughAdvanceIdleIsBitIdentical": true,
+    "tideLayerInTheCircuitAtMacro0IsBitIdentical": true
+   },
+   "macro0FreshCaptures": {
+    "new, programme seed 27182": {
+     "engineAgainstReference": {
+      "worstDb": -111.98,
+      "meanDb": -116.24,
+      "bestDb": -120.8
+     },
+     "modelAgainstReference": {
+      "worstDb": -111.98,
+      "meanDb": -116.24,
+      "bestDb": -120.8
+     },
+     "engineAgainstModel": {
+      "worstDb": -144.17,
+      "meanDb": -147.18,
+      "bestDb": -149.54
+     }
+    },
+    "specification proof, programme seed 31415": {
+     "engineAgainstReference": {
+      "worstDb": -113.47,
+      "meanDb": -116.31,
+      "bestDb": -118.95
+     },
+     "modelAgainstReference": {
+      "worstDb": -113.47,
+      "meanDb": -116.31,
+      "bestDb": -118.96
+     },
+     "engineAgainstModel": {
+      "worstDb": -144.5,
+      "meanDb": -147.64,
+      "bestDb": -149.4
+     }
+    }
+   },
+   "outerLaws": {
+    "quiet": {
+     "engineAgainstReference": {
+      "worstDb": -113.4,
+      "meanDb": -122.37,
+      "bestDb": -128.4
+     },
+     "modelAgainstReference": {
+      "worstDb": -113.4,
+      "meanDb": -122.38,
+      "bestDb": -128.41
+     },
+     "engineAgainstModel": {
+      "worstDb": -145.8,
+      "meanDb": -148.16,
+      "bestDb": -151.01
+     }
+    },
+    "loud": {
+     "engineAgainstReference": {
+      "worstDb": -112.73,
+      "meanDb": -119.67,
+      "bestDb": -126.53
+     },
+     "modelAgainstReference": {
+      "worstDb": -112.74,
+      "meanDb": -119.68,
+      "bestDb": -126.55
+     },
+     "engineAgainstModel": {
+      "worstDb": -145.29,
+      "meanDb": -147.91,
+      "bestDb": -149.6
+     }
+    }
+   },
+   "againstTheModel": {
+    "wholeResponsesMacro0": {
+     "worstDb": -143.15,
+     "meanDb": -147.2,
+     "bestDb": -149.11
+    },
+    "preDelayLawPositionsOneFrameOff": {
+     "44100": [
+      0,
+      0
+     ],
+     "48000": [
+      0,
+      0
+     ],
+     "88200": [
+      0,
+      0
+     ],
+     "96000": [
+      0,
+      0
+     ],
+     "176400": [
+      0,
+      0
+     ],
+     "192000": [
+      0,
+      0
+     ]
+    },
+    "fromASeedAboveMacro0": {
+     "worstDb": -145.22,
+     "meanDb": -147.61,
+     "bestDb": -149.47
+    },
+    "withTheNextSeed": {
+     "worstDb": 1.69,
+     "meanDb": -3.59,
+     "bestDb": -12.41
+    },
+    "clockSignsOfTheWholeResponses": {
+     "44100": {
+      "signs": [
+       0,
+       0
+      ],
+      "from": "no converters"
+     },
+     "48000": {
+      "signs": [
+       -1,
+       1
+      ],
+      "from": "measured"
+     },
+     "96000": {
+      "signs": [
+       -1,
+       1
+      ],
+      "from": "measured"
+     },
+     "88200": {
+      "signs": [
+       0,
+       0
+      ],
+      "from": "measured"
+     },
+     "176400": {
+      "signs": [
+       0,
+       0
+      ],
+      "from": "measured"
+     },
+     "192000": {
+      "signs": [
+       1,
+       -1
+      ],
+      "from": "measured"
+     },
+     "22050": {
+      "signs": [
+       0,
+       0
+      ],
+      "from": "simulated"
+     },
+     "32000": {
+      "signs": [
+       -1,
+       -1
+      ],
+      "from": "simulated"
+     },
+     "64000": {
+      "signs": [
+       -1,
+       -1
+      ],
+      "from": "simulated"
+     },
+     "352800": {
+      "signs": [
+       0,
+       0
+      ],
+      "from": "simulated"
+     },
+     "384000": {
+      "signs": [
+       1,
+       -1
+      ],
+      "from": "simulated"
+     },
+     "47952": {
+      "signs": [
+       1,
+       -1
+      ],
+      "from": "simulated"
+     },
+     "44101": {
+      "signs": [
+       1,
+       -1
+      ],
+      "from": "simulated"
+     }
+    }
+   },
+   "phaseOfACapture": {
+    "campaignCases": {
+     "macro100": {
+      "cases": 8,
+      "engineAgainstReference": {
+       "worstDb": -88.78,
+       "meanDb": -98.5,
+       "bestDb": -106.84
+      },
+      "modelAgainstReferenceSamePhase": {
+       "worstDb": -88.78,
+       "meanDb": -98.5,
+       "bestDb": -106.84
+      },
+      "engineAgainstModelSamePhase": {
+       "worstDb": -145.36,
+       "meanDb": -147.85,
+       "bestDb": -149.08
+      }
+     },
+     "macro50": {
+      "cases": 4,
+      "engineAgainstReference": {
+       "worstDb": -91.62,
+       "meanDb": -100.29,
+       "bestDb": -105.66
+      },
+      "modelAgainstReferenceSamePhase": {
+       "worstDb": -91.62,
+       "meanDb": -100.29,
+       "bestDb": -105.66
+      },
+      "engineAgainstModelSamePhase": {
+       "worstDb": -146.54,
+       "meanDb": -147.71,
+       "bestDb": -148.94
+      }
+     },
+     "macro25": {
+      "cases": 3,
+      "engineAgainstReference": {
+       "worstDb": -96.09,
+       "meanDb": -100.79,
+       "bestDb": -105.5
+      },
+      "modelAgainstReferenceSamePhase": {
+       "worstDb": -96.1,
+       "meanDb": -100.79,
+       "bestDb": -105.5
+      },
+      "engineAgainstModelSamePhase": {
+       "worstDb": -145.1,
+       "meanDb": -146.6,
+       "bestDb": -148.86
+      }
+     }
+    },
+    "freshCaptures": {
+     "macro100": {
+      "cases": 5,
+      "engineAgainstReference": {
+       "worstDb": -98.94,
+       "meanDb": -103.21,
+       "bestDb": -107.95
+      },
+      "modelAgainstReferenceSamePhase": {
+       "worstDb": -98.94,
+       "meanDb": -103.21,
+       "bestDb": -107.95
+      },
+      "engineAgainstModelSamePhase": {
+       "worstDb": -147.31,
+       "meanDb": -148.39,
+       "bestDb": -149.6
+      }
+     },
+     "macro50": {
+      "cases": 3,
+      "engineAgainstReference": {
+       "worstDb": -103.45,
+       "meanDb": -104.03,
+       "bestDb": -105.09
+      },
+      "modelAgainstReferenceSamePhase": {
+       "worstDb": -103.45,
+       "meanDb": -104.03,
+       "bestDb": -105.09
+      },
+      "engineAgainstModelSamePhase": {
+       "worstDb": -146.43,
+       "meanDb": -147.05,
+       "bestDb": -147.48
+      }
+     },
+     "macro25": {
+      "cases": 3,
+      "engineAgainstReference": {
+       "worstDb": -102.82,
+       "meanDb": -104.3,
+       "bestDb": -107.06
+      },
+      "modelAgainstReferenceSamePhase": {
+       "worstDb": -102.82,
+       "meanDb": -104.3,
+       "bestDb": -107.06
+      },
+      "engineAgainstModelSamePhase": {
+       "worstDb": -145.85,
+       "meanDb": -146.18,
+       "bestDb": -146.66
+      }
+     }
+    },
+    "campaignCasesWithTheCampaignModelsStoredCurves": {
+     "macro100": {
+      "worstDb": -88.78,
+      "meanDb": -98.5
+     },
+     "macro50": {
+      "worstDb": -91.62,
+      "meanDb": -100.19
+     },
+     "macro25": {
+      "worstDb": -96.1,
+      "meanDb": -98.96
+     },
+     "source": "SPEC.md section 16"
+    }
+   },
+   "freeRunningStatistics": {
+    "macro100": {
+     "seeds": 8,
+     "impulseCases": 10,
+     "noiseCases": 3,
+     "rmsInSpreads": {
+      "edt": {
+       "engine": 0.254,
+       "campaignModel": 0.296,
+       "referenceAgainstItself": 0.299
+      },
+      "t20": {
+       "engine": 0.343,
+       "campaignModel": 0.33,
+       "referenceAgainstItself": 0.332
+      },
+      "t30": {
+       "engine": 0.383,
+       "campaignModel": 0.374,
+       "referenceAgainstItself": 0.34
+      },
+      "edtBroadband": {
+       "engine": 0.349,
+       "campaignModel": 0.237,
+       "referenceAgainstItself": 0.339
+      },
+      "t20Broadband": {
+       "engine": 0.215,
+       "campaignModel": 0.21,
+       "referenceAgainstItself": 0.365
+      },
+      "t30Broadband": {
+       "engine": 0.348,
+       "campaignModel": 0.226,
+       "referenceAgainstItself": 0.339
+      },
+      "levelTimes": {
+       "engine": 0.349,
+       "campaignModel": 0.319,
+       "referenceAgainstItself": 0.279
+      },
+      "echoDensity": {
+       "engine": 0.28,
+       "campaignModel": 0.27,
+       "referenceAgainstItself": 0.344
+      },
+      "echoDensityTime": {
+       "engine": 0.34,
+       "campaignModel": 0.338,
+       "referenceAgainstItself": 0.482
+      },
+      "bandLevel": {
+       "engine": 0.285,
+       "campaignModel": 0.288,
+       "referenceAgainstItself": 0.302
+      },
+      "bandLevelLeft": {
+       "engine": 0.246,
+       "campaignModel": 0.205,
+       "referenceAgainstItself": 0.295
+      },
+      "bandLevelRight": {
+       "engine": 0.398,
+       "campaignModel": 0.439,
+       "referenceAgainstItself": 0.33
+      },
+      "level": {
+       "engine": 0.346,
+       "campaignModel": 0.273,
+       "referenceAgainstItself": 0.356
+      },
+      "levelLeft": {
+       "engine": 0.199,
+       "campaignModel": 0.162,
+       "referenceAgainstItself": 0.313
+      },
+      "levelRight": {
+       "engine": 0.379,
+       "campaignModel": 0.305,
+       "referenceAgainstItself": 0.431
+      },
+      "spectrum": {
+       "engine": 0.28,
+       "campaignModel": 0.283,
+       "referenceAgainstItself": 0.283
+      },
+      "correlation": {
+       "engine": 0.28,
+       "campaignModel": 0.293,
+       "referenceAgainstItself": 0.333
+      },
+      "coherence": {
+       "engine": 0.252,
+       "campaignModel": 0.273,
+       "referenceAgainstItself": 0.318
+      },
+      "correlationBroadband": {
+       "engine": 0.22,
+       "campaignModel": 0.207,
+       "referenceAgainstItself": 0.44
+      },
+      "coherenceBroadband": {
+       "engine": 0.144,
+       "campaignModel": 0.154,
+       "referenceAgainstItself": 0.338
+      },
+      "fluctuation": {
+       "engine": 1.633,
+       "campaignModel": 1.545,
+       "referenceAgainstItself": 1.513
+      },
+      "fluctuationBroadband": {
+       "engine": 0.634,
+       "campaignModel": 0.633,
+       "referenceAgainstItself": 0.957
+      },
+      "modulationRates": {
+       "engine": 1.036,
+       "campaignModel": 0.855,
+       "referenceAgainstItself": 1.47
+      },
+      "timeVariance": {
+       "engine": 0.307,
+       "campaignModel": 0.246,
+       "referenceAgainstItself": 0.426
+      }
+     }
+    },
+    "macro50": {
+     "seeds": 8,
+     "impulseCases": 10,
+     "noiseCases": 1,
+     "rmsInSpreads": {
+      "edt": {
+       "engine": 0.568,
+       "campaignModel": 0.438,
+       "referenceAgainstItself": 0.32
+      },
+      "t20": {
+       "engine": 0.892,
+       "campaignModel": 0.773,
+       "referenceAgainstItself": 0.493
+      },
+      "t30": {
+       "engine": 0.782,
+       "campaignModel": 0.824,
+       "referenceAgainstItself": 0.536
+      },
+      "edtBroadband": {
+       "engine": 0.805,
+       "campaignModel": 0.459,
+       "referenceAgainstItself": 0.346
+      },
+      "t20Broadband": {
+       "engine": 1.569,
+       "campaignModel": 1.145,
+       "referenceAgainstItself": 0.455
+      },
+      "t30Broadband": {
+       "engine": 1.234,
+       "campaignModel": 1.055,
+       "referenceAgainstItself": 0.512
+      },
+      "levelTimes": {
+       "engine": 7.173,
+       "campaignModel": 5.092,
+       "referenceAgainstItself": 0.373
+      },
+      "echoDensity": {
+       "engine": 0.279,
+       "campaignModel": 0.287,
+       "referenceAgainstItself": 0.386
+      },
+      "echoDensityTime": {
+       "engine": 0.37,
+       "campaignModel": 0.326,
+       "referenceAgainstItself": 0.306
+      },
+      "bandLevel": {
+       "engine": 0.852,
+       "campaignModel": 0.736,
+       "referenceAgainstItself": 0.412
+      },
+      "bandLevelLeft": {
+       "engine": 0.376,
+       "campaignModel": 0.417,
+       "referenceAgainstItself": 0.461
+      },
+      "bandLevelRight": {
+       "engine": 0.897,
+       "campaignModel": 0.943,
+       "referenceAgainstItself": 0.52
+      },
+      "level": {
+       "engine": 0.492,
+       "campaignModel": 0.481,
+       "referenceAgainstItself": 0.436
+      },
+      "levelLeft": {
+       "engine": 0.348,
+       "campaignModel": 0.372,
+       "referenceAgainstItself": 0.473
+      },
+      "levelRight": {
+       "engine": 0.964,
+       "campaignModel": 0.923,
+       "referenceAgainstItself": 0.434
+      },
+      "spectrum": {
+       "engine": 0.888,
+       "campaignModel": 0.751,
+       "referenceAgainstItself": 0.38
+      },
+      "correlation": {
+       "engine": 0.449,
+       "campaignModel": 0.406,
+       "referenceAgainstItself": 0.435
+      },
+      "coherence": {
+       "engine": 0.339,
+       "campaignModel": 0.345,
+       "referenceAgainstItself": 0.444
+      },
+      "correlationBroadband": {
+       "engine": 0.166,
+       "campaignModel": 0.175,
+       "referenceAgainstItself": 0.358
+      },
+      "coherenceBroadband": {
+       "engine": 0.137,
+       "campaignModel": 0.15,
+       "referenceAgainstItself": 0.28
+      },
+      "fluctuation": {
+       "engine": 0.679,
+       "campaignModel": 0.537,
+       "referenceAgainstItself": 1.164
+      },
+      "fluctuationBroadband": {
+       "engine": 1.23,
+       "campaignModel": 0.948,
+       "referenceAgainstItself": 1.304
+      },
+      "modulationRates": {
+       "engine": 0.28,
+       "campaignModel": 0.259,
+       "referenceAgainstItself": 1.674
+      },
+      "timeVariance": {
+       "engine": 0.231,
+       "campaignModel": 0.276,
+       "referenceAgainstItself": 0.615
+      }
+     }
+    }
+   },
+   "levelCycleAtMacro100": {
+    "afterWarmup": {
+     "realisations": 8,
+     "seeds": 40,
+     "reference": {
+      "floorDb": {
+       "mean": -36.565,
+       "sd": 0.223
+      },
+      "topDb": {
+       "mean": -31.666,
+       "sd": 0.227
+      },
+      "swingDb": {
+       "mean": 4.898,
+       "sd": 0.252
+      },
+      "meanPowerDb": {
+       "mean": -33.598,
+       "sd": 0.199
+      },
+      "medianDb": {
+       "mean": -33.607,
+       "sd": 0.12
+      },
+      "periodSeconds": {
+       "mean": 16.875,
+       "sd": 1.126
+      }
+     },
+     "candidate": {
+      "floorDb": {
+       "mean": -36.597,
+       "sd": 0.271
+      },
+      "topDb": {
+       "mean": -31.626,
+       "sd": 0.229
+      },
+      "swingDb": {
+       "mean": 4.971,
+       "sd": 0.381
+      },
+      "meanPowerDb": {
+       "mean": -33.614,
+       "sd": 0.222
+      },
+      "medianDb": {
+       "mean": -33.646,
+       "sd": 0.396
+      },
+      "periodSeconds": {
+       "mean": 17.525,
+       "sd": 1.32
+      }
+     },
+     "differenceInStandardErrors": {
+      "floorDb": -0.37,
+      "topDb": 0.45,
+      "swingDb": 0.75,
+      "meanPowerDb": -0.21,
+      "medianDb": -0.84,
+      "periodSeconds": 1.49
+     },
+     "curveRmsDifferenceDb": 0.418
+    },
+    "fromInstanceStart": {
+     "realisations": 40,
+     "seeds": 40,
+     "reference": {
+      "floorDb": {
+       "mean": -39.904,
+       "sd": 0.115
+      },
+      "topDb": {
+       "mean": -34.772,
+       "sd": 0.146
+      },
+      "swingDb": {
+       "mean": 5.132,
+       "sd": 0.203
+      },
+      "meanPowerDb": {
+       "mean": -36.874,
+       "sd": 0.182
+      },
+      "medianDb": {
+       "mean": -36.895,
+       "sd": 0.304
+      },
+      "periodSeconds": {
+       "mean": 17.625,
+       "sd": 0.49
+      }
+     },
+     "candidate": {
+      "floorDb": {
+       "mean": -39.917,
+       "sd": 0.109
+      },
+      "topDb": {
+       "mean": -34.78,
+       "sd": 0.117
+      },
+      "swingDb": {
+       "mean": 5.137,
+       "sd": 0.177
+      },
+      "meanPowerDb": {
+       "mean": -36.91,
+       "sd": 0.183
+      },
+      "medianDb": {
+       "mean": -36.985,
+       "sd": 0.33
+      },
+      "periodSeconds": {
+       "mean": 17.525,
+       "sd": 0.599
+      }
+     },
+     "differenceInStandardErrors": {
+      "floorDb": -0.51,
+      "topDb": -0.25,
+      "swingDb": 0.11,
+      "meanPowerDb": -0.88,
+      "medianDb": -1.32,
+      "periodSeconds": -0.91
+     },
+     "curveRmsDifferenceDb": 0.173
+    }
+   },
+   "macro0LevelDb": {
+    "reference": -32.363,
+    "candidate": -32.363,
+    "model": -32.363
+   },
+   "reviewCapturesReadAgain": {
+    "what": "the engine review's four Macro 0 captures (programme seeds 60221 and 60222), engine and model against the reference with the present build",
+    "rows": [
+     {
+      "case": "48 kHz, Decay 12.7 s, Size 121.29 %, warm-up 7.3 s (a line on a rounding tie)",
+      "engineAgainstReferenceDb": -112.53,
+      "modelAgainstReferenceDb": -112.54,
+      "engineAgainstModelDb": -145.75
+     },
+     {
+      "case": "96 kHz, Decay 0.83 s, Size 54.84 %, warm-up 4.1 s (a line on a rounding tie)",
+      "engineAgainstReferenceDb": -119.33,
+      "modelAgainstReferenceDb": -119.34,
+      "engineAgainstModelDb": -148.53
+     },
+     {
+      "case": "44.1 kHz, Decay 3.3 s, Size 166.62 %, Pre-delay 61 ms, Width 70 %, Mix 40 %, input peak 3.0, whole chain",
+      "engineAgainstReferenceDb": -121.87,
+      "modelAgainstReferenceDb": -121.88,
+      "engineAgainstModelDb": -150.25
+     },
+     {
+      "case": "192 kHz, Decay 2.4 s, Size 93.7 %, warm-up 3.3 s",
+      "engineAgainstReferenceDb": -116.1,
+      "modelAgainstReferenceDb": -116.1,
+      "engineAgainstModelDb": -147.49
+     }
+    ]
+   },
+   "hostRatesBesideTheStandardOnes": {
+    "captures": "the engine review's, programme seed 60228, Decay 2 s, Size 100 %, warm-up 3 s, 6 s",
+    "rows": [
+     {
+      "hostRate": 64000,
+      "clockSigns": [
+       -1,
+       -1
+      ],
+      "clockSignsFrom": "measured",
+      "engineAgainstReference": -117.46,
+      "modelAgainstReference": -117.47,
+      "engineAgainstModel": -148.0
+     },
+     {
+      "hostRate": 384000,
+      "clockSigns": [
+       1,
+       -1
+      ],
+      "clockSignsFrom": "measured",
+      "engineAgainstReference": -118.77,
+      "modelAgainstReference": -118.78,
+      "engineAgainstModel": -147.96
+     },
+     {
+      "hostRate": 128000,
+      "clockSigns": [
+       -1,
+       1
+      ],
+      "clockSignsFrom": "simulated",
+      "engineAgainstModel": -147.99
+     }
+    ],
+    "allNinePairsOfClockSignsOnTheCaptures": {
+     "what": "reference_render.py with each pair of signs at the rate, against the cached capture (work/final_wave/clock_pairs.py); pairs as input clock, output clock",
+     "64000": {
+      "low, low": -117.46620205052997,
+      "low, exact": -80.03352583807569,
+      "low, high": -90.63077000944944,
+      "exact, low": -83.46174354607456,
+      "exact, exact": -77.3645493035045,
+      "exact, high": -82.58237662923986,
+      "high, low": -81.30680401355161,
+      "high, exact": -77.54298955228558,
+      "high, high": -80.69564233690119
+     },
+     "384000": {
+      "low, low": -98.15468080116167,
+      "low, exact": -80.05186056575513,
+      "low, high": -92.38669384053497,
+      "exact, low": -85.22822000873202,
+      "exact, exact": -77.5689045471994,
+      "exact, high": -84.49125445143812,
+      "high, low": -118.77786814886406,
+      "high, exact": -80.0614811201448,
+      "high, high": -91.66126739938912
+     },
+     "bestAndNextBestDb": {
+      "64000": {
+       "best": [
+        "low, low",
+        -117.47
+       ],
+       "nextBest": [
+        "low, high",
+        -90.63
+       ]
+      },
+      "384000": {
+       "best": [
+        "high, low",
+        -118.78
+       ],
+       "nextBest": [
+        "low, low",
+        -98.15
+       ]
+      }
+     },
+     "theSimulationAloneGives": {
+      "64000": [
+       -1,
+       -1
+      ],
+      "384000": [
+       1,
+       -1
+      ]
+     }
+    },
+    "measuredTable": {
+     "rates": [
+      48000,
+      56000,
+      64000,
+      88200,
+      96000,
+      176400,
+      192000,
+      384000
+     ],
+     "joinedInThisRevision": [
+      64000,
+      384000
+     ],
+     "where": "converters.MEASURED_CLOCK_SIGNS, tide_structural_data/engine_constants.json, Source/dsp/FathomEngineConstants.h"
+    },
+    "rendererBeforeAndAfterTheTwoPairsJoinedTheTable": {
+     "renders": 78,
+     "hostRates": 13,
+     "differing": 0,
+     "what": "work/final_wave/renderer_identity.py, 22.05 to 384 kHz, Macro 0 and above, with and without the outer laws"
+    },
+    "withBothClocksTakenAsExactDb": {
+     "64000": -77.36,
+     "384000": -77.57
+    },
+    "engineSignsAgainstTheCampaign": {
+     "hostRates": 432,
+     "from": 22050,
+     "to": 384000,
+     "differing": 0,
+     "repeated": "work/final_wave/clock_signs_engine.py, on the frozen library"
+    }
+   }
+  },
+  "plugin": {
+   "rendered": "build-ebb/AmanitaOcean_artefacts/Release/VST3/Amanita Ocean.vst3",
+   "through": "the Amanita Analyzer, file suite, every host parameter set (render_candidate.py)",
+   "reportedLatencySamples": 0,
+   "macro0LockedHoldoutAtTheNearestKnobPositions": {
+    "worstDb": -114.06,
+    "meanDb": -116.77,
+    "perCaseDb": [
+     -118.37,
+     -116.35,
+     -114.06,
+     -118.92,
+     -115.35,
+     -115.18,
+     -119.19
+    ],
+    "stretch6to14sDb": [
+     -100.71,
+     -101.75,
+     -104.22,
+     -101.37,
+     -101.96,
+     -101.68,
+     -102.07
+    ],
+    "largestDecayOffRelative": 1.5381843099238068e-07,
+    "largestSizeOffRelative": 1.518589509696966e-07,
+    "lineLengthsEqualInEveryCase": true
+   },
+   "macro0OwnCaptures": {
+    "programmeSeed": 16180,
+    "knobPositions": "plug-in and reference work with the same single-precision numbers",
+    "mix": "100 % in all ten, where plug-in and reference follow the same laws",
+    "neutralShell": {
+     "count": 6,
+     "worstDb": -113.04,
+     "meanDb": -115.69,
+     "bestDb": -119.37
+    },
+    "preDelayAndWidthMoved": {
+     "count": 2,
+     "worstDb": -115.1,
+     "meanDb": -115.71,
+     "bestDb": -116.32
+    },
+    "inputPeak6": {
+     "count": 2,
+     "worstDb": -112.57,
+     "meanDb": -113.34,
+     "bestDb": -114.11
+    },
+    "campaignModelOnTheSameCaptures": {
+     "count": 10,
+     "worstDb": -112.58,
+     "meanDb": -115.23,
+     "bestDb": -119.38
+    },
+    "rows": [
+     {
+      "case": "48 kHz, Decay 2 s, Size 100 %",
+      "pluginAgainstReferenceDb": -116.4,
+      "modelAgainstReferenceDb": -116.4,
+      "bothWorkWith": {
+       "decaySeconds": 2.0,
+       "sizeScale": 1.0,
+       "preDelayFrames": 0,
+       "widthScale": 1.0,
+       "mix": 1.0,
+       "macro": 0.0,
+       "referenceDisplay": {
+        "decay": 2.0,
+        "size": 100.0,
+        "predelay": 0.0,
+        "width": 100.0
+       }
+      }
+     },
+     {
+      "case": "48 kHz, Decay 5.5 s, Size 147.2 %",
+      "pluginAgainstReferenceDb": -113.04,
+      "modelAgainstReferenceDb": -113.04,
+      "bothWorkWith": {
+       "decaySeconds": 5.5,
+       "sizeScale": 1.4719998836517334,
+       "preDelayFrames": 0,
+       "widthScale": 1.0,
+       "mix": 1.0,
+       "macro": 0.0,
+       "referenceDisplay": {
+        "decay": 5.5,
+        "size": 147.2,
+        "predelay": 0.0,
+        "width": 100.0
+       }
+      }
+     },
+     {
+      "case": "44.1 kHz, Decay 2 s, Size 100 %",
+      "pluginAgainstReferenceDb": -115.17,
+      "modelAgainstReferenceDb": -115.17,
+      "bothWorkWith": {
+       "decaySeconds": 2.0,
+       "sizeScale": 1.0,
+       "preDelayFrames": 0,
+       "widthScale": 1.0,
+       "mix": 1.0,
+       "macro": 0.0,
+       "referenceDisplay": {
+        "decay": 2.0,
+        "size": 100.0,
+        "predelay": 0.0,
+        "width": 100.0
+       }
+      }
+     },
+     {
+      "case": "44.1 kHz, Decay 5.5 s, Size 147.2 %",
+      "pluginAgainstReferenceDb": -113.22,
+      "modelAgainstReferenceDb": -113.22,
+      "bothWorkWith": {
+       "decaySeconds": 5.5,
+       "sizeScale": 1.4719998836517334,
+       "preDelayFrames": 0,
+       "widthScale": 1.0,
+       "mix": 1.0,
+       "macro": 0.0,
+       "referenceDisplay": {
+        "decay": 5.5,
+        "size": 147.2,
+        "predelay": 0.0,
+        "width": 100.0
+       }
+      }
+     },
+     {
+      "case": "88.2 kHz, Decay 1.1 s, Size 80 %",
+      "pluginAgainstReferenceDb": -119.37,
+      "modelAgainstReferenceDb": -119.38,
+      "bothWorkWith": {
+       "decaySeconds": 1.0999999046325684,
+       "sizeScale": 0.7999999523162842,
+       "preDelayFrames": 0,
+       "widthScale": 1.0,
+       "mix": 1.0,
+       "macro": 0.0,
+       "referenceDisplay": {
+        "decay": 1.1,
+        "size": 80.0,
+        "predelay": 0.0,
+        "width": 100.0
+       }
+      }
+     },
+     {
+      "case": "96 kHz, Decay 3 s, Size 62 %",
+      "pluginAgainstReferenceDb": -116.93,
+      "modelAgainstReferenceDb": -116.93,
+      "bothWorkWith": {
+       "decaySeconds": 3.0,
+       "sizeScale": 0.6200000047683716,
+       "preDelayFrames": 0,
+       "widthScale": 1.0,
+       "mix": 1.0,
+       "macro": 0.0,
+       "referenceDisplay": {
+        "decay": 3.0,
+        "size": 62.0,
+        "predelay": 0.0,
+        "width": 100.0
+       }
+      }
+     },
+     {
+      "case": "48 kHz, Pre-delay 20 ms, Width 45 %",
+      "pluginAgainstReferenceDb": -115.1,
+      "modelAgainstReferenceDb": -115.1,
+      "bothWorkWith": {
+       "decaySeconds": 1.5000003576278687,
+       "sizeScale": 1.0,
+       "preDelayFrames": 959,
+       "widthScale": 0.44999998807907104,
+       "mix": 1.0,
+       "macro": 0.0,
+       "referenceDisplay": {
+        "decay": 1.5,
+        "size": 100.0,
+        "predelay": 20.0,
+        "width": 53.5914
+       }
+      }
+     },
+     {
+      "case": "44.1 kHz, Pre-delay 33.3 ms, Width 200 %",
+      "pluginAgainstReferenceDb": -116.32,
+      "modelAgainstReferenceDb": -116.33,
+      "bothWorkWith": {
+       "decaySeconds": 2.700000047683716,
+       "sizeScale": 0.6420000195503235,
+       "preDelayFrames": 1467,
+       "widthScale": 2.0,
+       "mix": 1.0,
+       "macro": 0.0,
+       "referenceDisplay": {
+        "decay": 2.7,
+        "size": 64.2,
+        "predelay": 33.3,
+        "width": 150.0
+       }
+      }
+     },
+     {
+      "case": "48 kHz, loud, neutral shell",
+      "pluginAgainstReferenceDb": -114.11,
+      "modelAgainstReferenceDb": -114.11,
+      "bothWorkWith": {
+       "decaySeconds": 1.600000023841858,
+       "sizeScale": 1.0,
+       "preDelayFrames": 0,
+       "widthScale": 1.0,
+       "mix": 1.0,
+       "macro": 0.0,
+       "referenceDisplay": {
+        "decay": 1.6,
+        "size": 100.0,
+        "predelay": 0.0,
+        "width": 100.0
+       }
+      }
+     },
+     {
+      "case": "44.1 kHz, loud, Pre-delay 30 ms, Width 130 %",
+      "pluginAgainstReferenceDb": -112.57,
+      "modelAgainstReferenceDb": -112.58,
+      "bothWorkWith": {
+       "decaySeconds": 0.7999999523162842,
+       "sizeScale": 1.1790000200271606,
+       "preDelayFrames": 1322,
+       "widthScale": 1.2999999523162842,
+       "mix": 1.0,
+       "macro": 0.0,
+       "referenceDisplay": {
+        "decay": 0.8,
+        "size": 117.9,
+        "predelay": 30.0,
+        "width": 118.7748
+       }
+      }
+     }
+    ]
+   },
+   "againstTheEngineRenderer": {
+    "rendersCompared": 36,
+    "rendersThatDiffer": 0,
+    "covers": "Macro 0 only: 7 holdout cases, 10 own captures at Mix 100 %, 6 renders below Mix 100 % with Ocean's Mix in the renderer, 13 statistics stimuli of up to 80 s at Evolution 0",
+    "aboveMacro0": "not compared through the Analyzer: no renderer knows the seed an instance drew. The state tests give an engine the seed the processor reports and require the same bits from the first frame at Evolution 100 % at 44.1, 48, 88.2 and 96 kHz",
+    "mixSum": "below Mix 100 % the plug-in's sum is Ocean's own expression, dry + mix (wet - dry), shared with the five other Characters: fused on arm64, rounded in two steps on x86_64; at Mix 100 % the wet passes as it is"
+   },
+   "freeRunningStatisticsAtMacro100Mix100": {
+    "instances": 8,
+    "whatAnInstanceIs": "one render through the Analyzer: a new instance of the plug-in with a voice seed of its own",
+    "impulseCases": 10,
+    "noiseCases": 3,
+    "impulseDescriptorsRmsInSpreads": {
+     "plugin": [
+      0.183,
+      0.452
+     ],
+     "engine8Seeds": [
+      0.144,
+      0.398
+     ],
+     "referenceAgainstItself": [
+      0.279,
+      0.482
+     ]
+    },
+    "largestRmsInErrorsOfTheMean": [
+     1.115,
+     "fluctuation"
+    ],
+    "secondLargestRmsInErrorsOfTheMean": [
+     0.876,
+     "echoDensityTime"
+    ],
+    "instancesOfACase": {
+     "casesWhoseInstancesAllDiffer": 13,
+     "cases": 13,
+     "anotherInstanceAgainstTheFirstDb": [
+      -2.21,
+      1.02
+     ]
+    },
+    "thisRun": {
+     "impulseDescriptorsRmsInSpreads": [
+      0.183,
+      0.452
+     ],
+     "fluctuation": 1.507,
+     "modulationRates": 0.997,
+     "timeVariance": 0.181
+    },
+    "otherDrawsOfEightInstancesPerCase": [
+     {
+      "run": "the build with the owner's decisions about Mix and seed",
+      "impulseDescriptorsRmsInSpreads": [
+       0.135,
+       0.361
+      ],
+      "fluctuation": 1.592,
+      "modulationRates": 1.006,
+      "timeVariance": 0.252
+     },
+     {
+      "run": "an earlier run of that build",
+      "impulseDescriptorsRmsInSpreads": [
+       0.199,
+       0.413
+      ],
+      "fluctuation": 1.606,
+      "modulationRates": 0.963,
+      "timeVariance": 0.122
+     },
+     {
+      "run": "an earlier run of that build",
+      "impulseDescriptorsRmsInSpreads": [
+       0.159,
+       0.342
+      ],
+      "fluctuation": 1.599,
+      "modulationRates": 0.87,
+      "timeVariance": 0.247
+     },
+     {
+      "run": "score_tide.py render_candidate.py --statistics --seeds 8 --macro 100 on that build",
+      "impulseDescriptorsRmsInSpreads": [
+       0.174,
+       0.412
+      ],
+      "fluctuation": 1.539,
+      "modulationRates": 0.889,
+      "timeVariance": 0.24
+     },
+     {
+      "run": "the build after the rename",
+      "impulseDescriptorsRmsInSpreads": [
+       0.165,
+       0.464
+      ],
+      "fluctuation": 1.202,
+      "modulationRates": 1.079,
+      "timeVariance": 0.298
+     },
+     {
+      "run": "the behaviour review, its own build of the reviewed tree",
+      "impulseDescriptorsRmsInSpreads": [
+       0.156,
+       0.376
+      ],
+      "fluctuation": 1.542,
+      "modulationRates": 1.023,
+      "timeVariance": 0.331
+     },
+     {
+      "run": "this revision, the build before the last clean one (the same sources, another draw of instances)",
+      "impulseDescriptorsRmsInSpreads": [
+       0.144,
+       0.424
+      ],
+      "fluctuation": 1.572,
+      "modulationRates": 0.897,
+      "timeVariance": 0.171
+     }
+    ],
+    "descriptors": {
+     "edt": {
+      "plugin": {
+       "rmsInSpreads": 0.301,
+       "maxInSpreads": 2.671,
+       "rmsInErrors": 0.664,
+       "medianSpreadRatio": 0.997,
+       "elements": 1000
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.254,
+       "maxInSpreads": 1.818,
+       "rmsInErrors": 0.6,
+       "medianSpreadRatio": 0.985,
+       "elements": 1000
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.299
+     },
+     "t20": {
+      "plugin": {
+       "rmsInSpreads": 0.308,
+       "maxInSpreads": 1.781,
+       "rmsInErrors": 0.77,
+       "medianSpreadRatio": 0.986,
+       "elements": 1000
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.343,
+       "maxInSpreads": 1.918,
+       "rmsInErrors": 0.791,
+       "medianSpreadRatio": 0.996,
+       "elements": 1000
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.332
+     },
+     "t30": {
+      "plugin": {
+       "rmsInSpreads": 0.351,
+       "maxInSpreads": 2.625,
+       "rmsInErrors": 0.784,
+       "medianSpreadRatio": 0.986,
+       "elements": 1000
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.383,
+       "maxInSpreads": 2.916,
+       "rmsInErrors": 0.781,
+       "medianSpreadRatio": 0.994,
+       "elements": 1000
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.34
+     },
+     "edtBroadband": {
+      "plugin": {
+       "rmsInSpreads": 0.267,
+       "maxInSpreads": 0.871,
+       "rmsInErrors": 0.511,
+       "medianSpreadRatio": 0.944,
+       "elements": 40
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.349,
+       "maxInSpreads": 1.406,
+       "rmsInErrors": 0.577,
+       "medianSpreadRatio": 0.949,
+       "elements": 40
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.339
+     },
+     "t20Broadband": {
+      "plugin": {
+       "rmsInSpreads": 0.23,
+       "maxInSpreads": 0.595,
+       "rmsInErrors": 0.439,
+       "medianSpreadRatio": 0.977,
+       "elements": 40
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.215,
+       "maxInSpreads": 0.799,
+       "rmsInErrors": 0.404,
+       "medianSpreadRatio": 0.932,
+       "elements": 40
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.365
+     },
+     "t30Broadband": {
+      "plugin": {
+       "rmsInSpreads": 0.266,
+       "maxInSpreads": 0.618,
+       "rmsInErrors": 0.454,
+       "medianSpreadRatio": 1.025,
+       "elements": 40
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.348,
+       "maxInSpreads": 1.441,
+       "rmsInErrors": 0.592,
+       "medianSpreadRatio": 0.999,
+       "elements": 40
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.339
+     },
+     "levelTimes": {
+      "plugin": {
+       "rmsInSpreads": 0.423,
+       "maxInSpreads": 7.505,
+       "rmsInErrors": 0.646,
+       "medianSpreadRatio": 0.952,
+       "elements": 518
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.349,
+       "maxInSpreads": 3.482,
+       "rmsInErrors": 0.712,
+       "medianSpreadRatio": 0.941,
+       "elements": 518
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.279
+     },
+     "echoDensity": {
+      "plugin": {
+       "rmsInSpreads": 0.281,
+       "maxInSpreads": 2.059,
+       "rmsInErrors": 0.442,
+       "medianSpreadRatio": 0.98,
+       "elements": 3200
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.28,
+       "maxInSpreads": 3.973,
+       "rmsInErrors": 0.412,
+       "medianSpreadRatio": 0.981,
+       "elements": 3200
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.344
+     },
+     "echoDensityTime": {
+      "plugin": {
+       "rmsInSpreads": 0.285,
+       "maxInSpreads": 0.897,
+       "rmsInErrors": 0.876,
+       "medianSpreadRatio": 0.996,
+       "elements": 40
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.34,
+       "maxInSpreads": 0.98,
+       "rmsInErrors": 1.041,
+       "medianSpreadRatio": 0.942,
+       "elements": 40
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.482
+     },
+     "bandLevel": {
+      "plugin": {
+       "rmsInSpreads": 0.272,
+       "maxInSpreads": 2.132,
+       "rmsInErrors": 0.715,
+       "medianSpreadRatio": 0.96,
+       "elements": 750
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.285,
+       "maxInSpreads": 1.794,
+       "rmsInErrors": 0.749,
+       "medianSpreadRatio": 0.961,
+       "elements": 750
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.302
+     },
+     "bandLevelLeft": {
+      "plugin": {
+       "rmsInSpreads": 0.236,
+       "maxInSpreads": 1.205,
+       "rmsInErrors": 0.683,
+       "medianSpreadRatio": 0.978,
+       "elements": 750
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.246,
+       "maxInSpreads": 1.656,
+       "rmsInErrors": 0.699,
+       "medianSpreadRatio": 0.976,
+       "elements": 750
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.295
+     },
+     "bandLevelRight": {
+      "plugin": {
+       "rmsInSpreads": 0.452,
+       "maxInSpreads": 4.826,
+       "rmsInErrors": 0.826,
+       "medianSpreadRatio": 0.987,
+       "elements": 750
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.398,
+       "maxInSpreads": 3.543,
+       "rmsInErrors": 0.816,
+       "medianSpreadRatio": 0.992,
+       "elements": 750
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.33
+     },
+     "level": {
+      "plugin": {
+       "rmsInSpreads": 0.27,
+       "maxInSpreads": 0.936,
+       "rmsInErrors": 0.635,
+       "medianSpreadRatio": 0.946,
+       "elements": 30
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.346,
+       "maxInSpreads": 1.596,
+       "rmsInErrors": 0.733,
+       "medianSpreadRatio": 0.94,
+       "elements": 30
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.356
+     },
+     "levelLeft": {
+      "plugin": {
+       "rmsInSpreads": 0.231,
+       "maxInSpreads": 0.801,
+       "rmsInErrors": 0.616,
+       "medianSpreadRatio": 0.994,
+       "elements": 30
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.199,
+       "maxInSpreads": 0.45,
+       "rmsInErrors": 0.565,
+       "medianSpreadRatio": 0.952,
+       "elements": 30
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.313
+     },
+     "levelRight": {
+      "plugin": {
+       "rmsInSpreads": 0.334,
+       "maxInSpreads": 1.04,
+       "rmsInErrors": 0.707,
+       "medianSpreadRatio": 1.02,
+       "elements": 30
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.379,
+       "maxInSpreads": 1.739,
+       "rmsInErrors": 0.809,
+       "medianSpreadRatio": 1.021,
+       "elements": 30
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.431
+     },
+     "spectrum": {
+      "plugin": {
+       "rmsInSpreads": 0.265,
+       "maxInSpreads": 2.303,
+       "rmsInErrors": 0.689,
+       "medianSpreadRatio": 0.963,
+       "elements": 1740
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.28,
+       "maxInSpreads": 2.782,
+       "rmsInErrors": 0.706,
+       "medianSpreadRatio": 0.959,
+       "elements": 1740
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.283
+     },
+     "correlation": {
+      "plugin": {
+       "rmsInSpreads": 0.294,
+       "maxInSpreads": 1.963,
+       "rmsInErrors": 0.595,
+       "medianSpreadRatio": 0.972,
+       "elements": 750
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.28,
+       "maxInSpreads": 1.961,
+       "rmsInErrors": 0.555,
+       "medianSpreadRatio": 0.974,
+       "elements": 750
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.333
+     },
+     "coherence": {
+      "plugin": {
+       "rmsInSpreads": 0.269,
+       "maxInSpreads": 1.125,
+       "rmsInErrors": 0.556,
+       "medianSpreadRatio": 0.976,
+       "elements": 750
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.252,
+       "maxInSpreads": 1.26,
+       "rmsInErrors": 0.505,
+       "medianSpreadRatio": 0.98,
+       "elements": 750
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.318
+     },
+     "correlationBroadband": {
+      "plugin": {
+       "rmsInSpreads": 0.206,
+       "maxInSpreads": 0.47,
+       "rmsInErrors": 0.243,
+       "medianSpreadRatio": 0.945,
+       "elements": 30
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.22,
+       "maxInSpreads": 0.55,
+       "rmsInErrors": 0.267,
+       "medianSpreadRatio": 0.925,
+       "elements": 30
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.44
+     },
+     "coherenceBroadband": {
+      "plugin": {
+       "rmsInSpreads": 0.183,
+       "maxInSpreads": 0.378,
+       "rmsInErrors": 0.219,
+       "medianSpreadRatio": 0.767,
+       "elements": 30
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.144,
+       "maxInSpreads": 0.368,
+       "rmsInErrors": 0.169,
+       "medianSpreadRatio": 0.696,
+       "elements": 30
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.338
+     },
+     "fluctuation": {
+      "plugin": {
+       "rmsInSpreads": 1.507,
+       "maxInSpreads": 7.276,
+       "rmsInErrors": 1.115,
+       "medianSpreadRatio": 0.987,
+       "elements": 75
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 1.633,
+       "maxInSpreads": 7.226,
+       "rmsInErrors": 1.392,
+       "medianSpreadRatio": 1.065,
+       "elements": 75
+      },
+      "referenceAgainstItselfRmsInSpreads": 1.513
+     },
+     "fluctuationBroadband": {
+      "plugin": {
+       "rmsInSpreads": 0.753,
+       "maxInSpreads": 1.168,
+       "rmsInErrors": 0.874,
+       "medianSpreadRatio": 1.118,
+       "elements": 3
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.634,
+       "maxInSpreads": 0.972,
+       "rmsInErrors": 0.719,
+       "medianSpreadRatio": 1.135,
+       "elements": 3
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.957
+     },
+     "modulationRates": {
+      "plugin": {
+       "rmsInSpreads": 0.997,
+       "maxInSpreads": 4.538,
+       "rmsInErrors": 0.838,
+       "medianSpreadRatio": 0.897,
+       "elements": 63
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 1.036,
+       "maxInSpreads": 4.579,
+       "rmsInErrors": 0.923,
+       "medianSpreadRatio": 1.005,
+       "elements": 63
+      },
+      "referenceAgainstItselfRmsInSpreads": 1.47
+     },
+     "timeVariance": {
+      "plugin": {
+       "rmsInSpreads": 0.181,
+       "maxInSpreads": 0.641,
+       "rmsInErrors": 0.201,
+       "medianSpreadRatio": 0.059,
+       "elements": 75
+      },
+      "engine8Seeds": {
+       "rmsInSpreads": 0.307,
+       "maxInSpreads": 1.581,
+       "rmsInErrors": 0.31,
+       "medianSpreadRatio": 0.06,
+       "elements": 75
+      },
+      "referenceAgainstItselfRmsInSpreads": 0.426
+     }
+    }
+   },
+   "holdoutThroughScoreNetwork": {
+    "command": "score_network.py render_candidate.py",
+    "worstDb": -114.06,
+    "meanDb": -116.77
+   },
+   "macro0BelowMix100": {
+    "what": "the plug-in's Mix below 100 % is Ocean's linear law; the plug-in is compared with the engine's renderer (--ocean-mix) and with the law itself, not with the reference",
+    "largestShareErrorAgainstTheLinearLaw": 1.3623080441504953e-09,
+    "largestDistanceFromTheLinearLawUnderTheClipperThreshold": 1.1821867862416013e-07,
+    "rows": [
+     {
+      "case": "48 kHz, Pre-delay 20 ms, Width 45 %, Mix 30 %",
+      "mix": 0.29999998211860657,
+      "inputPeak": 0.5,
+      "dryShare": 0.7000000192437015,
+      "wetShare": 0.29999998221681484,
+      "linearLaw": {
+       "dryShare": 0.7000000178813934,
+       "wetShare": 0.29999998211860657
+      },
+      "referenceLaw": {
+       "dryShare": 1.0,
+       "wetShare": 0.5999999642372131
+      },
+      "largestDistanceFromTheLinearLaw": 1.8591437667137e-08,
+      "samplesAboveTheClipperThreshold": 0,
+      "samplesDifferingFromTheRenderer": 0,
+      "samples": 1344000
+     },
+     {
+      "case": "44.1 kHz, Pre-delay 33.3 ms, Width 200 %, Mix 70 %",
+      "mix": 0.699999988079071,
+      "inputPeak": 0.5,
+      "dryShare": 0.3000000120731721,
+      "wetShare": 0.6999999881000604,
+      "linearLaw": {
+       "dryShare": 0.30000001192092896,
+       "wetShare": 0.699999988079071
+      },
+      "referenceLaw": {
+       "dryShare": 0.6000000238418579,
+       "wetShare": 1.0
+      },
+      "largestDistanceFromTheLinearLaw": 2.0981351100957113e-08,
+      "samplesAboveTheClipperThreshold": 0,
+      "samplesDifferingFromTheRenderer": 0,
+      "samples": 1234800
+     },
+     {
+      "case": "96 kHz, Mix 35 %",
+      "mix": 0.3499999940395355,
+      "inputPeak": 0.5,
+      "dryShare": 0.6500000060552141,
+      "wetShare": 0.3499999940260884,
+      "linearLaw": {
+       "dryShare": 0.6500000059604645,
+       "wetShare": 0.3499999940395355
+      },
+      "referenceLaw": {
+       "dryShare": 1.0,
+       "wetShare": 0.699999988079071
+      },
+      "largestDistanceFromTheLinearLaw": 2.5069392783905187e-08,
+      "samplesAboveTheClipperThreshold": 0,
+      "samplesDifferingFromTheRenderer": 0,
+      "samples": 2688000
+     },
+     {
+      "case": "88.2 kHz, Mix 0 %",
+      "mix": 0.0,
+      "inputPeak": 0.5,
+      "dryShare": 0.9999999999999792,
+      "wetShare": -6.660362436225484e-18,
+      "linearLaw": {
+       "dryShare": 1.0,
+       "wetShare": 0.0
+      },
+      "referenceLaw": {
+       "dryShare": 1.0,
+       "wetShare": 0.0
+      },
+      "largestDistanceFromTheLinearLaw": 0.0,
+      "samplesAboveTheClipperThreshold": 0,
+      "samplesDifferingFromTheRenderer": 0,
+      "samples": 2469600
+     },
+     {
+      "case": "44.1 kHz, loud, Pre-delay 30 ms, Width 130 %, Mix 60 %",
+      "mix": 0.5999999642372131,
+      "inputPeak": 5.984,
+      "dryShare": 0.4000000357853123,
+      "wetShare": 0.5999999648489621,
+      "linearLaw": {
+       "dryShare": 0.40000003576278687,
+       "wetShare": 0.5999999642372131
+      },
+      "referenceLaw": {
+       "dryShare": 0.8000000715255737,
+       "wetShare": 1.0
+      },
+      "largestDistanceFromTheLinearLaw": 1.1821867862416013e-07,
+      "samplesAboveTheClipperThreshold": 0,
+      "samplesDifferingFromTheRenderer": 0,
+      "samples": 705600
+     },
+     {
+      "case": "48 kHz, loud, Mix 10 %",
+      "mix": 0.09999999403953552,
+      "inputPeak": 5.999,
+      "dryShare": 0.9000000050692313,
+      "wetShare": 0.0999999949971111,
+      "linearLaw": {
+       "dryShare": 0.9000000059604645,
+       "wetShare": 0.09999999403953552
+      },
+      "referenceLaw": {
+       "dryShare": 1.0,
+       "wetShare": 0.19999998807907104
+      },
+      "largestDistanceFromTheLinearLaw": 7.135599489060951e-08,
+      "samplesAboveTheClipperThreshold": 2,
+      "samplesDifferingFromTheRenderer": 0,
+      "samples": 768000
+     }
+    ]
+   },
+   "aboveMacro0TwoInstancesOfOneSetting": {
+    "settings": 4,
+    "settingsWhoseTwoRendersAreTheSame": 0,
+    "rows": [
+     {
+      "hostRate": 48000,
+      "display": {
+       "decay": 2.0,
+       "size": 100.0,
+       "evolution": 1.0
+      },
+      "samplesDiffering": 741492,
+      "samples": 768000,
+      "secondAgainstTheFirstDb": -1.72
+     },
+     {
+      "hostRate": 44100,
+      "display": {
+       "decay": 3.0,
+       "size": 147.3,
+       "evolution": 1.0,
+       "predelay": 33.3,
+       "width": 130.0,
+       "mix": 0.7
+      },
+      "samplesDiffering": 677477,
+      "samples": 705600,
+      "secondAgainstTheFirstDb": -4.22
+     },
+     {
+      "hostRate": 88200,
+      "display": {
+       "decay": 0.9,
+       "size": 80.1,
+       "evolution": 0.5,
+       "predelay": 66.6,
+       "width": 110.0,
+       "mix": 0.9
+      },
+      "samplesDiffering": 1351769,
+      "samples": 1411200,
+      "secondAgainstTheFirstDb": -12.49
+     },
+     {
+      "hostRate": 96000,
+      "display": {
+       "decay": 4.2,
+       "size": 140.0,
+       "evolution": 0.25,
+       "predelay": 250.0,
+       "width": 200.0
+      },
+      "samplesDiffering": 1433110,
+      "samples": 1536000,
+      "secondAgainstTheFirstDb": -4.99
+     }
+    ],
+    "secondAgainstTheFirstDbInEarlierRuns": [
+     -17.1,
+     1.4
+    ]
+   },
+   "twoInstancesOnSteadyNoise": {
+    "what": "work/owner_decisions/two_instances.py: 60 s of white noise of +-0.25 on both inputs at 48000 Hz, the part from 10 s on, Decay 5 s, Size 100 %, Mix 100 %; waveform correlation of every pair and the level of the sum of a pair over one of them",
+    "builtVst3AtEvolution100": {
+     "instances": 6,
+     "pairs": 15,
+     "correlation": {
+      "mean": 0.573,
+      "least": 0.435,
+      "largest": 0.641
+     },
+     "sumOverOneDb": {
+      "mean": 4.97,
+      "least": 4.58,
+      "largest": 5.16
+     }
+    },
+    "builtVst3AtEvolution100InAnEarlierRun": {
+     "instances": 6,
+     "pairs": 15,
+     "correlation": {
+      "mean": 0.517,
+      "least": 0.386,
+      "largest": 0.639
+     },
+     "sumOverOneDb": {
+      "mean": 4.82,
+      "least": 4.43,
+      "largest": 5.16
+     }
+    },
+    "referenceAtMacro100": {
+     "realisations": 6,
+     "pairs": 15,
+     "correlation": {
+      "mean": 0.558,
+      "least": 0.486,
+      "largest": 0.656
+     },
+     "sumOverOneDb": {
+      "mean": 4.93,
+      "least": 4.73,
+      "largest": 5.2
+     }
+    },
+    "builtVst3AtEvolution0": {
+     "instances": 2,
+     "samplesDiffering": 0,
+     "pairs": 1,
+     "correlation": {
+      "mean": 1.0,
+      "least": 1.0,
+      "largest": 1.0
+     },
+     "sumOverOneDb": {
+      "mean": 6.02,
+      "least": 6.02,
+      "largest": 6.02
+     }
+    },
+    "beforeTheDecision": "every instance ran from one seed: two instances returned the same samples and summed to +6.02 dB at any Evolution (listening review)",
+    "of": "the build with the owner's decisions about Mix and seed; not repeated (the behaviour review read 0.575 and +4.98 dB on its build)"
+   },
+   "dryLevelAgainstDefault": {
+    "what": "work/owner_decisions/mix_law.py through FDNReverb: dry gain on a 1 kHz tone before any wet arrives, Default and Fathom",
+    "dryGainDefaultAndFathom": {
+     "0.0": [
+      1.0,
+      1.0
+     ],
+     "0.2": [
+      0.8,
+      0.8
+     ],
+     "0.35": [
+      0.65,
+      0.65
+     ],
+     "0.5": [
+      0.5,
+      0.5
+     ],
+     "0.75": [
+      0.25,
+      0.25
+     ],
+     "1.0": [
+      0.0,
+      0.0
+     ]
+    },
+    "dryGainOfFathomBeforeTheDecision": {
+     "0.2": 1.0,
+     "0.35": 1.0,
+     "0.5": 1.0,
+     "0.75": 0.5
+    },
+    "noiseBurstAtTheFactoryDefaultsReInputDb": {
+     "default": -3.38,
+     "fathom": -3.53,
+     "fathomBeforeTheDecision": 0.36
+    },
+    "of": "the build with the owner's decisions; the behaviour review found the same at three levels on the reviewed tree"
+   },
+   "scoreTideWithThePlugInAsCandidate": {
+    "command": "score_tide.py render_candidate.py --statistics --seeds 8 --macro 100",
+    "exitCode": 0,
+    "seeds": 8,
+    "whatASeedIs": "a count of realisations: every render is a new instance of the plug-in",
+    "impulseDescriptorsRmsInSpreads": [
+     0.174,
+     0.412
+    ],
+    "fluctuation": 1.539,
+    "modulationRates": 0.889,
+    "timeVariance": 0.24,
+    "largestRmsInErrorsOfTheMean": [
+     1.234,
+     "fluctuation"
+    ],
+    "of": "the build with the owner's decisions about Mix and seed; not repeated"
+   }
+  }
+ },
+ "tests": {
+  "ctest": {
+   "folder": "build-ebb",
+   "result": "2 of 2 passed",
+   "amanita_ocean_dsp": "Passed, 52.28 s",
+   "amanita_ocean_state": "Passed, 4.74 s"
+  },
+  "dspExecutable": {
+   "passed": 77,
+   "failed": 0,
+   "aboutFathom": 25,
+   "newAfterTheReviews": [
+    "Fathom Low Cut, High Damping and reset through the plug-in",
+    "Fathom Size in motion under a steady tone",
+    "Fathom engine at rest after its tail"
+   ],
+   "extendedAfterTheReviews": [
+    "Fathom rate lattice and converters (clock signs at ten host rates without a measured pair)",
+    "Fathom outer laws (the Mix sum rounds each product on its own)"
+   ],
+   "failOnTheEngineTheReviewsJudged": {
+    "Fathom rate lattice and converters": "clock signs at 32000 Hz are 0 and 0",
+    "Fathom Size in motion under a steady tone": "-33.09 dB away from a 1 kHz tone at Macro 0, limit -50 dB",
+    "Fathom engine at rest after its tail": "computes in the denormal range after its tail has died"
+   },
+   "sizeInMotionOffToneDb": {
+    "limit": -50.0,
+    "macro0": {
+     "1000": -71.73,
+     "3000": -68.46,
+     "8000": -65.74
+    },
+    "macro100": {
+     "1000": -69.16,
+     "3000": -71.67,
+     "8000": -54.46
+    }
+   },
+   "newWithTheOwnersDecisions": [
+    "Fathom dry level against the other Characters at every Mix",
+    "Fathom voice seed through the plug-in"
+   ],
+   "rewrittenWithTheOwnersDecisions": {
+    "Fathom Width, Mix and clipper routes": "the Mix cases (0, 25, 30, 35, 50, 70, 75 %) hold Ocean's sum bit for bit and the linear law within 5e-7 where they held the reference's law; the case that drove the dry signal to the clipper's ceiling at Mix 50 % became two driven cases at Mix 0 and 20 %, whose dry signal enters under the bound of 4 and stays in the knee (peak at Mix 0 %: clip(4))",
+    "Fathom voice phase generator against the campaign's numbers": "the start levels are checked over three families of 4000 seeds (close together, over all 64 bits, differing in the upper half alone) and must reach the ends of the measured ranges"
+   },
+   "framesInTheKneeOfTheClipper": {
+    "Mix 0 %": 296,
+    "Mix 20 %": 242,
+    "Mix 100 % and Width 200 %": 309
+   },
+   "oceanMixSumInThisBuild": "the product fused into the addition (arm64)",
+   "voiceSeedOfItsOwnAgainstTheDefaultSeedNrms": 0.339727,
+   "assertionsRemovedOrWeakenedWithoutADecisionOfTheOwner": 0,
+   "reportAgainstTheWaveBefore": "all 228 lines the same, every measured figure included"
+  },
+  "stateExecutable": {
+   "result": "passed",
+   "newAfterTheReviews": [
+    "a state whose Character is no choice of this build opens as the last choice or as Default and renders"
+   ],
+   "newWithTheOwnersDecisions": [
+    "two instances with the same state: different in Fathom at Evolution 100 %, the same bits in Fathom at Evolution 0 and in the five other Characters; the same bits again after processing was stopped and after the instance's own state was loaded back; the state holds the thirteen parameters and nothing else",
+    "the seeds of 1000 instances made one after another are all different and start their phases inside the measured ranges, spread as the campaign found them"
+   ],
+   "rewrittenWithTheOwnersDecisions": {
+    "a saved state with Fathom selected restores the same audio": "a restored instance renders the saved settings from its own seed bit for bit (against the DSP given both), another realisation than the saved instance's at Evolution 80 %, and the same bits at Evolution 0",
+    "host values reach the engine, the Character reaches the DSP": "the engine and the DSP they are compared with take the seed the processor reports"
+   },
+   "sameHalfShareOfTheStartLevelsInFourRuns": [
+    0.834,
+    0.837,
+    0.832,
+    0.805
+   ],
+   "leastDistanceOfTwoVoiceSeedsTheTestsRequire": 0.0001,
+   "metricLines": 53,
+   "assertions": {
+    "before": 303,
+    "now": 327,
+    "countedAs": "lines that hold require("
+   },
+   "newForTheEditorReview": [
+    "the six texts of the description block, character for character as the owner approved them",
+    "the three tones of the block's text and their contrast against Ocean's background (name and paragraph 7 : 1 or more, subtitle 4.5 : 1 or more)",
+    "Left and Right through the open list leave the Character, the list and the host alone",
+    "arrows, Space and Return pressed with Shift, Ctrl, Alt or Cmd are not taken",
+    "a paragraph whose last line would be a widow has a word brought down to it; a paragraph without a widow keeps its lines",
+    "the block mirrors the ring within 0.75 px at five widths between the pinned sizes (852, 900, 1026, 1200, 1338)",
+    "in a window of its own: what assistive technology is told of the drop-down, of the block and of the six list items",
+    "in a window of its own: the keyboard's walk, 49 keys (Tab once round, Shift+Tab once round, into the Evolution value and Return)"
+   ],
+   "replacedForTheEditorReview": {
+    "the drop-down's help text names every Character": "a combo box reports its tooltip as help, so no assistive technology received that text; the text is removed, and the tests hold what assistive technology does receive: role, title, description, the Character shown, the names of the six list items"
+   },
+   "keyboardWalk": "needs the keyboard focus of a window; on a desktop that gives the test's window none it prints a [SKIP] line. It ran in every run reported here. It takes the one message loop a process has, so a run that takes a live snapshot (--render-ui-live) leaves it out",
+   "editorMetrics": {
+    "readBy": "AmanitaOceanStateTests of the frozen build",
+    "sizes": {
+     "804": {
+      "axisToBlockPx": 37.0,
+      "axisToRingPx": 37.0,
+      "ringAcrossPx": 150.0,
+      "ringRadiusPxAtEightPixelsPerPoint": 74.875,
+      "dialPx": 162,
+      "airUnderTheDropDownPx": 45.0,
+      "valueFieldToFooterRulePx": 39.35,
+      "controlFromPx": 173.125,
+      "controlToPx": 360.875,
+      "controlMiddlePx": 267.0,
+      "blockFromPx": 200,
+      "blockToPx": 334,
+      "blockOverTheFooterRulePx": 71.35,
+      "textMiddleLessControlMiddlePx": [
+       -0.0625,
+       -0.0625
+      ]
+     },
+     "960": {
+      "axisToBlockPx": 44.0,
+      "axisToRingPx": 44.0,
+      "ringAcrossPx": 180.0,
+      "ringRadiusPxAtEightPixelsPerPoint": 89.75,
+      "dialPx": 194,
+      "airUnderTheDropDownPx": 54.0,
+      "valueFieldToFooterRulePx": 47.0,
+      "controlFromPx": 206.25,
+      "controlToPx": 430.75,
+      "controlMiddlePx": 318.5,
+      "blockFromPx": 239,
+      "blockToPx": 399,
+      "blockOverTheFooterRulePx": 85.0,
+      "textMiddleLessControlMiddlePx": [
+       0.0625,
+       0.0625
+      ]
+     },
+     "1440": {
+      "axisToBlockPx": 67.0,
+      "axisToRingPx": 67.0,
+      "ringAcrossPx": 269.0,
+      "ringRadiusPxAtEightPixelsPerPoint": 134.625,
+      "dialPx": 291,
+      "airUnderTheDropDownPx": 81.0,
+      "valueFieldToFooterRulePx": 71.0,
+      "controlFromPx": 308.875,
+      "controlToPx": 645.625,
+      "controlMiddlePx": 477.25,
+      "blockFromPx": 357,
+      "blockToPx": 597,
+      "blockOverTheFooterRulePx": 129.0,
+      "textMiddleLessControlMiddlePx": [
+       0.0625,
+       0.125
+      ]
+     }
+    },
+    "axisToBlockAndToRingPxAtWidthsBetween": {
+     "852": [
+      39.0,
+      39.5
+     ],
+     "900": [
+      41.0,
+      40.875
+     ],
+     "1026": [
+      48.0,
+      47.75
+     ],
+     "1200": [
+      56.0,
+      56.125
+     ],
+     "1338": [
+      62.0,
+      62.125
+     ]
+    },
+    "blockAgainstOceansBackground": {
+     "name": 15.1987,
+     "subtitle": 5.94773,
+     "paragraph": 10.315
+    },
+    "engagedDropDownBorderAgainstItsField": {
+     "Default": 6.16554,
+     "Bloom": 5.20807,
+     "Drift": 4.82748,
+     "Veil": 5.58832,
+     "Current": 6.32386,
+     "Fathom": 3.35092
+    },
+    "textOnTheHighlightedListItem": {
+     "Default": [
+      "dark",
+      7.73965
+     ],
+     "Bloom": [
+      "dark",
+      6.55177
+     ],
+     "Drift": [
+      "dark",
+      6.08905
+     ],
+     "Veil": [
+      "dark",
+      7.04028
+     ],
+     "Current": [
+      "dark",
+      7.93312
+     ],
+     "Fathom": [
+      "white",
+      4.77444
+     ]
+    },
+    "paragraphLinesAndLastLineShareOfTheBlocksWidth": {
+     "Default": [
+      4,
+      0.352065
+     ],
+     "Bloom": [
+      4,
+      0.598852
+     ],
+     "Drift": [
+      4,
+      0.365879
+     ],
+     "Veil": [
+      4,
+      0.601817
+     ],
+     "Current": [
+      4,
+      0.976244
+     ],
+     "Fathom": [
+      4,
+      0.833261
+     ]
+    }
+   }
+  },
+  "mutations": {
+   "where": "a scratch copy, one change at a time",
+   "integrationWave": {
+    "tried": 18,
+    "caught": 18
+   },
+   "integrationReview": {
+    "tried": 21,
+    "caught": 15,
+    "realGaps": 4,
+    "harmless": 2
+   },
+   "reproducedOnTheTestsTheReviewsJudged": {
+    "tried": 4,
+    "caught": 0,
+    "passedTestsEach": 72
+   },
+   "afterTheReviews": {
+    "tried": 7,
+    "caught": 7,
+    "mutations": [
+     "Low Cut not handed to the engine",
+     "High Damping not handed to the engine",
+     "reset() without the engine",
+     "reset() without the level stage and the Sub Anchor",
+     "reset() without the level stage",
+     "reset() without the Sub Anchor",
+     "a fused Mix sum in FathomEngine::mix"
+    ],
+    "stillPassingAndHarmless": [
+     "no reset of the Sub Anchor when Fathom is left",
+     "the Sub Anchor in front of the Width law (the two commute)"
+    ]
+   },
+   "forTheOwnersDecisions": {
+    "where": "scratch copies, one change at a time (work/owner_decisions/mutate.py and mutate_processor.py); nothing in the tree or in build-ebb was written",
+    "routing": {
+     "tried": 8,
+     "caught": 8,
+     "against": "AmanitaOceanDSPTests --test-fathom",
+     "mutations": [
+      "the reference's Mix law in place of Ocean's",
+      "no pass of the wet at Mix 100 %",
+      "the wet passes from Mix 70 % on",
+      "the dry signal under the wide bound of the engine's input",
+      "a sum whose products are rounded one by one",
+      "the clipper at Mix 100 % only",
+      "a seed that is not forwarded to the engine",
+      "a seed that takes effect at once"
+     ]
+    },
+    "processor": {
+     "tried": 5,
+     "caught": 5,
+     "against": "AmanitaOceanStateTests, three runs each, every run failed",
+     "mutations": [
+      "one seed for every instance",
+      "the seed not handed to the DSP",
+      "a seed from the seconds of the clock alone",
+      "the seed saved with the state",
+      "a new seed at every prepareToPlay()"
+     ]
+    },
+    "countOfInstancesAlone": "with the entropy and the clock replaced by constants the state tests pass in three runs of three: the count keeps the seeds of one process apart"
+   },
+   "forTheEditorReview": {
+    "where": "the tree, one change at a time, every file restored byte for byte (work/final_wave/mutate_ui.py, mutations_ui.txt)",
+    "tried": 15,
+    "caught": 15,
+    "against": "AmanitaOceanStateTests",
+    "mutations": [
+     "a value hands the keyboard to its dial whoever holds it (as reviewed)",
+     "a value never hands the keyboard to its dial",
+     "focus orders on the dials only (as reviewed)",
+     "a value before its dial",
+     "arrows step behind the open list (as reviewed)",
+     "arrows taken with any modifier (as reviewed)",
+     "Space taken with any modifier (as reviewed)",
+     "no widow control",
+     "lines narrowed although there is no widow",
+     "a word of a subtitle changed",
+     "a word of a paragraph changed",
+     "the paragraph in the subtitle's tone",
+     "the name in the subtitle's tone",
+     "the subtitle dimmed",
+     "the block mirrored from the design constants (as reviewed)"
+    ],
+    "theTestsAsReviewed": "pass with a changed word in a subtitle and in a paragraph and with the subtitle dimmed (work/final_wave/reviewed_tree_gaps.txt)"
+   }
+  },
+  "existingFiveCharacters": {
+   "comparedWith": "the DSP sources of the last commit (4a0ac08), exported again with git show and compiled with the flags of build-ebb (work/final_wave/five_characters.sh), against the frozen library",
+   "files": 84,
+   "stereoFrames": 12902100,
+   "result": "byte-identical",
+   "totalFnv1a": "23b4769e14092b8c",
+   "repeatedWithThePresentSources": true,
+   "alsoTheIntegrationReviewsHarness": {
+    "cases": 96,
+    "result": "the same hashes as the committed build (work/review_integration/id_head.txt)"
+   }
+  },
+  "contractionEverywhere": {
+   "folder": "build-ebb-contract",
+   "flags": "-ffp-contract=fast for every file; the engine's sources end with -ffp-contract=off",
+   "dspTestsBeforeTheFix": {
+    "testsRunWithTestFathom": 21,
+    "failed": 2,
+    "failures": [
+     "Fathom engine golden vectors: -98.24 dB",
+     "Fathom outer laws: level stage at frame 52"
+    ]
+   },
+   "dspTestsNow": {
+    "passed": 77,
+    "failed": 0,
+    "of": "the build with the owner's decisions; not repeated for this revision"
+   },
+   "rendererAgainstTheReleaseBuild": {
+    "renders": 7,
+    "samples": 6129000,
+    "differing": 0,
+    "of": "the build before the owner's decisions; not repeated (the engine's sources are unchanged)"
+   },
+   "fastMath": "refused at compile time (FathomExactArithmetic.h)"
+  },
+  "x86_64UnderRosetta": {
+   "builtBy": "hand with the Release flags, not through CMake",
+   "dspTests": {
+    "passed": 77,
+    "failed": 0,
+    "oceanMixSum": "the product rounded on its own; the tests read from Default which form a build uses",
+    "of": "the build with the owner's decisions; not repeated for this revision"
+   },
+   "rendererAgainstArm64": {
+    "renders": 10,
+    "samples": 7605302,
+    "differing": 0,
+    "hostRatesWithSimulatedClockSigns": [
+     64000,
+     384000,
+     44101
+    ],
+    "of": "the build before the owner's decisions; not repeated (the engine's sources are unchanged)",
+    "note": "64 and 384 kHz had simulated signs then; they are measured now, with the same values"
+   }
+  },
+  "engineReviewStressHarness": {
+   "build": "AddressSanitizer and UndefinedBehaviorSanitizer, the present engine sources",
+   "checks": 6,
+   "passed": 6,
+   "sanitizerReports": 0,
+   "wetPeakUnderHostileInputWithEveryControlJumping": 9.77,
+   "of": "the engine sources, unchanged since"
+  },
+  "sanitizers": {
+   "folder": "build-ebb-sanitize",
+   "configuration": "Debug, arm64, -fsanitize=address,undefined -fno-omit-frame-pointer (the configuration of the project's README)",
+   "builtFrom": "the final sources, 0 warnings",
+   "executablesRunDirectly": {
+    "AmanitaOceanStateTests": {
+     "result": "passed",
+     "exitCode": 0,
+     "sanitizerReports": 0,
+     "seconds": 146.2,
+     "keyboardWalkInAWindow": "ran"
+    },
+    "AmanitaOceanDSPTests": {
+     "passed": 77,
+     "failed": 0,
+     "exitCode": 0,
+     "sanitizerReports": 0,
+     "seconds": 2203.23,
+     "note": "the whole executable; it ran while other work loaded the machine"
+    }
+   },
+   "environment": "the defaults of the sanitizers",
+   "ctest": {
+    "result": "not run: both tests exceed its time limits (420 s and 30 s) in this build, as before"
+   },
+   "firstRunOfTheStateTestsInThisWave": "failed in the keyboard walk as it was written first: its turns were turns of a timer, and in this slow build a key press outlasted the timer's period, so the next turn read the focus before the value had handed it on. The walk now advances by posted messages (work/final_wave/INDEX.txt)"
+  },
+  "buildWarnings": 0,
+  "seedsProbe": {
+   "what": "work/owner_decisions/seeds_probe.cpp against build-ebb/libAmanitaOceanDSP.a, 1500 seeds through FDNReverb",
+   "nrmsBetweenTwoSeedsOnTheStateTestProgramme": {
+    "Fathom neutral, Evolution 100 %, Mix 100 %": {
+     "pairs": 1499,
+     "least": 0.00204,
+     "0.1 %": 0.01199,
+     "1 %": 0.03356,
+     "10 %": 0.11929,
+     "median": 0.409,
+     "largest": 1.06058,
+     "below 0.01": 1,
+     "below 0.001": 0
+    },
+    "Fathom about as the state test saves it (Evolution 80 %, Mix 64 %, Focus 40 %)": {
+     "pairs": 1499,
+     "least": 0.00171,
+     "0.1 %": 0.00907,
+     "1 %": 0.02631,
+     "10 %": 0.10162,
+     "median": 0.367,
+     "largest": 0.89193,
+     "below 0.01": 2,
+     "below 0.001": 0
+    }
+   },
+   "secondsTo60DbBelowTheLoudestBlockAfterTheInput": {
+    "Decay 0.2 s": {
+     "defaultSeed": 0.48,
+     "least": 0.48,
+     "largest": 0.52,
+     "reportedTail": 0.7
+    },
+    "Decay 0.5 s": {
+     "defaultSeed": 0.76,
+     "least": 0.74,
+     "largest": 0.82,
+     "reportedTail": 1.0
+    }
+   }
+  }
+ },
+ "cpu": {
+  "machine": "one core of an Apple M4 Max, stereo, Release, 20 s of noise per figure; the engine alone three runs, the whole DSP nine runs in three sessions with other work on the machine (best and median)",
+  "engineAloneMacro100PercentOfOneCore": {
+   "44100": [
+    1.28,
+    1.29,
+    1.28
+   ],
+   "48000": [
+    1.42,
+    1.41,
+    1.42
+   ],
+   "96000": [
+    1.51,
+    1.47,
+    1.5
+   ]
+  },
+  "engineAloneMacro100BeforeTheFixesInTheSameSession": {
+   "44100": [
+    1.3,
+    1.28,
+    1.31
+   ],
+   "48000": [
+    1.45,
+    1.42,
+    1.44
+   ],
+   "96000": [
+    1.53,
+    1.53,
+    1.51
+   ]
+  },
+  "advanceIdlePercentOfOneCore": [
+   0.05,
+   0.08
+  ],
+  "wholeDspPercentOfOneCore": {
+   "44100": {
+    "default": {
+     "best": 2.77,
+     "median": 2.82,
+     "runs": [
+      2.8,
+      2.84,
+      2.87,
+      2.83,
+      2.77,
+      2.79,
+      2.87,
+      2.81,
+      2.82
+     ]
+    },
+    "fathom": {
+     "best": 3.96,
+     "median": 4.04,
+     "runs": [
+      4.04,
+      4.22,
+      4.09,
+      3.96,
+      3.98,
+      4.11,
+      4.02,
+      4.04,
+      4.05
+     ]
+    },
+    "fathomWithOceanDefaults": {
+     "best": 4.1,
+     "median": 4.18,
+     "runs": [
+      4.17,
+      4.24,
+      4.25,
+      4.1,
+      4.13,
+      4.22,
+      4.16,
+      4.18,
+      4.21
+     ]
+    }
+   },
+   "48000": {
+    "default": {
+     "best": 3.05,
+     "median": 3.1,
+     "runs": [
+      3.1,
+      3.1,
+      3.09,
+      3.05,
+      3.11,
+      3.88,
+      3.08,
+      3.09,
+      3.47
+     ]
+    },
+    "fathom": {
+     "best": 4.35,
+     "median": 4.53,
+     "runs": [
+      4.49,
+      4.56,
+      4.5,
+      4.35,
+      6.68,
+      5.93,
+      4.51,
+      4.53,
+      5.53
+     ]
+    },
+    "fathomWithOceanDefaults": {
+     "best": 4.56,
+     "median": 4.64,
+     "runs": [
+      4.64,
+      4.64,
+      4.61,
+      4.61,
+      4.65,
+      5.42,
+      4.56,
+      4.86,
+      4.87
+     ]
+    }
+   },
+   "96000": {
+    "default": {
+     "best": 5.56,
+     "median": 5.68,
+     "runs": [
+      5.64,
+      5.61,
+      5.56,
+      5.71,
+      6.2,
+      5.59,
+      5.95,
+      5.68,
+      5.9
+     ]
+    },
+    "fathom": {
+     "best": 7.15,
+     "median": 7.33,
+     "runs": [
+      7.27,
+      7.2,
+      7.15,
+      7.38,
+      7.33,
+      7.25,
+      7.34,
+      7.36,
+      7.45
+     ]
+    },
+    "fathomWithOceanDefaults": {
+     "best": 7.26,
+     "median": 7.47,
+     "runs": [
+      7.41,
+      7.26,
+      7.28,
+      7.78,
+      7.38,
+      7.47,
+      7.54,
+      7.48,
+      7.6
+     ]
+    }
+   }
+  },
+  "wholeDspBeforeTheFixesInTheSameSession": {
+   "44100": {
+    "default": {
+     "best": 2.77,
+     "median": 2.81,
+     "runs": [
+      2.77,
+      2.79,
+      2.81,
+      2.81,
+      2.8,
+      2.85,
+      2.93,
+      2.86,
+      2.86
+     ]
+    },
+    "fathom": {
+     "best": 3.99,
+     "median": 4.08,
+     "runs": [
+      3.99,
+      4.06,
+      4.09,
+      4.08,
+      4.03,
+      4.06,
+      4.18,
+      4.17,
+      4.08
+     ]
+    },
+    "fathomWithOceanDefaults": {
+     "best": 4.1,
+     "median": 4.18,
+     "runs": [
+      4.1,
+      4.18,
+      4.17,
+      4.18,
+      4.13,
+      4.17,
+      4.24,
+      4.27,
+      4.22
+     ]
+    }
+   },
+   "48000": {
+    "default": {
+     "best": 3.05,
+     "median": 3.07,
+     "runs": [
+      3.07,
+      3.09,
+      3.05,
+      3.07,
+      3.09,
+      3.06,
+      3.08,
+      3.07,
+      3.08
+     ]
+    },
+    "fathom": {
+     "best": 4.45,
+     "median": 4.5,
+     "runs": [
+      4.5,
+      4.52,
+      4.48,
+      4.58,
+      4.49,
+      4.45,
+      4.47,
+      4.56,
+      4.51
+     ]
+    },
+    "fathomWithOceanDefaults": {
+     "best": 4.55,
+     "median": 4.59,
+     "runs": [
+      4.61,
+      4.61,
+      4.58,
+      4.62,
+      4.58,
+      4.58,
+      4.61,
+      4.55,
+      4.59
+     ]
+    }
+   },
+   "96000": {
+    "default": {
+     "best": 5.5,
+     "median": 5.56,
+     "runs": [
+      5.56,
+      5.52,
+      5.53,
+      5.56,
+      5.52,
+      5.5,
+      5.71,
+      5.68,
+      5.65
+     ]
+    },
+    "fathom": {
+     "best": 7.05,
+     "median": 7.13,
+     "runs": [
+      7.13,
+      7.13,
+      7.12,
+      7.3,
+      7.07,
+      7.05,
+      7.31,
+      7.31,
+      7.4
+     ]
+    },
+    "fathomWithOceanDefaults": {
+     "best": 7.16,
+     "median": 7.26,
+     "runs": [
+      7.25,
+      7.26,
+      7.24,
+      7.18,
+      7.16,
+      7.32,
+      7.4,
+      7.48,
+      7.53
+     ]
+    }
+   }
+  },
+  "integrationReview": "Fathom 45 to 53 % over Default at 44.1 and 48 kHz, 28 to 32 % at 96 kHz; an instance with another Character selected 0.04 to 0.19 % of a core over the last commit",
+  "prepareAtAHostRateWithoutMeasuredClockSigns": "about 1 ms more, for the clock simulation",
+  "memoryPerInstanceAt48kHz": "2.1 MB of lines, 0.77 MB of pre-delay; a 272 KB converter table shared by all instances",
+  "presentBuild": {
+   "what": "the build with the owner's decisions, nine runs in three sessions run one after another (work/owner_decisions/cpu.log); the third session was disturbed at 48 and 96 kHz",
+   "wholeDspPercentOfOneCore": {
+    "44100": {
+     "default": {
+      "best": 2.74,
+      "median": 2.76,
+      "runs": [
+       2.79,
+       2.75,
+       2.76,
+       2.79,
+       2.81,
+       2.79,
+       2.74,
+       2.76,
+       2.76
+      ]
+     },
+     "fathom": {
+      "best": 3.91,
+      "median": 3.94,
+      "runs": [
+       3.95,
+       3.94,
+       3.93,
+       3.95,
+       3.91,
+       3.94,
+       3.92,
+       3.92,
+       3.96
+      ]
+     },
+     "fathomWithOceanDefaults": {
+      "best": 4.06,
+      "median": 4.1,
+      "runs": [
+       4.11,
+       4.09,
+       4.12,
+       4.13,
+       4.1,
+       4.07,
+       4.1,
+       4.06,
+       4.08
+      ]
+     }
+    },
+    "48000": {
+     "default": {
+      "best": 2.97,
+      "median": 3.04,
+      "runs": [
+       3.08,
+       3.08,
+       3.0,
+       3.04,
+       2.97,
+       3.0,
+       3.0,
+       3.61,
+       3.89
+      ]
+     },
+     "fathom": {
+      "best": 4.3,
+      "median": 4.34,
+      "runs": [
+       4.37,
+       4.36,
+       4.33,
+       4.34,
+       4.3,
+       4.34,
+       4.32,
+       5.83,
+       6.68
+      ]
+     },
+     "fathomWithOceanDefaults": {
+      "best": 4.47,
+      "median": 4.51,
+      "runs": [
+       4.51,
+       4.47,
+       4.48,
+       4.49,
+       4.47,
+       4.53,
+       5.0,
+       5.92,
+       5.91
+      ]
+     }
+    },
+    "96000": {
+     "default": {
+      "best": 5.43,
+      "median": 5.5,
+      "runs": [
+       5.57,
+       5.49,
+       5.48,
+       5.5,
+       5.44,
+       5.43,
+       6.63,
+       7.44,
+       6.9
+      ]
+     },
+     "fathom": {
+      "best": 6.97,
+      "median": 7.01,
+      "runs": [
+       7.0,
+       6.97,
+       6.98,
+       7.01,
+       7.0,
+       7.03,
+       8.71,
+       8.67,
+       8.8
+      ]
+     },
+     "fathomWithOceanDefaults": {
+      "best": 7.04,
+      "median": 7.15,
+      "runs": [
+       7.2,
+       7.15,
+       7.15,
+       7.14,
+       7.04,
+       7.11,
+       10.05,
+       8.68,
+       8.44
+      ]
+     }
+    }
+   },
+   "engineAloneMacro100PercentOfOneCore": {
+    "44100": [
+     1.3,
+     1.31,
+     1.29
+    ],
+    "48000": [
+     1.43,
+     1.43,
+     1.43
+    ],
+    "96000": [
+     1.51,
+     1.51,
+     1.52
+    ]
+   },
+   "advanceIdlePercentOfOneCore": [
+    0.05,
+    0.08
+   ]
+  },
+  "notMeasuredAgain": "for this revision, whose DSP differs from the build measured last in names, comments and two entries of a table"
+ },
+ "abSettings": {
+  "reference": "factory preset Cleaner Tides (Tide mode), Brightness 0, HPF 20 Hz, LPF 20000 Hz, Transients 0 dB, Ducking 0, Return 0 dB, Master Volume 0 dB, Predelay free, Active",
+  "amanitaOcean": "Character Fathom, Low Cut 20 Hz, High Damping 20000 Hz, Focus 0 %, Harmony 0 %, Mono Safe off, Freeze off; at the reference's baseline and the listening point also Pre-delay 0 ms, Evolution 100 %, Mix 100 %",
+  "changedFromOceanDefaults": {
+   "Character": "Default",
+   "Mix": "35 %",
+   "Pre-delay": "20 ms",
+   "Low Cut": "80 Hz",
+   "High Damping": "9000 Hz",
+   "Evolution": "35 %",
+   "Focus": "100 %"
+  },
+  "same": [
+   "Decay in seconds from 0.5 to 30",
+   "Size in percent from 50 to 200",
+   "Pre-delay in milliseconds up to 250",
+   "Evolution = Macro in percent"
+  ],
+  "width": "reference Width % = 200 (1 - 2^(-Ocean Width / 100)); Ocean 200 % is the reference's 150 %",
+  "timing": "the reference reports 4 floor(11 fs / 44100 + 0.5) samples of latency; Fathom reports none and is that much earlier",
+  "sizePositionsWithEveryLineLengthEqual": "1496 of 1501 from 50.0 to 200.0 %; at 80.1, 119.1, 162.1, 180.1 and 188.2 % two lines differ by one sample",
+  "listening": "the swells do not fall at the same times, not even between two instances of the reference: listen for a minute or two and compare two reference instances the same way; let both run a second first",
+  "mix": "100 % on both, the listening point. Below it the percentages do not match: Ocean's Mix is dry 1 - m, wet m, the reference's dry min(1, 2 (1 - m)), wet min(1, 2 m)",
+  "repeating": "an open instance of Fathom repeats its movement at every restart of processing; a reopened project, a duplicated track and an export rendered in an instance of its own get another one, as with the reference"
+ },
+ "limits": [
+  "Macro 0 is exact at the depth of the nulls; above Macro 0 the model is exact only up to the random voice phase, and the phase itself agrees statistically.",
+  "Controls that move were never measured in the reference; every glide and crossfade is Fathom's own. While Size glides the lines pass through fractional lengths and the pitch bends, as in the other Characters.",
+  "The first 2.2 s of a reference instance are not modelled; Fathom starts at its settled laws with empty lines. The reference passes the dry input for about 16 ms and is brighter for half a second.",
+  "Freeze is Ocean's hold, not the reference's; its top wears down and, at Evolution above 0, its level follows the voices.",
+  "Every other control of the reference is fixed at neutral: Brightness, input filter, Transients, Ducking above 0 %, Return, Master, other Macro modes.",
+  "The reference's level stage (its Ducking at 0 %) and its output clipper are kept as parts of Fathom, by the owner's decision. The clipper acts behind the Mix: with Mix below 100 % a dry signal above +8 dBFS is turned down in Fathom and in no other Character (dry alone at a peak of 4.0: Mix 0 % leaves Default at 4.000 and Fathom at 3.623, -0.86 dB).",
+  "Every instance of the plug-in draws a voice seed of its own and keeps it for its lifetime, not in its state. An open instance repeats its movement at every restart of processing, where the reference never repeats; a reopened project, a duplicated track and an export rendered in an instance of its own get another movement. Two instances on the same steady noise correlate at 0.52 to 0.57 and sum to +4.8 to +5.0 dB over one (the reference: 0.56 and +4.9 dB); at Evolution 0 they return the same samples.",
+  "Decay below 0.5 s, Size scale below 0.3 and host rates below 44.1 kHz are outside the reference's measured range and checked against the model only.",
+  "Host rates outside 22.05 to 384 kHz are processed as the nearest bound: time and pitch scale.",
+  "Converter clock signs are measured at 48, 56, 64, 88.2, 96, 176.4, 192 and 384 kHz and simulated elsewhere; the simulation gives the measured pair at seven of those rates and a wrong output clock at 56 kHz, so an unmeasured rate may be off (a null of about -77 dB instead of -117 dB, not audible).",
+  "Entering Fathom crossfades over 200 ms into an engine that starts from silence; the tail of the Character left behind fades out, and leaving Fathom fades into the FDN's live tail.",
+  "Fathom's Mix is Ocean's linear law (dry 1 - m, wet m), not the reference's: against the reference at the same percentage the wet lies 6.02 dB lower up to 50 % and the dry 6.02 dB lower from 50 % on; the two agree at 0 and at 100 % only. The reference's clipper follows the Mix, so below Mix 100 % a dry signal above +8 dBFS is turned down in Fathom and in no other Character.",
+  "Low Cut and High Damping are out of the circuit only at their end stops; one step away the decay time steps by 1 to 5 %.",
+  "Fathom's engine and level stage read the input up to +18 dBFS, the other Characters up to +12 dBFS; the dry signal in the Mix is bounded at +12 dBFS in every Character.",
+  "Low Cut, High Damping, Focus, Harmony and Mono Safe are Ocean's own and act on Fathom at Ocean's defaults (Low Cut 80 Hz, High Damping 9 kHz, Focus 100 %): the tail at 125 Hz lasts half as long, the top 30 to 46 % shorter, the wet 1.8 dB lower under steady noise.",
+  "Fathom's wet lies 4.6 to 6.3 dB below Default's under steady noise; the levels are not matched.",
+  "A VST3 automation lane of Character written by 0.21.0 plays Current for Veil and Fathom for Current; a project saved with Fathom opens as Current in 0.21.0.",
+  "The engine's signals settle at 1e-30: its output equals that of the engine without the floor on its filters wherever a sample lies above 1.3e-23. The dry share of a settled Fathom passes down to 1.2e-38 where the other Characters flush everything under 1e-20; nothing of it is audible.",
+  "The engine must be compiled without contraction: CMake passes -ffp-contract=off for its sources and fast-math is refused; the GCC and MSVC branches of the pragma were never compiled. The sum of Ocean's Mix lies outside the engine: below Mix 100 % the last bit of Fathom's output depends on whether a build fuses its product (arm64) or not (x86_64), as for the other Characters.",
+  "Known residue of the model: comb tap changes one sample off in a few percent of crossings (steady material at -80 to -93 dB at Macro 100 %), a loop lag of 2e-7 samples per pass, the last place of the oscillators' sine.",
+  "Built and run on macOS arm64 with Apple clang only; an x86_64 build was run under Rosetta.",
+  "The editor was checked in the test executable's own window on macOS only: no host, no mouse interaction, no VoiceOver; its line breaks and the walk of the keyboard were never run with the Windows or Linux font and window system.",
+  "Small text in Fathom's accent is under 4.5 : 1 (a toggle that is on: 4.21 : 1), and labels outside the description block lose their ground over bright passages of the GPU background (EVOLUTION: a glyph pixel under 4.5 : 1 in 15 % of frames at factory settings, by the editor review).",
+  "Space on the Character drop-down opens its list; the drop-down has the keyboard as soon as the editor's window has it.",
+  "The plug-in holds the date and time of its build, so a clean rebuild of the same sources has other hashes; the frozen build is the one whose hashes the manifest holds."
+ ],
+ "notRun": [
+  "No listening test; no DAW; no plug-in validator (auval, pluginval, clap-validator).",
+  "AU and CLAP were built but not rendered; only the VST3 went through the Analyzer.",
+  "No Windows or Linux build, no GCC or MSVC compile of the engine.",
+  "ctest in the sanitizer build: both tests exceed its time limits (420 s and 30 s) under AddressSanitizer and UndefinedBehaviorSanitizer in a Debug build; the executables were run directly instead.",
+  "The plug-in was not scored statistically at Macro 50 % and its level cycle was not measured on its own.",
+  "No capture-based null at 176.4 kHz, with the plug-in at Decay above 7.3 s (the engine: up to 20 s), with the plug-in at 64, 192 or 384 kHz, or with the engine on steady material at Macro 100 %.",
+  "Above Macro 0 the built VST3 was not compared with the engine to the bit through the Analyzer: no renderer knows the seed an instance drew, and the plug-in cannot be told one. The state tests make that comparison with the seed the processor reports. The plug-in takes no phase either, so it cannot be nulled against the reference there.",
+  "That two processes without system entropy draw different seeds rests on the clock and was not run; the seed's source was tested in one process on one machine.",
+  "The renderers built with -ffp-contract=fast and for x86_64 were not compared with the Release renderer again; the engine's sources are unchanged.",
+  "The listening review was not repeated on the present build, and its two open readings of the decay time were not measured again. It judged a build in which every instance ran from the default seed and Mix followed the reference.",
+  "The processor of 0.21.0 was not rebuilt: its Character mapping and how it opens a state saved with Fathom are the integration review's measurements.",
+  "The cost of denormal arithmetic was never measured on an Intel processor.",
+  "The editor was not opened in a host; the live pictures come from the test executable.",
+  "The builds with -ffp-contract=fast and for x86_64 were not repeated for this revision.",
+  "The contrast of the description block over the GPU background was not measured again; the figures are the editor review's and the engineers'.",
+  "The CPU cost was not measured again.",
+  "SPEC.md still lists the six clock sign pairs of wave 2 as measured; it was not edited."
+ ],
+ "reviewReportsSha256": {
+  "findings/engine_review.md": "08f4e8b665fed7ca60a3abc37d6afde303212091c7158c36f74b9854e007fd05",
+  "findings/integration_review.md": "f0727e2c7e1a811f5a65381f8dba5bed3b62699fd975d565dde08350332d24ea",
+  "findings/listening_review.md": "517147bfcf9ff542fa85266db187a42ef87c028b7a9184391493edb97babbf47",
+  "findings/behaviour_review.md": "a8c84785f6089e006c674bd2cb0fd429196c5243ba54fc6ffbc813088002fdc8",
+  "findings/editor_review.md": "7e1b532ec18917f207b67b5fb41f3387d8ed5210dc3c2c4b96682736f04e729a"
+ },
+ "reviews": {
+  "reports": [
+   "Analyzer/Campaigns/RevOceanCharacterization/findings/engine_review.md",
+   "findings/integration_review.md",
+   "findings/listening_review.md",
+   "findings/behaviour_review.md",
+   "findings/editor_review.md"
+  ],
+  "judged": "an earlier build, VST3 binary e614cbff50624deeaac7a971a697a732a40d0684a157e0b2f12c6969f2d302c7, in which every instance ran from the default voice seed and Mix followed the reference",
+  "atRestThePresentEngineEqualsIt": {
+   "renders": 25,
+   "samples": 17733600,
+   "hostRates": [
+    44100,
+    48000,
+    88200,
+    96000,
+    176400,
+    192000
+   ],
+   "sameBitsAbove": 1.3e-23,
+   "largestDifferenceBelow": 7e-29,
+   "differsBy": "the filter states that settle at 1e-30; also while Size moves and at host rates without measured clock signs"
+  },
+  "findings": [
+   {
+    "review": "engine",
+    "severity": "major",
+    "finding": "Size in motion steps every line by whole samples",
+    "reproduced": true,
+    "outcome": "fixed: while Size glides each line moves in a straight line between whole lengths and lands on the whole length exactly",
+    "offToneDbWhileTheKnobTurns": {
+     "tonesHz": [
+      1000,
+      3000,
+      8000
+     ],
+     "before": {
+      "evolution0": [
+       -33.9,
+       -28.2,
+       -25.6
+      ],
+      "evolution100": [
+       -32.4,
+       -27.5,
+       -18.9
+      ]
+     },
+     "after": {
+      "evolution0": [
+       -72.9,
+       -68.3,
+       -65.5
+      ],
+      "evolution100": [
+       -72.0,
+       -65.8,
+       -60.5
+      ]
+     },
+     "default": [
+      -78.8,
+      -76.9,
+      -73.3
+     ]
+    },
+    "offToneDbDuringOneJump100To130Percent": {
+     "before": {
+      "evolution0": [
+       -25.3,
+       -17.9,
+       -12.8
+      ],
+      "evolution100": [
+       -23.5,
+       -26.0,
+       -2.5
+      ]
+     },
+     "after": {
+      "evolution0": [
+       -39.2,
+       -40.9,
+       -31.7
+      ],
+      "evolution100": [
+       -37.7,
+       -46.7,
+       -18.7
+      ]
+     },
+     "default": [
+      -45.6,
+      -39.3,
+      -31.8
+     ]
+    },
+    "above6kHzDbUnderA1kHzToneSize80To120PercentAtHalfAHertz": {
+     "before": {
+      "evolution0": -36.5,
+      "evolution100": -41.4
+     },
+     "after": {
+      "evolution0": -79.0,
+      "evolution100": -81.8
+     },
+     "default": -89.3
+    }
+   },
+   {
+    "review": "engine",
+    "severity": "minor",
+    "finding": "at 64 and 384 kHz the engine nulls at -77 dB where the model reaches -117 and -119 dB",
+    "reproduced": true,
+    "outcome": "fixed: the campaign's block-clock simulation runs in FathomRateLattice::at where no pair was measured",
+    "before": {
+     "64000": -77.36,
+     "384000": -77.57
+    },
+    "after": {
+     "64000": -117.46,
+     "384000": -118.77
+    }
+   },
+   {
+    "review": "engine",
+    "severity": "minor",
+    "finding": "filter states are not floored",
+    "reproduced": true,
+    "outcome": "fixed: first-order states settle one by one, the two states of a second-order filter together, at the floor of the lines",
+    "framesWithUnderflowInALateSecondAt44100Hz": {
+     "before": 44100,
+     "after": 0
+    },
+    "engineCpu": "no change that the benchmark shows",
+    "note": "flooring the two states of a second-order filter one by one keeps the engine sounding at 1.5e-29 for ever; they are floored together"
+   },
+   {
+    "review": "engine",
+    "severity": "minor",
+    "finding": "the contraction pragma does not hold under -ffp-contract=fast",
+    "reproduced": true,
+    "outcome": "fixed: CMake passes -ffp-contract=off for the engine's sources, fast-math is refused, the comment says what the pragma covers"
+   },
+   {
+    "review": "engine",
+    "severity": "note",
+    "finding": "host rates outside 22.05 to 384 kHz are processed as the nearest bound",
+    "reproduced": true,
+    "outcome": "documented; decision for the owner"
+   },
+   {
+    "review": "integration",
+    "severity": "major",
+    "finding": "VST3 automation of Character is remapped for Veil and Current",
+    "reproduced": true,
+    "outcome": "decision for the owner",
+    "measured": "this build: host value 0.75 selects Current and 1.0 Fathom; 0.25 and 0.5 keep Bloom and Drift. The mapping of 0.21.0 follows from its five choices and was not rebuilt here"
+   },
+   {
+    "review": "integration",
+    "severity": "major",
+    "finding": "selecting Fathom below Mix 100 % raises the dry signal by up to 6.02 dB",
+    "reproduced": true,
+    "outcome": "decided by the owner and changed: Fathom leaves through Ocean's linear Mix; the dry gains of Default and Fathom are equal at every Mix",
+    "dryGainDefaultAndFathom": {
+     "20": [
+      0.8,
+      1.0
+     ],
+     "35": [
+      0.65,
+      1.0
+     ],
+     "50": [
+      0.5,
+      1.0
+     ],
+     "75": [
+      0.25,
+      0.5
+     ]
+    },
+    "dryGainDefaultAndFathomNow": {
+     "20": [
+      0.8,
+      0.8
+     ],
+     "35": [
+      0.65,
+      0.65
+     ],
+     "50": [
+      0.5,
+      0.5
+     ],
+     "75": [
+      0.25,
+      0.25
+     ]
+    }
+   },
+   {
+    "review": "integration",
+    "severity": "major",
+    "finding": "moving Size in Fathom adds broadband noise",
+    "reproduced": true,
+    "outcome": "fixed, see the engine review's first finding"
+   },
+   {
+    "review": "integration",
+    "severity": "note",
+    "finding": "entering Fathom ends a sounding tail; leaving it brings up the hidden FDN's tail",
+    "reproduced": true,
+    "outcome": "documented behaviour; decision for the owner",
+    "levelAgainstNotSwitchingDbInHalfSeconds": {
+     "defaultToFathom": [
+      -7.2,
+      "silence"
+     ],
+     "fathomToDefault": [
+      4.1,
+      6.9,
+      8.3,
+      9.6
+     ]
+    }
+   },
+   {
+    "review": "integration",
+    "severity": "minor",
+    "finding": "no test fails when Low Cut, High Damping or reset() do not reach the engine",
+    "reproduced": true,
+    "outcome": "fixed: tests added, seven mutations caught"
+   },
+   {
+    "review": "integration",
+    "severity": "minor",
+    "finding": "Low Cut and High Damping jump at their neutral ends",
+    "reproduced": true,
+    "outcome": "documented; decision for the owner",
+    "broadbandSecondsFor60Db": {
+     "decay5": {
+      "neutral": 3.78,
+      "lowCut20.065Hz": 3.73,
+      "highDamping19999Hz": 3.71
+     },
+     "decay30": {
+      "neutral": 12.44,
+      "lowCut20.065Hz": 11.94,
+      "highDamping19999Hz": 11.81
+     }
+    }
+   },
+   {
+    "review": "integration",
+    "severity": "minor",
+    "finding": "README still describes five Characters and FDN laws; one sentence was replaced",
+    "reproduced": true,
+    "outcome": "not edited: README.md is not a file of this revision; decision for the owner"
+   },
+   {
+    "review": "integration",
+    "severity": "minor",
+    "finding": "four statements of docs/FATHOM.md are not what the numbers say",
+    "reproduced": true,
+    "outcome": "corrected"
+   },
+   {
+    "review": "integration",
+    "severity": "minor",
+    "finding": "the Mix sum's bit identity with the renderer depends on the compiler",
+    "reproduced": true,
+    "outcome": "superseded by the owner's decision on Mix. FathomEngine::mix, compiled without contraction, still serves the reference's law in the renderer (--mix). Below Mix 100 % the plug-in's sum is Ocean's own expression in FDNReverb.cpp, and the renderer's --ocean-mix repeats it in Tools/FathomRender.cpp: the two give the same bits when both files are compiled alike (36 of 36 renders in the Release build) and would differ in the last bit otherwise. At Mix 100 % no sum is taken. The DSP tests read from Default how a build forms the sum and pass either way",
+    "reproducedBy": "FDNReverb.cpp alone compiled with -ffp-contract=fast: the Mix 70 % route failed at frame 2024; it passes now",
+    "testsWithFDNReverbAloneCompiledDifferently": {
+     "-ffp-contract=off": "26 of 26 Fathom tests pass, the sum rounded in two steps",
+     "-ffp-contract=fast": "26 of 26 Fathom tests pass, the sum fused"
+    }
+   },
+   {
+    "review": "integration",
+    "severity": "note",
+    "finding": "cost of Fathom when it is not selected and when it is",
+    "reproduced": true,
+    "outcome": "measured again; decision for the owner"
+   },
+   {
+    "review": "listening",
+    "severity": "note",
+    "finding": "no audible systematic difference at Macro 100 %, Mix 100 %",
+    "reproduced": false,
+    "outcome": "stands for the present build by the identity at rest; not repeated"
+   },
+   {
+    "review": "listening",
+    "severity": "major",
+    "finding": "Ocean's default Low Cut, High Damping and Focus take Fathom far from the A/B state",
+    "reproduced": true,
+    "outcome": "documented; decision for the owner",
+    "t30ChangePercentHere": {
+     "lowCut80Hz": {
+      "125": -46,
+      "1000": -7
+     },
+     "highDamping9kHz": {
+      "4000": -26,
+      "8000": -42
+     }
+    },
+    "wetUnderWhiteNoiseDbHere": {
+     "lowCut80Hz": -0.28,
+     "highDamping9kHz": -1.13,
+     "focus100": -2.65,
+     "allThree": -4.07
+    }
+   },
+   {
+    "review": "listening",
+    "severity": "minor",
+    "finding": "the fixed voice seed is audible in two situations",
+    "reproduced": false,
+    "outcome": "decided by the owner and changed: every instance of the plug-in draws a voice seed of its own; two instances no longer return the same samples above Evolution 0, and a bounce repeats only within one open instance"
+   },
+   {
+    "review": "listening",
+    "severity": "minor",
+    "finding": "the first half second of a fresh instance differs from the reference",
+    "reproduced": false,
+    "outcome": "documented; an instance prepared with Fathom selected has no crossfade (state test from frame 0), which the review had read from the code"
+   },
+   {
+    "review": "listening",
+    "severity": "note",
+    "finding": "possible half-percent excess in decay time below 1 kHz; one open reading at 4 kHz",
+    "reproduced": false,
+    "outcome": "not measured again; stands as the review left it"
+   }
+  ],
+  "laterReviews": {
+   "behaviour": {
+    "report": "findings/behaviour_review.md",
+    "judged": "the tree after the owner's decisions about Mix and seed and after the rename; its own builds in build-ebb-review-behaviour",
+    "blockers": 0,
+    "major": 0,
+    "findings": [
+     {
+      "severity": "minor",
+      "finding": "above +8 dBFS Fathom does not leave the dry level where it is (the reference's clipper acts on the Mix sum)",
+      "reproduced": true,
+      "outcome": "the owner's decision: the clipper stays where the reference has it; documented with the review's figures",
+      "how": "work/final_wave/dry_level_probe.cpp: dry alone at a peak of 4.0, Mix 0 %: Default 4.000, Fathom 3.62318 (-0.859 dB), 15056 of 19200 samples differ; Mix 10 %: 3.600 and 3.39853 (-0.500 dB); Mix 35 %: 2.600 and 2.59868; at peaks of 0.5, 2.0 and 2.5 no sample differs"
+     },
+     {
+      "severity": "minor",
+      "finding": "three texts still gave the plug-in the reference's Mix law, one quoted selector words that are gone",
+      "reproduced": true,
+      "outcome": "corrected: two comments of Source/dsp/FathomEngine.h, the architecture sketch of README.md, entry 10 of the decisions in docs/FATHOM.md"
+     },
+     {
+      "severity": "note",
+      "finding": "below 1e-20 Fathom passes a dry sample the other Characters flush to zero",
+      "reproduced": true,
+      "outcome": "documented under the output floor; no code change",
+      "how": "the same probe at peaks of 1e-21 and 1e-30: Default returns silence, Fathom the dry share in 19199 and 19184 of 19200 samples"
+     },
+     {
+      "severity": "note",
+      "finding": "the working name survives in four numbers",
+      "reproduced": true,
+      "outcome": "kept; listed for the owner"
+     },
+     {
+      "severity": "note",
+      "finding": "without system entropy two processes are told apart by the clock alone",
+      "reproduced": "not run again",
+      "outcome": "the sentence of docs/FATHOM.md says what the code comment says"
+     },
+     {
+      "severity": "note",
+      "finding": "the tie of the two start levels is the campaign packet's rule",
+      "reproduced": "not run again",
+      "outcome": "for the record"
+     },
+     {
+      "severity": "note",
+      "finding": "loose ends outside the code",
+      "reproduced": true,
+      "outcome": "the hashes of this file are taken again; the note in emit_engine_constants.py and engine_golden.json that names the engine's header by its old name was left (not the wave's files)"
+     }
+    ]
+   },
+   "editor": {
+    "report": "findings/editor_review.md",
+    "judged": "the final editor of the wave before, by hash the sources this wave started from; its own build in build-ebb-review-editor",
+    "blockers": 0,
+    "major": 1,
+    "findings": [
+     {
+      "number": 1,
+      "severity": "major",
+      "finding": "forward Tab never gets past the Evolution value",
+      "reproduced": true,
+      "how": "the reviewer's probe run again; the new keyboard walk fails on the reviewed code (evolution > evolution-value > evolution > ...)",
+      "outcome": "fixed in Source/ui/ParameterKnob.cpp: a value that is left hands the keyboard to its dial only if no other control holds it"
+     },
+     {
+      "number": 2,
+      "severity": "minor",
+      "finding": "Tab order is drop-down, Mono Safe, Freeze, then the knobs",
+      "reproduced": true,
+      "outcome": "fixed: each knob carries its focus order itself, its dial before its value"
+     },
+     {
+      "number": 3,
+      "severity": "minor",
+      "finding": "with the list open, Left and Right change the Character behind it",
+      "reproduced": true,
+      "outcome": "fixed in CharacterSelector::keyPressed; pinned through the open list"
+     },
+     {
+      "number": 4,
+      "severity": "minor",
+      "finding": "the help text that names the six Characters reaches no assistive technology",
+      "reproduced": true,
+      "outcome": "the text is removed; the tests hold what assistive technology receives"
+     },
+     {
+      "number": 5,
+      "severity": "minor",
+      "finding": "the drop-down takes arrows with any modifier, and Space",
+      "reproduced": true,
+      "outcome": "fixed: only the bare keys are taken. Plain Space still opens the list, as asked: the owner's call"
+     },
+     {
+      "number": 6,
+      "severity": "minor",
+      "finding": "the widow control of the paragraph is no longer used",
+      "reproduced": true,
+      "how": "the six paragraphs take four lines with last lines of 35 to 98 % of the width",
+      "outcome": "kept for other fonts and texts (the project also builds for Windows and Linux) and given a test of its own"
+     },
+     {
+      "number": 7,
+      "severity": "minor",
+      "finding": "no test holds the approved wording or the colours of the block",
+      "reproduced": true,
+      "how": "the reviewed sources and tests pass with a changed word in a subtitle and in a paragraph and with the subtitle dimmed",
+      "outcome": "both pinned"
+     },
+     {
+      "number": 8,
+      "severity": "minor",
+      "finding": "the calm pool of the GPU background is much wider than the block",
+      "reproduced": "seen on the reviewer's pictures and read in the shader; not measured again",
+      "outcome": "not changed: a design decision that pulls against finding 9; listed for the owner"
+     },
+     {
+      "number": 9,
+      "severity": "minor",
+      "finding": "the EVOLUTION label loses its ground over bright passages of the GPU field",
+      "reproduced": "not measured again",
+      "outcome": "the owner's decision, as the review says"
+     },
+     {
+      "number": 10,
+      "severity": "minor",
+      "finding": "small text in the deep blue is under 4.5 : 1",
+      "reproduced": "not measured again",
+      "outcome": "the owner's decision, as the review says"
+     },
+     {
+      "number": 11,
+      "severity": "note",
+      "finding": "the mirror is set from design constants",
+      "reproduced": true,
+      "how": "the reviewed code fails the new pin at 900 wide",
+      "outcome": "fixed: the block takes the whole pixel nearest to the mirror image of the ring's left edge as the knob is laid out; at 1440 wide it moved one point left"
+     },
+     {
+      "number": 12,
+      "severity": "note",
+      "finding": "small things in the code",
+      "reproduced": true,
+      "outcome": "the 35 pt start value of the Evolution value's font and the look-and-feel's font and colour for menu section headers are gone; the ring's share of the dial still stands in two files, held together by a test"
+     },
+     {
+      "number": 13,
+      "severity": "note",
+      "finding": "the working name, and stale documents",
+      "reproduced": true,
+      "outcome": "README.md and docs/FATHOM.md are up to date; the numbers that spell the name are kept"
+     }
+    ],
+    "theReviewersProbeBuiltAgainstThisRevision": "34 Tab presses walk control by control and twice past the drop-down; Right, Right, Left with the list open leave the Character; none of six modified keys is taken (work/final_wave/fixed_probe)"
+   }
+  }
+ },
+ "decisionsForTheOwner": [
+  "VST3 automation of Character: an existing lane plays Current for Veil (0.75) and Fathom for Current (1.0). Accept and note it in the release notes, or keep the first five on their old positions.",
+  "Decided: Fathom takes Ocean's linear Mix in the plug-in, and the reference's level stage and clipper stay as they are, the clipper behind the Mix. What that leaves: with Mix below 100 % a dry signal above +8 dBFS is turned down in Fathom and in no other Character.",
+  "Ocean's defaults (Low Cut 80 Hz, High Damping 9 kHz, Focus 100 %) take Fathom far from the reference. Keep the documented knob moves, or set the three to neutral when Fathom is selected.",
+  "Decided: every instance of the plug-in draws a voice seed of its own and does not store it. Left open by it: an export rendered in an instance of its own, a duplicated track and a reopened project sound another movement; an open instance repeats its movement at every restart of processing.",
+  "Low Cut and High Damping step at their end stops, and the Low Cut readout reads 20 Hz up to 20.5 Hz. Keep as the price of exact neutrality, or bring the filters in gradually.",
+  "Host rates outside 22.05 to 384 kHz are processed as the nearest bound (time and pitch scale). Leave, widen the engine's bounds, or keep Fathom out of such sessions.",
+  "Entering Fathom ends a sounding tail within 200 ms and leaving it brings up the FDN's tail: documented behaviour to confirm.",
+  "Fathom's wet lies 4.6 to 6.3 dB below Default's and is not matched: a recorded decision with new figures.",
+  "Cost: the FDN keeps running behind Fathom, and every instance holds the engine's memory and steps its clocks.",
+  "Decided: the words of the editor. The segment selector with its words \"Tidal / Swell\" is gone; the description block carries the texts the owner approved (Fathom: \"MODELLED 16-LINE TIDAL NETWORK\", \"Evolution brings in the tide\"). The reference is named in documents only.",
+  "Done: README.md is up to date for this revision. Left as it was on the owner's instruction: its list of render fingerprints, which holds four Characters of version 0.8.3.",
+  "Done: the clock sign pairs of 64 kHz (low, low) and 384 kHz (high, low) are in the campaign's measured table. SPEC.md still lists the six pairs of wave 2 as measured; it was not edited.",
+  "Small text in the deep blue: the label of a toggle that is on reads 4.21 : 1 for Fathom, under the 4.5 : 1 of small text; the word OCEAN reads 4.47 : 1. Keep #2F7FE0 there, or use a lighter tint of the accent for small text.",
+  "The calm pool of the GPU background is much wider than the description block (its margin is 0.30 of the frame's height), and the EVOLUTION label outside the block has a glyph pixel under 4.5 : 1 in 15 % of frames at factory settings. Drawing the margin in would bring the field back round the knob and would take from that label the ground it has from standing near the pool (not measured); limiting the field under labels or giving labels a ground of their own is the other way. Nothing was changed.",
+  "Space on the drop-down opens the list, as asked. The drop-down has the keyboard as soon as the editor's window has it, so in a host that offers keys to the plug-in first, Space would open the list instead of reaching the transport. No host was run. Keep Space, or leave the list to Return.",
+  "The working name survives in four numbers (FathomEngine::defaultVoiceSeed = 0x45626245, which is the text EbbE, and three seeds of test and benchmark noise), in the names of the build folders and in a note of the campaign's emit_engine_constants.py and engine_golden.json. Changing the numbers changes renders, test stimuli and a benchmark checksum. Kept.",
+  "Recorded choices of the editor's engineers to confirm or change: the border of the engaged drop-down at 86 % of the accent for all Characters; the drop-down at y 112 where the mock-up said about 110; the foot of the Evolution value taken as the baseline of its text; the keyboard's order, which now goes from the drop-down to the knobs and then to Mono Safe and Freeze, where before it went to the two toggles first."
+ ],
+ "ownerDecisionsApplied": [
+  {
+   "decision": "Mix",
+   "now": "in the plug-in Fathom leaves through the sum of the five other Characters at every Mix: dry 1 - m, wet m; at 100 % the wet passes as it is",
+   "reference": "dry min(1, 2 (1 - m)), wet min(1, 2 m); kept in the engine (FathomEngine::mixGains, FathomEngine::mix) for the renderer's --mix and the scoring of the outer laws, no longer called by the plug-in",
+   "unchanged": "Mix 100 %: the plug-in equals the engine's renderer bit for bit there, and the nulls against the reference are those of the build before",
+   "leftOpen": "nothing: the clipper stays behind the Mix by the owner's decision (see the next entry but one)"
+  },
+  {
+   "decision": "voice seed",
+   "now": "every instance of the plug-in draws a 64-bit seed in its constructor (std::random_device mixed with a process-wide count of instances and a high-resolution clock) and hands it to its engine through FDNReverb::setFathomVoiceSeed; it keeps the seed for its lifetime and does not store it in the state",
+   "dspClasses": "FathomEngine, FDNReverb and the renderer keep FathomEngine::defaultVoiceSeed (0x45626245) until a seed is set",
+   "leftOpen": "an export rendered in an instance of its own, a duplicated track and a reopened project sound another movement than the one heard; an open instance repeats its movement at every restart of processing, where the reference never repeats"
+  },
+  {
+   "decision": "name and accent",
+   "now": "the Character is named Fathom; its accent is deep blue #2F7FE0"
+  },
+  {
+   "decision": "level stage and clipper",
+   "now": "the reference's level stage and output clipper are kept as the reference has them, the clipper on dry and wet together behind the Mix",
+   "leaves": "with Mix below 100 % a dry signal above +8 dBFS is turned down in Fathom and in no other Character"
+  },
+  {
+   "decision": "editor",
+   "now": "no word Character is drawn; a drop-down on the window's axis, the description block of the selected Character left of the axis (name, subtitle, hairline, paragraph; the approved texts), the Evolution knob right of it; block and ring mirrored about the axis; the block's text centred on the whole Evolution control"
+  }
+ ],
+ "rename": {
+  "date": "2026-10-07",
+  "what": "The Character's working name gave way to Fathom in the sources, the tests, the tools, the build targets and the documents. No number and no arithmetic changed; the default voice seed is 0x45626245 as before. Its accent in the editor went from sand to deep blue, #2F7FE0.",
+  "thisFile": "this entry is the record of the rename as it was made. The sections build, scores and tests of this file have since been taken again on the frozen build of the finishing wave; cpu is still of the build before the rename.",
+  "notRenamed": "the campaign's findings and data files, the work folders and logs of earlier waves, the names of the build folders, and three hexadecimal literals of test and benchmark noise, which are numbers",
+  "rendererOutputs": {
+   "renders": 84,
+   "sameSha256AsBefore": 84,
+   "benchmarkChecksumsEqual": 6,
+   "covers": "44.1, 48 and 96 kHz; Macro 0 at six Decay and Size settings, with Pre-delay, warm-up (processed and idle) and Ocean's loop filters; Macro 25 to 100 % from given seeds, from the default seed and from a prescribed phase; the reference's outer laws and Ocean's Mix on quiet and on loud input",
+   "listings": "build-ebb/rename/baseline/renders.sha256.txt and build-ebb/rename/renders_final.sha256.txt"
+  },
+  "dspExecutable": {
+   "passed": 77,
+   "failed": 0,
+   "aboutFathom": 25,
+   "sameTestsUnderTheNewName": true,
+   "linesOfItsReport": 228,
+   "linesThatDifferFromBefore": 0
+  },
+  "stateExecutable": "passes; the pin of the sixth accent holds #2F7FE0, and the assertion that the highlighted item of the Character list carries Ocean's darkest tone became: it carries that tone or white, whichever has the higher contrast ratio on the fill as painted, at 4.5 : 1 or more in each of the six accents",
+  "scorer": {
+   "report": "Analyzer/Results/RevOceanCharacterization/work/engine/score_engine.json, every part, run on the renamed build",
+   "engineHoldoutWorstAndMeanDb": [
+    -114.06,
+    -116.78
+   ],
+   "pluginHoldoutWorstAndMeanDb": [
+    -114.06,
+    -116.77
+   ],
+   "engineFiguresCompared": 4292,
+   "engineFiguresThatDiffer": 0,
+   "pluginFiguresAtMacro0Compared": 627,
+   "pluginFiguresAtMacro0ThatDiffer": 0,
+   "rendersOfThePluginComparedWithTheRendererAtMacro0": 36,
+   "rendersThatDiffer": 0,
+   "aboveMacro0": "the plug-in's figures above Macro 0 are of the instances a run draws and were not compared figure by figure; in this run 13 of 13 cases have 8 renders that all differ"
+  },
+  "fiveOtherCharacters": {
+   "renders": 84,
+   "frames": 12902100,
+   "fnv1a": "23b4769e14092b8c",
+   "equalTheLastCommit": true,
+   "casesOfTheIntegrationReviewsHarness": 96
+  },
+  "editor": {
+   "backgroundShader": "72 offscreen frames of the six Characters with the uniform under its new name are the bytes of the frames before, the accent left as it was; the look of the sixth Character holds no colour of its own in the shader or in the CPU fallback, both take their colour from the accent",
+   "fiveOtherCharacters": "their pictures of the editor at 960 x 640 are the same files as before",
+   "pictures": "build-ebb/ui/rename"
+  },
+  "highlightedItemOfTheCharacterList": {
+   "Default": {
+    "text": "dark",
+    "contrast": 7.74,
+    "theOtherTone": 2.56
+   },
+   "Bloom": {
+    "text": "dark",
+    "contrast": 6.55,
+    "theOtherTone": 3.02
+   },
+   "Drift": {
+    "text": "dark",
+    "contrast": 6.09,
+    "theOtherTone": 3.25
+   },
+   "Veil": {
+    "text": "dark",
+    "contrast": 7.04,
+    "theOtherTone": 2.81
+   },
+   "Current": {
+    "text": "dark",
+    "contrast": 7.93,
+    "theOtherTone": 2.5
+   },
+   "Fathom": {
+    "text": "white",
+    "contrast": 4.77,
+    "theOtherTone": 4.15
+   }
+  },
+  "binariesAfterTheRenameSha256": {
+   "VST3 binary (the one this run of the scorer rendered)": "19a9a3d80b8f0b7122fdd4defdb667200d70cfde886bc5ff53b498316e276184",
+   "AU binary": "aaca83714726c5677373368be5194d1ee807d784929253cea826ac9ec56dd3f8",
+   "CLAP binary": "8d65611d5d35f3e3d295ed90903660c66753d6c5404be57212aeb195f9883a97",
+   "AmanitaOceanFathomRender": "bae038f14c112e4c0c734d87ef64b9a6c6d0eb27ce43e9dcae430cd254929660"
+  }
+ },
+ "editor": {
+  "decidedBy": "the owner, on a mock-up and on rendered pictures, 7 October 2026",
+  "canvas": "960 x 640 design pixels; header rule at 80, footer rule at 484, vertical axis at 480",
+  "wordCharacter": "drawn nowhere; the drop-down's accessible title is \"Reverb character\"",
+  "dropDown": {
+   "bounds": [
+    310,
+    112,
+    340,
+    40
+   ],
+   "keys": "arrows step and wrap, one host gesture each; Return or Space opens the list; only the bare keys; with the list open the keys are the list's"
+  },
+  "descriptionBlock": {
+   "bounds": [
+    188,
+    239,
+    248,
+    160
+   ],
+   "parts": [
+    "name, 20 pt bold",
+    "subtitle",
+    "hairline",
+    "paragraph"
+   ],
+   "texts": "one table in Source/ui/CharacterSelector.cpp, the wording the owner approved; held character for character by the state tests"
+  },
+  "evolutionKnob": {
+   "bounds": [
+    510,
+    199,
+    208,
+    238
+   ],
+   "dialCentre": [
+    614,
+    296
+   ],
+   "ringAcross": 179.45
+  },
+  "mirror": "the block ends as far left of the axis as the ring begins right of it (44); at every size the block takes the whole pixel nearest to the mirror image of the ring's left edge as the knob is laid out",
+  "verticalCentre": "the middle of the block's text (top of the name's capitals to the last baseline) on the middle of the whole Evolution control (top of the ring to the baseline of the value): 206.3 to 430.8, middle 318.5",
+  "accent": {
+   "fathom": "#2F7FE0",
+   "colours": [
+    "the word OCEAN",
+    "the arcs of the knobs",
+    "the border of the engaged drop-down",
+    "the highlight of the list",
+    "the label of a toggle that is on"
+   ]
+  },
+  "keyboardWalk": [
+   "character-selector",
+   "evolution",
+   "evolution-value",
+   "preDelay",
+   "preDelay-value",
+   "size",
+   "size-value",
+   "decay",
+   "decay-value",
+   "lowCut",
+   "lowCut-value",
+   "highDamping",
+   "highDamping-value",
+   "harmony",
+   "harmony-value",
+   "width",
+   "width-value",
+   "focus",
+   "focus-value",
+   "mix",
+   "mix-value",
+   "mono-safe",
+   "freeze"
+  ],
+  "contrastOverTheBackgrounds": {
+   "source": "the editor review, lowest value at any glyph pixel",
+   "gpuField3072Frames": {
+    "name": 14.01,
+    "subtitle": 5.48,
+    "paragraph": 9.49
+   },
+   "gpuFieldWithoutTheCalmRegion": {
+    "name": 1.79,
+    "subtitle": 1.0,
+    "paragraph": 1.14
+   },
+   "cpuFallback": {
+    "name": 13.45,
+    "subtitle": 5.4,
+    "paragraph": 9.04
+   }
+  },
+  "pictures": "build-ebb/ui/final (INDEX.txt): six Characters at 960 without a window and live over the GPU background, the open list, Fathom at 804 and 1440",
+  "againstTheWaveBefore": "the pictures without a window at 960 and 804 wide are the same bytes; at 1440 wide the block's text stands one point further left"
+ },
+ "finishingWave": {
+  "date": "2026-10-07",
+  "what": "the two later reviews resolved, the documents brought up to date, everything verified once more on a frozen build that is described in build-ebb/listening-build-01.json",
+  "sourcesChanged": {
+   "Source/ui/ParameterKnob.cpp": "the hand-over of the keyboard after an edit; the knob's own focus order; the start value of the hero value font",
+   "Source/ui/CharacterSelector.cpp, .h": "the drop-down's keys; the help text removed; the paragraph layout a static function with its widow share public for the test",
+   "Source/ui/PluginEditor.cpp, .h": "the block's mirror taken from the knob as laid out",
+   "Source/ui/OceanLookAndFeel.cpp, .h": "the font and the colour of menu section headers removed",
+   "Source/dsp/FathomEngine.h": "two comments about the Mix law",
+   "Source/dsp/FathomEngineConstants.h, Tests/FathomGoldenVectors.h": "generated again: two more measured clock sign pairs, and the hash of the constants file in both heads",
+   "Tests/StateTests.cpp": "the tests of the editor review",
+   "Tests/DspTests.cpp": "one comment about the clock signs"
+  },
+  "campaignFilesChanged": [
+   "README.md",
+   "converters.py (the measured table and its docstring)",
+   "tide_structural_data/engine_constants.json (generated again)",
+   "score_engine.py (docstring and one comment)"
+  ],
+  "noSampleChanged": {
+   "dspTestReport": "228 lines the same as before the wave",
+   "renderer": "78 renders at 13 host rates the same bytes before and after the clock table change",
+   "fiveOtherCharacters": "84 renders and 96 cases the bytes of commit 4a0ac08",
+   "scorer": "4292 figures of the engine and 628 of the plug-in at Macro 0 as before the rename"
+  },
+  "workFolder": "Analyzer/Results/RevOceanCharacterization/work/final_wave (INDEX.txt)"
+ }
+}

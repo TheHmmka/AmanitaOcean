@@ -9,7 +9,7 @@ namespace amanita::ui
 class DeepCurrentRenderer final
 {
 public:
-    static constexpr int characterCount = 5;
+    static constexpr int characterCount = 7;
 
     void reset(int characterIndex,
                float evolution,
@@ -18,6 +18,9 @@ public:
     void setCurrentFieldSnapshot(float flowX,
                                  float flowY,
                                  float strength) noexcept;
+    // Where the contour rings gather, in fractions of the frame's width and
+    // height from its top left corner.
+    void setFocalPoint(float normalisedX, float normalisedY) noexcept;
     void setSize(int logicalWidth, int logicalHeight);
     [[nodiscard]] bool advance(double elapsedSeconds,
                                int characterIndex,
@@ -41,9 +44,13 @@ public:
     getCharacterBlend() const noexcept;
 
 private:
+    // The focal point unless one is set: the middle of the frame, a little high.
+    static constexpr float middleFocalX = 0.50f;
+    static constexpr float middleFocalY = 0.48f;
+
     juce::Image overlay_;
     std::array<float, characterCount> characterBlend_ {
-        1.0f, 0.0f, 0.0f, 0.0f, 0.0f
+        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
     };
     double timeSeconds_ = 0.0;
     float evolution_ = 0.0f;
@@ -54,5 +61,7 @@ private:
     float targetCurrentFieldFlowX_ = 0.0f;
     float targetCurrentFieldFlowY_ = 0.0f;
     float targetCurrentFieldStrength_ = 0.0f;
+    float focalX_ = middleFocalX;
+    float focalY_ = middleFocalY;
 };
 } // namespace amanita::ui

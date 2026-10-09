@@ -32,8 +32,12 @@ uniform float uDirectOutput;
 uniform vec3 uAccent;
 uniform vec4 uCharacterBlend;
 uniform float uCurrentBlend;
+uniform float uFathomBlend;
+uniform float uUndertowBlend;
 uniform vec2 uCurrentFlow;
 uniform float uCurrentStrength;
+uniform vec2 uFocalPoint;
+uniform vec4 uCalmRegion;
 
 float hash21(vec2 p)
 {
@@ -70,43 +74,65 @@ void main()
 {
     vec2 resolution = max(uResolution, vec2(1.0));
     vec2 uv = clamp(vUv, 0.0, 1.0);
-    vec2 p = uv - 0.5;
-    p.x *= resolution.x / resolution.y;
+    vec2 aspect = vec2(resolution.x / resolution.y, 1.0);
+    // The field is laid out from its focal point, the vignette from the frame.
+    vec2 p = (uv - uFocalPoint) * aspect;
+    vec2 frame = (uv - 0.5) * aspect;
 
     float evolution = clamp(uEvolution, 0.0, 1.0);
     float focus = clamp(uFocus, 0.0, 1.0);
     vec4 character = max(uCharacterBlend, vec4(0.0));
     float currentBlend = max(uCurrentBlend, 0.0);
+    float fathomBlend = max(uFathomBlend, 0.0);
+    float undertowBlend = max(uUndertowBlend, 0.0);
     float characterWeight = max(dot(character, vec4(1.0))
-                                + currentBlend,
+                                + currentBlend + fathomBlend
+                                + undertowBlend,
                                 0.0001);
     character /= characterWeight;
     currentBlend /= characterWeight;
+    fathomBlend /= characterWeight;
+    undertowBlend /= characterWeight;
 
     vec2 currentVector = clamp(uCurrentFlow, vec2(-1.0), vec2(1.0));
     float currentDepth = currentBlend
                        * clamp(uCurrentStrength, 0.0, 1.0);
 
     float scaleFactor = (dot(character, vec4(1.00, 0.78, 1.08, 0.84))
-                      + currentBlend * 0.94)
+                      + currentBlend * 0.94 + fathomBlend * 0.96
+                      + undertowBlend * 0.92)
                       * mix(0.97, 1.05, evolution);
     vec2 anisotropy;
     anisotropy.x = dot(character, vec4(1.00, 1.00, 1.35, 0.76))
-                 + currentBlend * 1.48;
+                 + currentBlend * 1.48 + fathomBlend * 0.56
+                 + undertowBlend * 0.52;
     anisotropy.y = dot(character, vec4(1.00, 1.08, 0.78, 1.32))
-                 + currentBlend * 0.72;
+                 + currentBlend * 0.72 + fathomBlend * 1.78
+                 + undertowBlend * 1.70;
     float warpFactor = dot(character, vec4(1.00, 0.90, 1.08, 1.20))
-                     + currentBlend * 1.28;
+                     + currentBlend * 1.28 + fathomBlend * 0.78
+                     + undertowBlend * 0.72;
     float speedFactor = dot(character, vec4(0.72, 0.54, 1.24, 0.46))
-                      + currentBlend * 0.82;
+                      + currentBlend * 0.82 + fathomBlend * 0.50
+                      + undertowBlend * 0.40;
     float densityFactor = dot(character, vec4(1.15, 1.28, 1.08, 0.88))
-                        + currentBlend * 1.12;
+                        + currentBlend * 1.12 + fathomBlend * 1.04
+                        + undertowBlend * 0.90;
     float maskFactor = dot(character, vec4(0.88, 1.18, 1.02, 0.58))
-                     + currentBlend * 0.90;
+                     + currentBlend * 0.90 + fathomBlend * 0.74
+                     + undertowBlend * 0.62;
     float time = uTime * speedFactor * mix(0.68, 1.12, evolution);
 
     vec2 q = p * anisotropy * scaleFactor;
     q += currentVector * currentDepth * 0.16;
+    // Fathom lays the field out in long level bands and lifts them on one slow
+    // swell that travels along the horizontal.
+    q.y += fathomBlend * mix(0.05, 0.13, evolution)
+         * sin(time * 0.11 - p.x * 0.9);
+    // Undertow keeps those bands, darker and slower, and lifts them on a lower
+    // swell that travels back the way Fathom's came.
+    q.y += undertowBlend * mix(0.04, 0.11, evolution)
+         * sin(time * 0.11 + p.x * 0.9);
     vec2 warp;
     warp.x = flowFbm(q * 0.78
                      + time * vec2(0.008, -0.006));
@@ -162,8 +188,20 @@ void main()
     colour *= 0.92;
 
     float vignette = 1.0 - smoothstep(
-        0.52, 1.04, length(p * vec2(0.72, 1.10)));
+        0.52, 1.04, length(frame * vec2(0.72, 1.10)));
     colour *= mix(0.96, 1.0, vignette);
+
+    // Behind the description block the field keeps its motion at low levels
+    // and gives up its bright passages, so the text there stays readable. It
+    // comes back over a wide margin whose rounded, rippling outline is a shape
+    // of the field's own and leaves no box round the block.
+    vec2 fromBlock = abs(uv - uCalmRegion.xy) * aspect;
+    vec2 halfBlock = uCalmRegion.zw * aspect;
+    float rounding = 0.72 * min(halfBlock.x, halfBlock.y);
+    float beyondBlock = length(max(fromBlock - halfBlock + rounding, vec2(0.0)))
+                      - rounding;
+    float ripple = valueNoise(p * 4.6 + time * vec2(0.011, -0.007));
+    float calm = 1.0 - smoothstep(0.0, 0.30, beyondBlock - 0.08 * ripple);
 
     float peak = undercurrent * 0.64 + detail * 0.36;
     float core = smoothstep(mix(0.70, 0.63, evolution),
@@ -175,10 +213,12 @@ void main()
                       * smoothstep(0.10, 0.64, midDensity);
     float emission = max(pow(core * gate, 1.08),
                          softCurrent * mix(0.18, 0.34, evolution))
-                   * maskFactor * mix(0.58, 1.10, evolution);
+                   * maskFactor * mix(0.58, 1.10, evolution)
+                   * mix(1.0, 0.04, calm);
 
     colour /= vec3(1.0) + colour * 0.30;
     colour = pow(max(colour, vec3(0.0)), vec3(0.82));
+    colour /= 1.0 + calm * max(colour.r, max(colour.g, colour.b)) / 0.15;
     float outputAlpha = mix(clamp(emission, 0.0, 1.0),
                             1.0,
                             clamp(uDirectOutput, 0.0, 1.0));
@@ -225,6 +265,8 @@ uniform float uFocus;
 uniform vec3 uAccent;
 uniform vec4 uCharacterBlend;
 uniform float uCurrentBlend;
+uniform float uFathomBlend;
+uniform float uUndertowBlend;
 
 void main()
 {
@@ -235,11 +277,16 @@ void main()
     float focus = clamp(uFocus, 0.0, 1.0);
     vec4 character = max(uCharacterBlend, vec4(0.0));
     float currentBlend = max(uCurrentBlend, 0.0);
+    float fathomBlend = max(uFathomBlend, 0.0);
+    float undertowBlend = max(uUndertowBlend, 0.0);
     float characterWeight = max(dot(character, vec4(1.0))
-                                + currentBlend,
+                                + currentBlend + fathomBlend
+                                + undertowBlend,
                                 0.0001);
     character /= characterWeight;
     currentBlend /= characterWeight;
+    fathomBlend /= characterWeight;
+    undertowBlend /= characterWeight;
 
     vec3 accent = clamp(uAccent, vec3(0.0), vec3(1.0));
     float luminance = dot(accent, vec3(0.2126, 0.7152, 0.0722));
@@ -247,11 +294,13 @@ void main()
     vec3 glowTint = mix(vec3(0.040, 0.125, 0.138), accent, 0.70);
 
     float coreGain = (dot(character, vec4(0.068, 0.086, 0.081, 0.041))
-                    + currentBlend * 0.052)
+                    + currentBlend * 0.052 + fathomBlend * 0.050
+                    + undertowBlend * 0.044)
                    * mix(0.55, 1.15, evolution)
                    * mix(0.88, 1.12, focus);
     float haloGain = (dot(character, vec4(0.44, 0.63, 0.49, 0.55))
-                    + currentBlend * 0.56)
+                    + currentBlend * 0.56 + fathomBlend * 0.52
+                    + undertowBlend * 0.46)
                    * mix(0.68, 1.25, evolution)
                    * mix(1.12, 1.00, focus);
     float light = scene.a * coreGain

@@ -1,4 +1,5 @@
 #include "ParameterKnob.h"
+#include "OceanLookAndFeel.h"
 
 #include <utility>
 
@@ -56,8 +57,7 @@ ParameterKnob::ParameterKnob(juce::AudioProcessorValueTreeState& state,
     nameLabel_.setComponentID(parameterId_ + "-name");
     nameLabel_.setJustificationType(juce::Justification::centred);
     nameLabel_.setFont(controlLabelFont(heroControl_ ? 11.0f : 10.5f));
-    nameLabel_.setColour(juce::Label::textColourId,
-                         juce::Colour::fromRGB(154, 168, 167));
+    nameLabel_.setColour(juce::Label::textColourId, OceanLookAndFeel::labelText());
     nameLabel_.setInterceptsMouseClicks(false, false);
     nameLabel_.setAccessible(false);
     addAndMakeVisible(nameLabel_);
@@ -68,7 +68,7 @@ ParameterKnob::ParameterKnob(juce::AudioProcessorValueTreeState& state,
     valueLabel_.setTitle(displayName + " value");
     valueLabel_.setDescription("Editable value for " + displayName);
     valueLabel_.setJustificationType(juce::Justification::centred);
-    valueLabel_.setFont(valueFont(heroControl_ ? 35.0f : 14.0f));
+    valueLabel_.setFont(valueFont(heroControl_ ? 18.0f : 14.0f));
     valueLabel_.setColour(juce::Label::textColourId,
                           juce::Colour::fromRGB(241, 239, 232));
     valueLabel_.setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
@@ -90,7 +90,13 @@ ParameterKnob::ParameterKnob(juce::AudioProcessorValueTreeState& state,
         const auto safeThis = juce::Component::SafePointer<ParameterKnob>(this);
         juce::MessageManager::callAsync([safeThis]
         {
-            if (safeThis != nullptr && safeThis->slider_.isShowing())
+            if (safeThis == nullptr || ! safeThis->slider_.isShowing())
+                return;
+
+            // An edit that Tab or a click on another control ended has taken
+            // the keyboard to that control, and it stays there.
+            const auto* focused = juce::Component::getCurrentlyFocusedComponent();
+            if (focused == nullptr || safeThis->isParentOf(focused))
                 safeThis->slider_.grabKeyboardFocus();
         });
     };
@@ -132,9 +138,9 @@ void ParameterKnob::resized()
     const auto bounds = getLocalBounds();
     if (heroControl_)
     {
-        const auto scale = juce::jmin(static_cast<float>(bounds.getWidth()) / 240.0f,
-                                     static_cast<float>(bounds.getHeight()) / 268.0f);
-        const auto dialSize = juce::roundToInt(224.0f * scale);
+        const auto scale = juce::jmin(static_cast<float>(bounds.getWidth()) / heroWidth,
+                                     static_cast<float>(bounds.getHeight()) / heroHeight);
+        const auto dialSize = juce::roundToInt(static_cast<float>(heroDialSize) * scale);
         const auto nameTop = bounds.getY() + dialSize + juce::roundToInt(2.0f * scale);
         const auto nameHeight = juce::roundToInt(18.0f * scale);
         const auto valueHeight = juce::roundToInt(24.0f * scale);
@@ -172,8 +178,11 @@ void ParameterKnob::resized()
 
 void ParameterKnob::setFocusOrder(int order)
 {
-    slider_.setExplicitFocusOrder(order);
-    valueLabel_.setExplicitFocusOrder(order + 100);
+    // Focus orders rank the children of one parent: the knob takes its place
+    // among the controls of the editor, and its dial comes before its value.
+    setExplicitFocusOrder(order);
+    slider_.setExplicitFocusOrder(1);
+    valueLabel_.setExplicitFocusOrder(2);
 }
 
 juce::Slider& ParameterKnob::getSlider() noexcept
@@ -189,6 +198,16 @@ const juce::Slider& ParameterKnob::getSlider() const noexcept
 juce::Label& ParameterKnob::getValueLabel() noexcept
 {
     return valueLabel_;
+}
+
+float ParameterKnob::getValueBaseline()
+{
+    // The look and feel sets the value as one line in the middle of its label.
+    const auto font = getLookAndFeel().getLabelFont(valueLabel_);
+    const auto textArea = valueLabel_.getBorderSize()
+                              .subtractedFrom(valueLabel_.getBounds())
+                              .toFloat();
+    return textArea.getCentreY() + 0.5f * (font.getAscent() - font.getDescent());
 }
 
 void ParameterKnob::updateDisplayedValue()

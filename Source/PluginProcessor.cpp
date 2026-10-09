@@ -4,7 +4,10 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <exception>
+#include <random>
 
 namespace
 {
@@ -25,6 +28,18 @@ constexpr auto freezeId = "freeze";
 constexpr auto harmonyId = "harmony";
 constexpr auto monoSafeId = "monoSafe";
 constexpr float legacyMinimumSizePercent = 50.0f;
+
+// The place of Undertow among the choices of the Character parameter.
+constexpr int undertowChoice = 6;
+// What Undertow replays after its input has stopped, in quarter notes: two of
+// its longest chunks, of 8/3 each, and four passes of the recirculation an
+// octave up, of 2 each.
+constexpr double undertowTailQuarterNotes = 2.0 * 8.0 / 3.0 + 4.0 * 2.0;
+// The tempo that tail is reckoned at: the host's within the range Undertow
+// follows, and this one where the host gives none.
+constexpr double slowestTailTempo = 20.0;
+constexpr double fastestTailTempo = 999.0;
+constexpr float tailTempoWithoutHost = 120.0f;
 
 [[nodiscard]] float sizeScaleFromPercent(float percent) noexcept
 {
@@ -113,14 +128,56 @@ constexpr float legacyMinimumSizePercent = 50.0f;
 {
     return limitHostText(juce::String(juce::roundToInt(value)), maximumLength);
 }
+
+// The output function of SplitMix64: one-to-one on 64 bits, and every bit of
+// its argument reaches every bit of its result.
+[[nodiscard]] std::uint64_t scrambleBits(std::uint64_t bits) noexcept
+{
+    bits = (bits ^ (bits >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    bits = (bits ^ (bits >> 27)) * 0x94d049bb133111ebULL;
+    return bits ^ (bits >> 31);
+}
+
+// A seed for the voice phase of Fathom in a new instance. The system's entropy
+// is mixed with the time and with the number of instances this process has
+// made, so that a source of entropy that fails or repeats itself still gives
+// every instance a seed of its own: the count tells the instances of one
+// process apart even when they are made at the same moment, the time those of
+// two processes. Called while an instance is constructed, never while it
+// processes audio.
+[[nodiscard]] std::uint64_t drawFathomVoiceSeed()
+{
+    static std::atomic<std::uint64_t> instancesMade { 0 };
+
+    std::uint64_t entropy = 0;
+    try
+    {
+        std::random_device device;
+        entropy = (static_cast<std::uint64_t>(device()) << 32) | device();
+    }
+    catch (const std::exception&)
+    {
+        // No entropy from the system: the time and the count remain.
+    }
+
+    const auto ticks = static_cast<std::uint64_t>(
+        std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    const auto instance = instancesMade.fetch_add(1, std::memory_order_relaxed) + 1;
+    return scrambleBits(scrambleBits(scrambleBits(entropy) + ticks)
+                        + instance * 0x9e3779b97f4a7c15ULL);
+}
 } // namespace
 
 AmanitaOceanAudioProcessor::AmanitaOceanAudioProcessor()
     : AudioProcessor(BusesProperties()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
-      state_(*this, nullptr, "AmanitaOceanState", createParameterLayout())
+      state_(*this, nullptr, "AmanitaOceanState", createParameterLayout()),
+      fathomVoiceSeed_(drawFathomVoiceSeed()),
+      tailTempoBpm_(tailTempoWithoutHost)
 {
+    reverb_.setFathomVoiceSeed(fathomVoiceSeed_);
+
     characterParameter_ = state_.getRawParameterValue(algorithmId);
     mixParameter_ = state_.getRawParameterValue(mixId);
     decayParameter_ = state_.getRawParameterValue(decayId);
@@ -178,6 +235,14 @@ void AmanitaOceanAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     }
 
     reverb_.setParameters(readDspParameters());
+    const auto transport = readHostTransport();
+    reverb_.setHostTransport(transport);
+    // The tail length is asked for off this thread; it finds the tempo here.
+    tailTempoBpm_.store(transport.hasTempo
+                            ? static_cast<float>(std::clamp(transport.bpm, slowestTailTempo,
+                                                            fastestTailTempo))
+                            : tailTempoWithoutHost,
+                        std::memory_order_relaxed);
     reverb_.process(buffer.getWritePointer(0), buffer.getWritePointer(1), buffer.getNumSamples());
 
     const auto& currentFrame = reverb_.getCurrentFieldFrame();
@@ -214,7 +279,17 @@ double AmanitaOceanAudioProcessor::getTailLengthSeconds() const
     const auto decay = decayParameter_ != nullptr
         ? decayParameter_->load(std::memory_order_relaxed)
         : 5.0f;
-    return static_cast<double>(decay) + 0.5;
+    const auto tail = static_cast<double>(decay) + 0.5;
+
+    // Undertow goes on replaying the past after its input has stopped, at the
+    // tempo of the block processed last.
+    const auto isUndertow = characterParameter_ != nullptr
+        && static_cast<int>(std::lround(characterParameter_->load(std::memory_order_relaxed)))
+               == undertowChoice;
+    return isUndertow
+        ? tail + undertowTailQuarterNotes * 60.0
+                     / static_cast<double>(tailTempoBpm_.load(std::memory_order_relaxed))
+        : tail;
 }
 
 int AmanitaOceanAudioProcessor::getNumPrograms() { return 1; }
@@ -255,6 +330,11 @@ AmanitaOceanAudioProcessor::getParameterState() const noexcept
     return state_;
 }
 
+std::uint64_t AmanitaOceanAudioProcessor::getFathomVoiceSeed() const noexcept
+{
+    return fathomVoiceSeed_;
+}
+
 AmanitaOceanAudioProcessor::CurrentVisualSnapshot
 AmanitaOceanAudioProcessor::getCurrentVisualSnapshot() const noexcept
 {
@@ -285,7 +365,8 @@ AmanitaOceanAudioProcessor::createParameterLayout()
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID { algorithmId, 1 }, "Character",
-        juce::StringArray { "Default", "Bloom", "Drift", "Veil", "Current" }, 0));
+        juce::StringArray { "Default", "Bloom", "Drift", "Veil", "Current", "Fathom",
+                            "Undertow" }, 0));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { mixId, 1 }, "Mix",
         juce::NormalisableRange<float> { 0.0f, 100.0f, 0.1f }, 35.0f,
@@ -360,6 +441,12 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
         case 4:
             parameters.mode = amanita::dsp::ReverbMode::current;
             break;
+        case 5:
+            parameters.mode = amanita::dsp::ReverbMode::fathom;
+            break;
+        case undertowChoice:
+            parameters.mode = amanita::dsp::ReverbMode::undertow;
+            break;
         default:
             parameters.mode = amanita::dsp::ReverbMode::defaultMode;
             break;
@@ -380,6 +467,34 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
     parameters.monoSafeStereo
         = monoSafeParameter_->load(std::memory_order_relaxed) >= 0.5f;
     return parameters;
+}
+
+amanita::dsp::HostTransport AmanitaOceanAudioProcessor::readHostTransport() const noexcept
+{
+    amanita::dsp::HostTransport transport;
+    const auto* playHead = getPlayHead();
+    if (playHead == nullptr)
+        return transport;
+
+    // The play head answers by value from what the host gave for this block.
+    const auto position = playHead->getPosition();
+    if (! position.hasValue())
+        return transport;
+
+    // A tempo that is no positive number is no tempo, and without a position
+    // in quarter notes that is a number the transport reads as stopped.
+    if (const auto bpm = position->getBpm(); bpm.hasValue() && std::isfinite(*bpm) && *bpm > 0.0)
+    {
+        transport.bpm = *bpm;
+        transport.hasTempo = true;
+    }
+    if (const auto quarterNotes = position->getPpqPosition();
+        quarterNotes.hasValue() && std::isfinite(*quarterNotes))
+    {
+        transport.quarterNotes = *quarterNotes;
+        transport.playing = position->getIsPlaying();
+    }
+    return transport;
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

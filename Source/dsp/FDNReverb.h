@@ -3,6 +3,7 @@
 #include "BloomCharacter.h"
 #include "CurrentField.h"
 #include "DriftCharacter.h"
+#include "FathomEngine.h"
 #include "HarmonicAnalyzer.h"
 #include "HarmonicTail.h"
 #include "SpatialDucker.h"
@@ -11,6 +12,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace amanita::dsp
@@ -21,7 +23,19 @@ enum class ReverbMode
     bloom,
     drift,
     veil,
-    current
+    current,
+    fathom,
+    undertow
+};
+
+// What the host says about its transport at the first frame of a block.
+// Undertow keeps time by it; the other Characters do not read it.
+struct HostTransport
+{
+    double quarterNotes = 0.0;   // position of the block's first frame
+    double bpm = 120.0;          // tempo; read only when hasTempo
+    bool playing = false;        // false: the position does not advance and is not used
+    bool hasTempo = false;       // false: the host gave no tempo
 };
 
 struct ReverbParameters
@@ -58,6 +72,15 @@ public:
 
     void setParameters(const ReverbParameters& newParameters) noexcept;
     [[nodiscard]] const ReverbParameters& getParameters() const noexcept;
+
+    // Seed of the voice phase of Fathom, in place of the engine's default one.
+    // It takes effect at the next prepare() or reset().
+    void setFathomVoiceSeed(std::uint64_t seed) noexcept;
+
+    // Tempo and position of the host at the first frame of the next process()
+    // call. Call it once in front of every block; without a call the reverb
+    // behaves as under a stopped transport without a tempo.
+    void setHostTransport(const HostTransport& transport) noexcept;
 
     void process(float* left, float* right, int numSamples) noexcept;
     void processSample(float& left, float& right) noexcept;
@@ -148,6 +171,14 @@ private:
     BloomCharacter bloom_;
     CurrentField currentField_;
     DriftCharacter drift_;
+    FathomEngine fathom_;
+    FathomEngine::LevelStage fathomLevelStage_;
+    StereoField fathomSubAnchor_;
+    // Undertow: a second engine, which carries the Undertow layer, with outer
+    // stages of its own.
+    FathomEngine undertow_;
+    FathomEngine::LevelStage undertowLevelStage_;
+    StereoField undertowSubAnchor_;
     HarmonicAnalyzer harmonicAnalyzer_;
     HarmonicTail harmonicTail_;
     SpatialDucker spatialDucker_;
@@ -157,6 +188,10 @@ private:
     LinearSmoother bloomAmount_;
     LinearSmoother currentAmount_;
     LinearSmoother driftAmount_;
+    LinearSmoother fathomAmount_;
+    LinearSmoother undertowAmount_;
+    // How much of the wet Fathom and Undertow hold together.
+    LinearSmoother engineAmount_;
     LinearSmoother veilAmount_;
     LinearSmoother mix_;
     LinearSmoother size_;
@@ -170,5 +205,8 @@ private:
     LinearSmoother freeze_;
     float dcGuardCoefficient_ = 0.0f;
     float currentFieldStrength_ = 0.0f;
+    bool fathomEngaged_ = false;
+    bool undertowEngaged_ = false;
+    HostTransport hostTransport_;
 };
 } // namespace amanita::dsp

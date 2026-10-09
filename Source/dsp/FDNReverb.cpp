@@ -112,6 +112,66 @@ static_assert(FDNReverb::numDelayLines == CurrentField::numLines);
 {
     return minimum + evolution * (maximum - minimum);
 }
+
+// Fathom reads Ocean's controls in the units of its reference. Its Macro
+// follows the Evolution knob itself, not the smoothed curve the FDN Characters
+// use. Undertow reads them the same way: it is the same engine under another
+// layer.
+[[nodiscard]] FathomEngine::Parameters fathomParameters(const ReverbParameters& parameters) noexcept
+{
+    FathomEngine::Parameters fathom;
+    fathom.decaySeconds = parameters.decaySeconds;
+    fathom.sizeScale = parameters.size;
+    fathom.preDelaySeconds = parameters.preDelayMs * 0.001f;
+    fathom.macro = parameters.evolution;
+    fathom.lowCutHz = parameters.lowCutHz;
+    fathom.highDampingHz = parameters.highDampingHz;
+    fathom.freeze = parameters.freeze;
+    return fathom;
+}
+
+// Crossfade from an Ocean stage to its Fathom counterpart. A settled Fathom
+// takes the Fathom value itself, so no rounding of the FDN path reaches its
+// output.
+[[nodiscard]] float morphToFathom(float ocean, float fathom, float fathomAmount) noexcept
+{
+    return fathomAmount >= 1.0f ? fathom : ocean + fathomAmount * (fathom - ocean);
+}
+
+// The two Characters that are engines of their own beside the FDN.
+[[nodiscard]] bool isEngineMode(ReverbMode mode) noexcept
+{
+    return mode == ReverbMode::fathom || mode == ReverbMode::undertow;
+}
+
+// What the two engines give together, each by its amount: the value of the one
+// that is in alone, itself, and a crossfade while one takes over from the other.
+template <typename Frame>
+[[nodiscard]] Frame blendEngines(const Frame& fathom, const Frame& undertow,
+                                 float fathomAmount, float undertowAmount) noexcept
+{
+    if (!(undertowAmount > 0.0f))
+        return fathom;
+    if (!(fathomAmount > 0.0f))
+        return undertow;
+
+    const auto share = undertowAmount / (fathomAmount + undertowAmount);
+    auto blended = fathom;
+    blended.left += share * (undertow.left - fathom.left);
+    blended.right += share * (undertow.right - fathom.right);
+    return blended;
+}
+
+// Output guard of a settled Fathom: finite, inside the bound every Character
+// observes and never denormal. The engine holds nothing below a floor of its
+// own, far above the denormal range, so the end of its tail passes as it is;
+// the FDN's floor of 1e-20 would cut it where the engine is still validated.
+[[nodiscard]] float guardFathom(float sample) noexcept
+{
+    if (!std::isfinite(sample) || std::abs(sample) < std::numeric_limits<float>::min())
+        return 0.0f;
+    return std::clamp(sample, -8.0f, 8.0f);
+}
 } // namespace
 
 void FDNReverb::LinearSmoother::prepare(double sampleRate,
@@ -305,6 +365,15 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
     bloom_.prepare(sampleRate_);
     currentField_.prepare(sampleRate_);
     drift_.prepare(sampleRate_);
+    fathom_.setParameters(fathomParameters(parameters_));
+    fathom_.prepare(sampleRate_);
+    fathomLevelStage_.prepare(sampleRate_);
+    fathomSubAnchor_.prepare(sampleRate_);
+    undertow_.setLayer(FathomEngine::Layer::undertow);
+    undertow_.setParameters(fathomParameters(parameters_));
+    undertow_.prepare(sampleRate_);
+    undertowLevelStage_.prepare(sampleRate_);
+    undertowSubAnchor_.prepare(sampleRate_);
     harmonicAnalyzer_.prepare(sampleRate_);
     const auto& initialAnalysis = harmonicAnalyzer_.getFrame();
     harmonicTail_.prepare(sampleRate_,
@@ -323,6 +392,12 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
                            parameters_.mode == ReverbMode::current ? 1.0f : 0.0f);
     driftAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                          parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
+    fathomAmount_.prepare(sampleRate_, characterModeMorphSeconds,
+                          parameters_.mode == ReverbMode::fathom ? 1.0f : 0.0f);
+    undertowAmount_.prepare(sampleRate_, characterModeMorphSeconds,
+                            parameters_.mode == ReverbMode::undertow ? 1.0f : 0.0f);
+    engineAmount_.prepare(sampleRate_, characterModeMorphSeconds,
+                          isEngineMode(parameters_.mode) ? 1.0f : 0.0f);
     veilAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                         parameters_.mode == ReverbMode::veil ? 1.0f : 0.0f);
     mix_.prepare(sampleRate_, 0.02, parameters_.mix);
@@ -361,6 +436,12 @@ void FDNReverb::reset() noexcept
                            parameters_.mode == ReverbMode::current ? 1.0f : 0.0f);
     driftAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                          parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
+    fathomAmount_.prepare(sampleRate_, characterModeMorphSeconds,
+                          parameters_.mode == ReverbMode::fathom ? 1.0f : 0.0f);
+    undertowAmount_.prepare(sampleRate_, characterModeMorphSeconds,
+                            parameters_.mode == ReverbMode::undertow ? 1.0f : 0.0f);
+    engineAmount_.prepare(sampleRate_, characterModeMorphSeconds,
+                          isEngineMode(parameters_.mode) ? 1.0f : 0.0f);
     veilAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                         parameters_.mode == ReverbMode::veil ? 1.0f : 0.0f);
     monoSafeStereoAmount_.prepare(sampleRate_, 0.03,
@@ -376,6 +457,12 @@ void FDNReverb::reset() noexcept
     bloom_.reset();
     currentField_.reset();
     drift_.reset();
+    fathom_.reset();
+    fathomLevelStage_.reset();
+    fathomSubAnchor_.reset();
+    undertow_.reset();
+    undertowLevelStage_.reset();
+    undertowSubAnchor_.reset();
     harmonicAnalyzer_.reset();
     if (parameters_.autoHarmony)
     {
@@ -393,6 +480,8 @@ void FDNReverb::reset() noexcept
     dcGuardLowPassStates_.fill(0.0f);
     lfoPhases_ = initialLfoPhases;
     currentFieldStrength_ = 0.0f;
+    fathomEngaged_ = false;
+    undertowEngaged_ = false;
 }
 
 void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
@@ -404,6 +493,8 @@ void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
         case ReverbMode::bloom:
         case ReverbMode::current:
         case ReverbMode::drift:
+        case ReverbMode::fathom:
+        case ReverbMode::undertow:
         case ReverbMode::veil:
             parameters_.mode = newParameters.mode;
             break;
@@ -456,11 +547,24 @@ const ReverbParameters& FDNReverb::getParameters() const noexcept
     return parameters_;
 }
 
+void FDNReverb::setHostTransport(const HostTransport& transport) noexcept
+{
+    hostTransport_ = transport;
+}
+
+void FDNReverb::setFathomVoiceSeed(std::uint64_t seed) noexcept
+{
+    fathom_.setVoiceSeed(seed);
+}
+
 void FDNReverb::updateTargets() noexcept
 {
     bloomAmount_.setTarget(parameters_.mode == ReverbMode::bloom ? 1.0f : 0.0f);
     currentAmount_.setTarget(parameters_.mode == ReverbMode::current ? 1.0f : 0.0f);
     driftAmount_.setTarget(parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
+    fathomAmount_.setTarget(parameters_.mode == ReverbMode::fathom ? 1.0f : 0.0f);
+    undertowAmount_.setTarget(parameters_.mode == ReverbMode::undertow ? 1.0f : 0.0f);
+    engineAmount_.setTarget(isEngineMode(parameters_.mode) ? 1.0f : 0.0f);
     veilAmount_.setTarget(parameters_.mode == ReverbMode::veil ? 1.0f : 0.0f);
     mix_.setTarget(parameters_.mix);
     size_.setTarget(parameters_.size);
@@ -484,6 +588,8 @@ void FDNReverb::updateTargets() noexcept
     }
     spatialDucker_.setAmount(parameters_.ducking);
     freeze_.setTarget(parameters_.freeze ? 1.0f : 0.0f);
+    fathom_.setParameters(fathomParameters(parameters_));
+    undertow_.setParameters(fathomParameters(parameters_));
 
     for (std::size_t index = 0; index < numDelayLines; ++index)
     {
@@ -508,6 +614,18 @@ void FDNReverb::process(float* left, float* right, int numSamples) noexcept
 {
     if (!prepared_ || left == nullptr || right == nullptr || numSamples <= 0)
         return;
+
+    // Undertow keeps time by the host, also while another Character is
+    // selected. What was said of this block's first frame goes to its engine;
+    // a block nothing was said of runs under a stopped transport without a
+    // tempo.
+    FathomEngine::Transport transport;
+    transport.quarterNotes = hostTransport_.quarterNotes;
+    transport.bpm = hostTransport_.bpm;
+    transport.playing = hostTransport_.playing;
+    transport.hasTempo = hostTransport_.hasTempo;
+    undertow_.setTransport(transport);
+    hostTransport_ = {};
 
     for (auto sample = 0; sample < numSamples; ++sample)
         processSample(left[sample], right[sample]);
@@ -537,8 +655,14 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     const auto bloomAmount = bloomAmount_.next();
     const auto currentAmount = currentAmount_.next();
     const auto driftAmount = driftAmount_.next();
+    const auto fathomAmount = fathomAmount_.next();
+    const auto undertowAmount = undertowAmount_.next();
+    const auto engineAmount = engineAmount_.next();
     const auto veilAmount = veilAmount_.next();
     const auto evolution = smoothCurve(evolution_.next());
+    // Fathom and Undertow are not part of this sum: behind them the FDN runs as
+    // Default, so a switch between either and Default leaves the FDN's own
+    // path as it is.
     const auto defaultAmount = std::clamp(
         1.0f - bloomAmount - currentAmount - driftAmount - veilAmount,
         0.0f, 1.0f);
@@ -705,6 +829,65 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     auto wetLeft = decodedWet.left;
     auto wetRight = decodedWet.right;
 
+    // Fathom is a network of its own beside the FDN. Its wet replaces the
+    // decoded FDN wet here, so Harmony, Focus and the output guards treat it as
+    // they treat any Character. It enters under the bound the FDN lines
+    // observe, which keeps a non-finite frame out of the stateful stages below.
+    // While another Character is selected the engine only keeps time, and
+    // Fathom's outer stages restart with it from rest.
+    //
+    // The reference's level stage is a law of the input level that reaches
+    // above the bound the FDN's input observes, so the engine and its level
+    // stage read the input under the wider bound of the output guard.
+    //
+    // Undertow is a second engine of the same kind in the same place, with a
+    // level stage of its own. `engineAmount` is how much of the wet the two
+    // hold together, on a ramp of its own: it is the amount of the one that
+    // is in, and it stays at one while one takes over from the other, so the
+    // two crossfade directly and nothing of the FDN shows between them.
+    const auto fathomDryLeft = sanitise(left);
+    const auto fathomDryRight = sanitise(right);
+    FathomEngine::Frame fathomWet;
+    FathomEngine::Frame undertowWet;
+    if (fathomAmount > 0.0f)
+    {
+        fathomWet = fathomLevelStage_.process(
+            fathomDryLeft, fathomDryRight, fathom_.processSample(fathomDryLeft, fathomDryRight));
+        fathomEngaged_ = true;
+    }
+    else
+    {
+        if (fathomEngaged_)
+        {
+            fathomLevelStage_.reset();
+            fathomSubAnchor_.reset();
+            fathomEngaged_ = false;
+        }
+        fathom_.advanceIdle();
+    }
+    if (undertowAmount > 0.0f)
+    {
+        undertowWet = undertowLevelStage_.process(
+            fathomDryLeft, fathomDryRight, undertow_.processSample(fathomDryLeft, fathomDryRight));
+        undertowEngaged_ = true;
+    }
+    else
+    {
+        if (undertowEngaged_)
+        {
+            undertowLevelStage_.reset();
+            undertowSubAnchor_.reset();
+            undertowEngaged_ = false;
+        }
+        undertow_.advanceIdle();
+    }
+    if (engineAmount > 0.0f)
+    {
+        const auto engineWet = blendEngines(fathomWet, undertowWet, fathomAmount, undertowAmount);
+        wetLeft = morphToFathom(wetLeft, sanitise(engineWet.left), engineAmount);
+        wetRight = morphToFathom(wetRight, sanitise(engineWet.right), engineAmount);
+    }
+
     // Harmonic pitch targets latch at the exact Freeze edge. The main FDN uses
     // its 50 ms fade to avoid a gain click, but feeding that fade to the map
     // smoother would let part of a simultaneously selected chord leak in.
@@ -723,20 +906,77 @@ void FDNReverb::processSample(float& left, float& right) noexcept
         wetLeft, wetRight, width);
     const auto monoSafeWidenedWet = stereoField_.applyWidth(
         wetLeft, wetRight, width);
-    wetLeft = legacyWidenedWet.left
-            + monoSafeStereoAmount
-                  * (monoSafeWidenedWet.left - legacyWidenedWet.left);
-    wetRight = legacyWidenedWet.right
-             + monoSafeStereoAmount
-                   * (monoSafeWidenedWet.right - legacyWidenedWet.right);
+    auto widenedLeft = legacyWidenedWet.left
+                     + monoSafeStereoAmount
+                           * (monoSafeWidenedWet.left - legacyWidenedWet.left);
+    auto widenedRight = legacyWidenedWet.right
+                      + monoSafeStereoAmount
+                            * (monoSafeWidenedWet.right - legacyWidenedWet.right);
+
+    // Fathom follows the reference's Width law over the same 0 to 2 travel. Of
+    // Mono Safe only the 145 Hz Sub Anchor carries over: it acts on the Side
+    // of any stereo wet, whereas the shared-sign decoder is a projection of
+    // the FDN's eight lines and has no counterpart in Fathom's networks. With
+    // Mono Safe off the anchor is out of the circuit; its filter keeps
+    // tracking the wet so that it fades in settled. Undertow has the same law
+    // and an anchor of its own, which tracks the wet while Undertow is in.
+    if (engineAmount > 0.0f)
+    {
+        auto fathomWidenedWet = FathomEngine::applyWidth({ wetLeft, wetRight }, width);
+        StereoField::Frame fathomAnchoredWet;
+        StereoField::Frame undertowAnchoredWet;
+        if (fathomAmount > 0.0f)
+            fathomAnchoredWet = fathomSubAnchor_.applyWidth(
+                fathomWidenedWet.left, fathomWidenedWet.right, 1.0f);
+        if (undertowAmount > 0.0f)
+            undertowAnchoredWet = undertowSubAnchor_.applyWidth(
+                fathomWidenedWet.left, fathomWidenedWet.right, 1.0f);
+        if (monoSafeStereoAmount > 0.0f)
+        {
+            const auto anchoredWet = blendEngines(fathomAnchoredWet, undertowAnchoredWet,
+                                                  fathomAmount, undertowAmount);
+            fathomWidenedWet.left += monoSafeStereoAmount
+                                   * (anchoredWet.left - fathomWidenedWet.left);
+            fathomWidenedWet.right += monoSafeStereoAmount
+                                    * (anchoredWet.right - fathomWidenedWet.right);
+        }
+        widenedLeft = morphToFathom(widenedLeft, fathomWidenedWet.left, engineAmount);
+        widenedRight = morphToFathom(widenedRight, fathomWidenedWet.right, engineAmount);
+    }
+    wetLeft = widenedLeft;
+    wetRight = widenedRight;
 
     const auto duckedWet = spatialDucker_.process(dryLeft, dryRight, wetLeft, wetRight);
     wetLeft = duckedWet.left;
     wetRight = duckedWet.right;
 
     const auto mix = mix_.next();
-    left = flushDenormal(sanitise(dryLeft + mix * (wetLeft - dryLeft)));
-    right = flushDenormal(sanitise(dryRight + mix * (wetRight - dryRight)));
+    auto outputLeft = dryLeft + mix * (wetLeft - dryLeft);
+    auto outputRight = dryRight + mix * (wetRight - dryRight);
+
+    // Fathom shares Ocean's Mix above, so a switch of Character leaves the dry
+    // level where it is, and ends in the reference's clipper. At Mix 100 % its
+    // wet passes as it is: the sum would round it to the grid of the dry
+    // signal. Settled, it leaves through a guard that keeps the floor of its
+    // engine. Undertow leaves the same way.
+    if (engineAmount > 0.0f)
+    {
+        if (mix >= 1.0f)
+        {
+            outputLeft = morphToFathom(outputLeft, wetLeft, engineAmount);
+            outputRight = morphToFathom(outputRight, wetRight, engineAmount);
+        }
+        outputLeft = morphToFathom(outputLeft, FathomEngine::clip(outputLeft), engineAmount);
+        outputRight = morphToFathom(outputRight, FathomEngine::clip(outputRight), engineAmount);
+    }
+    if (engineAmount >= 1.0f)
+    {
+        left = guardFathom(outputLeft);
+        right = guardFathom(outputRight);
+        return;
+    }
+    left = flushDenormal(sanitise(outputLeft));
+    right = flushDenormal(sanitise(outputRight));
 }
 
 void FDNReverb::applyFeedbackMatrix(std::array<float, numDelayLines>& values) noexcept

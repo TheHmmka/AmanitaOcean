@@ -19,7 +19,11 @@ public:
     [[nodiscard]] static juce::Colour hairline() noexcept;
     [[nodiscard]] static juce::Colour primaryText() noexcept;
     [[nodiscard]] static juce::Colour secondaryText() noexcept;
+    [[nodiscard]] static juce::Colour labelText() noexcept;
     [[nodiscard]] static juce::Colour focusColour() noexcept;
+    // The text colour on a filled area: Ocean's darkest tone or white,
+    // whichever has the higher contrast ratio against the fill.
+    [[nodiscard]] static juce::Colour textOn(juce::Colour fill) noexcept;
 
     void drawRotarySlider(juce::Graphics& graphics,
                           int x,
@@ -31,25 +35,45 @@ public:
                           float rotaryEndAngle,
                           juce::Slider& slider) override;
 
-    void drawButtonBackground(juce::Graphics& graphics,
-                              juce::Button& button,
-                              const juce::Colour& backgroundColour,
-                              bool shouldDrawButtonAsHighlighted,
-                              bool shouldDrawButtonAsDown) override;
-
-    void drawButtonText(juce::Graphics& graphics,
-                        juce::TextButton& button,
-                        bool shouldDrawButtonAsHighlighted,
-                        bool shouldDrawButtonAsDown) override;
-
     void drawToggleButton(juce::Graphics& graphics,
                           juce::ToggleButton& button,
                           bool shouldDrawButtonAsHighlighted,
                           bool shouldDrawButtonAsDown) override;
 
+    void drawComboBox(juce::Graphics& graphics,
+                      int width,
+                      int height,
+                      bool isButtonDown,
+                      int buttonX,
+                      int buttonY,
+                      int buttonWidth,
+                      int buttonHeight,
+                      juce::ComboBox& box) override;
+    void positionComboBoxText(juce::ComboBox& box, juce::Label& label) override;
+    [[nodiscard]] juce::Font getComboBoxFont(juce::ComboBox& box) override;
+    [[nodiscard]] juce::PopupMenu::Options getOptionsForComboBoxPopupMenu(
+        juce::ComboBox& box,
+        juce::Label& label) override;
+
+    void drawPopupMenuBackgroundWithOptions(juce::Graphics& graphics,
+                                            int width,
+                                            int height,
+                                            const juce::PopupMenu::Options& options) override;
+    void drawPopupMenuItemWithOptions(juce::Graphics& graphics,
+                                      const juce::Rectangle<int>& area,
+                                      bool isHighlighted,
+                                      const juce::PopupMenu::Item& item,
+                                      const juce::PopupMenu::Options& options) override;
+    void getIdealPopupMenuItemSizeWithOptions(const juce::String& text,
+                                              bool isSeparator,
+                                              int standardMenuItemHeight,
+                                              int& idealWidth,
+                                              int& idealHeight,
+                                              const juce::PopupMenu::Options& options) override;
+    [[nodiscard]] int getPopupMenuBorderSizeWithOptions(
+        const juce::PopupMenu::Options& options) override;
+
     void drawLabel(juce::Graphics& graphics, juce::Label& label) override;
-    [[nodiscard]] juce::Font getTextButtonFont(juce::TextButton& button,
-                                                int buttonHeight) override;
     [[nodiscard]] juce::Font getLabelFont(juce::Label& label) override;
 
     void drawCornerResizer(juce::Graphics& graphics,

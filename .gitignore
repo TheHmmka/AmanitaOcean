@@ -4,3 +4,8 @@
 /release-staging/
 .DS_Store
 *.jucer
+
+# Reference captures and analysis output (regenerable, large)
+/Analyzer/Results/
+__pycache__/
+*.py[cod]

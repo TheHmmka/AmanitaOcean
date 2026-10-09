@@ -46,12 +46,23 @@ public:
     [[nodiscard]] const juce::AudioProcessorValueTreeState& getParameterState() const noexcept;
     [[nodiscard]] CurrentVisualSnapshot getCurrentVisualSnapshot() const noexcept;
 
+    // Seed of the voice phase of Fathom in this instance. It is drawn when the
+    // instance is created and kept for its lifetime, and it is no part of the
+    // saved state: a copy of a track and a project that is opened again each
+    // get a phase of their own.
+    [[nodiscard]] std::uint64_t getFathomVoiceSeed() const noexcept;
+
 private:
     [[nodiscard]] static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     [[nodiscard]] amanita::dsp::ReverbParameters readDspParameters() const noexcept;
+    // What the host's play head says of the block that is being processed.
+    // Call it from processBlock only; a host that gives no position reads as a
+    // stopped transport, one that gives no tempo as having none.
+    [[nodiscard]] amanita::dsp::HostTransport readHostTransport() const noexcept;
 
     amanita::dsp::FDNReverb reverb_;
     juce::AudioProcessorValueTreeState state_;
+    const std::uint64_t fathomVoiceSeed_;
 
     std::atomic<float>* characterParameter_ = nullptr;
     std::atomic<float>* mixParameter_ = nullptr;
@@ -71,6 +82,11 @@ private:
     std::atomic<float> currentVisualFlowX_ { 0.0f };
     std::atomic<float> currentVisualFlowY_ { 0.0f };
     std::atomic<float> currentVisualStrength_ { 0.0f };
+
+    // Tempo of the block processed last, within the range Undertow follows,
+    // or the one Undertow takes where the host gave none: written on the audio
+    // thread, read where the host asks for the tail.
+    std::atomic<float> tailTempoBpm_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AmanitaOceanAudioProcessor)
 };
