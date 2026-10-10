@@ -3826,11 +3826,47 @@ constexpr auto stateOfAnEarlierBuild =
     return data;
 }
 
+// Two states hold the same: the same parameters by their IDs and nothing
+// else, the Character as the same index, every other value the same to one
+// part in 100000. The bytes are not compared. A value that was never touched
+// is written as its default has come back through the parameter's own range,
+// and the curves of Decay and High Damping go through the exp, log and pow of
+// the platform's maths library: the state above holds a Decay of
+// 5.000000476837158 and a High Damping of 9000.0009765625 where another
+// library gives 5.0 and 9000.0, and the text of the state changes with them.
+void requireSameStateContent(const juce::MemoryBlock& first,
+                             const juce::MemoryBlock& second,
+                             const std::string& what)
+{
+    const auto firstState = decodeState(first);
+    const auto secondState = decodeState(second);
+    require(firstState.getType() == secondState.getType()
+                && firstState.getNumProperties() == 0 && secondState.getNumProperties() == 0
+                && firstState.getNumChildren() == secondState.getNumChildren(),
+            what + ": the two states do not hold the same parameters");
+    for (const auto& child : firstState)
+    {
+        const auto id = child.getProperty("id").toString();
+        const auto other = findParameterState(secondState, id);
+        require(other.isValid() && child.getNumProperties() == 2 && other.getNumProperties() == 2
+                    && child.hasProperty("value") && other.hasProperty("value"),
+                what + ": one state lacks the value of " + id.toStdString());
+        const auto value = static_cast<double>(child.getProperty("value"));
+        const auto otherValue = static_cast<double>(other.getProperty("value"));
+        const auto allowed = id == "algorithm" ? 0.0 : 1.0e-5 * std::max(1.0, std::abs(value));
+        require(std::isfinite(value) && std::isfinite(otherValue)
+                    && std::abs(value - otherValue) <= allowed,
+                what + ": " + id.toStdString() + " is " + std::to_string(value) + " in one state and "
+                    + std::to_string(otherValue) + " in the other");
+    }
+}
+
 // A project saved by the build with six choices or by the one with seven
 // opens with the Character and the settings it was saved with, and this build
-// saves it again byte for byte: a further choice changes nothing of what a
-// state holds. The eighth Character is saved the same way, as the index after
-// Undertow's, and opens again as itself.
+// saves it again with the same content: a further choice changes nothing of
+// what a state holds. The eighth Character is saved the same way, as the
+// index after Undertow's, and opens again as itself; and a state this build
+// saves with all its values moved comes back from a load with every one.
 void testStatesOfEarlierBuildsAndTheEighthChoice()
 {
     struct EarlierBuild
@@ -3863,9 +3899,9 @@ void testStatesOfEarlierBuildsAndTheEighthChoice()
 
             juce::MemoryBlock savedAgain;
             restored.getStateInformation(savedAgain);
-            require(savedAgain == saved,
-                    std::string("This build does not save a state of the ") + build.name
-                        + " build again as it was for " + algorithmCase.name);
+            requireSameStateContent(saved, savedAgain,
+                                    std::string("A state of the ") + build.name
+                                        + " build saved again for " + algorithmCase.name);
         }
     }
 
@@ -3876,10 +3912,10 @@ void testStatesOfEarlierBuildsAndTheEighthChoice()
     parameterById(source, "mix").setValueNotifyingHost(0.731f);
     juce::MemoryBlock data;
     source.getStateInformation(data);
-    require(spume.rawIndex == undertowIndex + 1
-                && data == stateOfAnEarlierBuildWith(spume.rawIndex),
-            "The eighth Character is not saved as the index after Undertow's in the state "
-            "the earlier builds wrote");
+    require(spume.rawIndex == undertowIndex + 1,
+            "The eighth Character does not follow Undertow");
+    requireSameStateContent(stateOfAnEarlierBuildWith(spume.rawIndex), data,
+                            "The eighth Character saved as the index after Undertow's");
 
     AmanitaOceanAudioProcessor restored;
     restored.setStateInformation(data.getData(), static_cast<int>(data.getSize()));
@@ -3888,6 +3924,29 @@ void testStatesOfEarlierBuildsAndTheEighthChoice()
                 && std::abs(parameterById(restored, "evolution").getValue() - 0.625f) < 0.001f
                 && std::abs(parameterById(restored, "mix").getValue() - 0.731f) < 0.001f,
             "The eighth Character did not survive save/load");
+
+    // Every parameter moved off its default, saved, loaded and saved again.
+    AmanitaOceanAudioProcessor moved;
+    auto position = 0.07f;
+    for (auto* parameter : moved.getParameters())
+    {
+        parameter->setValueNotifyingHost(position);
+        position += 0.071f;
+    }
+    juce::MemoryBlock movedData;
+    moved.getStateInformation(movedData);
+    AmanitaOceanAudioProcessor reloaded;
+    reloaded.setStateInformation(movedData.getData(), static_cast<int>(movedData.getSize()));
+    juce::MemoryBlock reloadedData;
+    reloaded.getStateInformation(reloadedData);
+    requireSameStateContent(movedData, reloadedData, "A state with every parameter moved");
+    // As the host reads them: a switch keeps the host value it was given and
+    // saves on or off, so the parameters are compared by what they show.
+    for (auto index = 0; index < moved.getParameters().size(); ++index)
+        require(moved.getParameters()[index]->getCurrentValueAsText()
+                    == reloaded.getParameters()[index]->getCurrentValueAsText(),
+                "A parameter did not come back from a save and a load: index "
+                    + std::to_string(index));
 
     // A host that automates the Character of a VST3 stores the normalised
     // value. Where the positions of the builds with seven, six and five
