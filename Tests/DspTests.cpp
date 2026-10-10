@@ -15191,9 +15191,28 @@ int main(int argc, char** argv)
         && std::strcmp(argv[1], "--test-engine-stages") == 0;
     const auto wantsFreezeTestsOnly = argc == 2
         && std::strcmp(argv[1], "--test-freeze") == 0;
+    // A host that emulates its processor runs the suite hundreds of times
+    // slower. "--shard K/N" runs every N-th test from the K-th, so that N
+    // processes, K = 1..N, run each test once between them.
+    auto shard = 0L;
+    auto shardCount = 1L;
+    if (argc == 3 && std::strcmp(argv[1], "--shard") == 0)
+    {
+        char* end = nullptr;
+        shard = std::strtol(argv[2], &end, 10);
+        shardCount = *end == '/' ? std::strtol(end + 1, &end, 10) : 0L;
+        if (*end != '\0' || shard < 1 || shard > shardCount)
+        {
+            std::cerr << "[FAIL] --shard takes K/N with 1 <= K <= N\n";
+            return 1;
+        }
+        --shard;
+    }
     auto failures = 0;
     for (const auto& test : tests)
     {
+        if ((&test - tests.data()) % shardCount != shard)
+            continue;
         if (wantsDuckingTestsOnly
             && std::strstr(test.name, "Ducking") == nullptr
             && std::strcmp(test.name, "no allocations in process") != 0)

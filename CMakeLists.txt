@@ -224,7 +224,9 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME amanita_ocean_dsp COMMAND AmanitaOceanDSPTests)
-    set_tests_properties(amanita_ocean_dsp PROPERTIES TIMEOUT 420)
+    # Generous limits: the release builds run these under emulation in a
+    # virtual machine, where they take several times as long as natively.
+    set_tests_properties(amanita_ocean_dsp PROPERTIES TIMEOUT 900)
 
     add_executable(AmanitaOceanStateTests
         Tests/StateTests.cpp
@@ -244,5 +246,5 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME amanita_ocean_state COMMAND AmanitaOceanStateTests)
-    set_tests_properties(amanita_ocean_state PROPERTIES TIMEOUT 30)
+    set_tests_properties(amanita_ocean_state PROPERTIES TIMEOUT 180)
 endif()

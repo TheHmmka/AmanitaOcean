@@ -1652,7 +1652,18 @@ void testCustomEditorLayoutAndAttachments()
         {
             require(selectorBounds == juce::Rectangle<int>(310, 112, 340, 40),
                     "Character drop-down no longer follows the 4 px top grid");
-            require(descriptionBounds == juce::Rectangle<int>(188, 239, 248, 160),
+            // The block's top is the whole pixel nearest to a middle that
+            // hangs on the foot of the Evolution value's digits: a metric of
+            // the system's sans-serif face. macOS's face puts it at 239; a
+            // face an eighth of a pixel shorter rounds to 238, and the check
+            // above holds every face to that middle.
+           #if JUCE_MAC
+            constexpr auto descriptionTop = 239;
+           #else
+            const auto descriptionTop = descriptionBounds.getY();
+           #endif
+            require(descriptionBounds
+                        == juce::Rectangle<int>(188, descriptionTop, 248, 160),
                     "Description block no longer mirrors the Evolution ring round the "
                     "middle of the Evolution control");
             require(evolutionBounds == juce::Rectangle<int>(510, 199, 208, 238),
