@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <functional>
 #include <memory>
 
 namespace amanita::ui
@@ -13,18 +14,71 @@ namespace amanita::ui
 class CharacterSelector final : public juce::ComboBox
 {
 public:
-    static constexpr int characterCount = 7;
+    static constexpr int characterCount = 8;
 
     explicit CharacterSelector(juce::AudioProcessorValueTreeState& state);
 
     bool keyPressed(const juce::KeyPress& key) override;
-
-private:
+    // Steps the selection by `offset` items, round either end: one host
+    // gesture, as a choice from the list is.
     void moveSelection(int offset);
 
+private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> attachment_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CharacterSelector)
+};
+
+// A chevron beside the Character drop-down that steps to the Character before
+// or after the selected one. At rest it has the tone of the drop-down's own
+// chevron; while the pointer is over it or holds it down it takes the accent,
+// by a short ease. A press that is released over it steps once. It takes no
+// keyboard focus, since the drop-down steps with the arrow keys; assistive
+// technology finds it as a button.
+class CharacterStepButton final : public juce::Component,
+                                  private juce::Timer
+{
+public:
+    enum class Direction
+    {
+        previous,
+        next
+    };
+
+    // Design size of the area that takes the pointer; the chevron stands in
+    // its middle. It is as high as the drop-down.
+    static constexpr int designWidth = 36;
+    static constexpr int designHeight = 40;
+
+    explicit CharacterStepButton(Direction direction);
+
+    // What a click does, and a press by assistive technology.
+    std::function<void()> onStep;
+
+    void paint(juce::Graphics& graphics) override;
+    void mouseEnter(const juce::MouseEvent& event) override;
+    void mouseExit(const juce::MouseEvent& event) override;
+    void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
+
+    // How far the chevron has taken the accent: 0 at rest, 1 under the pointer.
+    [[nodiscard]] float getEmphasis() const noexcept;
+
+private:
+    std::unique_ptr<juce::AccessibilityHandler> createAccessibilityHandler() override;
+    void timerCallback() override;
+    // Sets the emphasis on its way to where the pointer has it. A chevron
+    // that is on no screen has nothing to ease and takes it at once.
+    void followPointer();
+    [[nodiscard]] float emphasisWanted() const noexcept;
+
+    const Direction direction_;
+    bool pointerOver_ = false;
+    bool pressed_ = false;
+    float emphasis_ = 0.0f;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CharacterStepButton)
 };
 
 // Text block that introduces the selected Character: the name, a subtitle, a

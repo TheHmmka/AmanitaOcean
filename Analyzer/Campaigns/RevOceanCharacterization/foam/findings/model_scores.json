@@ -1,0 +1,489 @@
+{
+ "what": "The model's own nulls against the recordings of sessions A and T90 (revocean.null_db, whole recordings, nothing fitted), transcribed from the logs of work/foam/analysis under Analyzer/Results. The tables of FOAM_STATE.md, section 6, are these numbers.",
+ "rows": {
+  "A/c02_macro100_decay0p5_train": {
+   "session": "A",
+   "case": "c02_macro100_decay0p5_train",
+   "model": -104.7,
+   "from": "validate_structure.log"
+  },
+  "A/c03_macro100_decay2_imp3": {
+   "session": "A",
+   "case": "c03_macro100_decay2_imp3",
+   "model": -103.0,
+   "from": "validate_structure.log"
+  },
+  "A/c04_macro100_decay2_prog": {
+   "session": "A",
+   "case": "c04_macro100_decay2_prog",
+   "model": -116.7,
+   "from": "validate_structure.log"
+  },
+  "A/c05_macro100_decay2_noise": {
+   "session": "A",
+   "case": "c05_macro100_decay2_noise",
+   "model": -102.8,
+   "from": "validate_structure.log"
+  },
+  "A/c06_macro100_decay2_sine1k": {
+   "session": "A",
+   "case": "c06_macro100_decay2_sine1k",
+   "model": -122.4,
+   "from": "validate_structure.log"
+  },
+  "A/c07_macro100_decay2_sine220": {
+   "session": "A",
+   "case": "c07_macro100_decay2_sine220",
+   "model": -130.1,
+   "from": "validate_structure.log"
+  },
+  "A/c08_macro50_decay2_imp3": {
+   "session": "A",
+   "case": "c08_macro50_decay2_imp3",
+   "model": -103.8,
+   "from": "validate_structure.log"
+  },
+  "A/c09_macro25_decay2_imp3": {
+   "session": "A",
+   "case": "c09_macro25_decay2_imp3",
+   "model": -107.9,
+   "from": "validate_structure.log"
+  },
+  "A/c10_macro75_decay2_imp3": {
+   "session": "A",
+   "case": "c10_macro75_decay2_imp3",
+   "model": -103.5,
+   "from": "validate_structure.log"
+  },
+  "A/c11_macro100_decay2_imp3_again": {
+   "session": "A",
+   "case": "c11_macro100_decay2_imp3_again",
+   "model": -102.5,
+   "from": "validate_structure.log"
+  },
+  "A/c12_macro100_decay2_size60_imp3": {
+   "session": "A",
+   "case": "c12_macro100_decay2_size60_imp3",
+   "model": -104.5,
+   "from": "validate_structure.log"
+  },
+  "A/c13_macro100_decay2_size150_imp3": {
+   "session": "A",
+   "case": "c13_macro100_decay2_size150_imp3",
+   "model": -102.1,
+   "from": "validate_structure.log"
+  },
+  "A/c14_macro100_decay8_imp3": {
+   "session": "A",
+   "case": "c14_macro100_decay8_imp3",
+   "model": -101.3,
+   "from": "validate_structure.log"
+  },
+  "A/x03_impulse_map_right_macro100_decay0p5": {
+   "session": "A",
+   "case": "x03_impulse_map_right_macro100_decay0p5",
+   "model": -104.4,
+   "from": "validate_structure.log"
+  },
+  "A/x04_tone1k_120s_macro100_decay2": {
+   "session": "A",
+   "case": "x04_tone1k_120s_macro100_decay2",
+   "model": -121.2,
+   "from": "validate_structure.log"
+  },
+  "A/x06_sweep_50_to_12k_macro100_decay2": {
+   "session": "A",
+   "case": "x06_sweep_50_to_12k_macro100_decay2",
+   "model": -110.7,
+   "from": "validate_structure.log"
+  },
+  "A/x02_impulse_map_left_macro100_decay0p5": {
+   "session": "A",
+   "case": "x02_impulse_map_left_macro100_decay0p5",
+   "model": -104.1,
+   "from": "validate_structure.log"
+  },
+  "A/x05_macro_steps_tone1k_decay2": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2",
+   "model": -121.4,
+   "from": "final2.log"
+  },
+  "A/x05_macro_steps_tone1k_decay2_00": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2_00",
+   "model": -121.0,
+   "from": "final2.log",
+   "first200ms": -123.0
+  },
+  "A/x05_macro_steps_tone1k_decay2_01": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2_01",
+   "model": -121.7,
+   "from": "final2.log",
+   "first200ms": -121.3
+  },
+  "A/x05_macro_steps_tone1k_decay2_02": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2_02",
+   "model": -122.1,
+   "from": "final2.log",
+   "first200ms": -121.2
+  },
+  "A/x05_macro_steps_tone1k_decay2_03": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2_03",
+   "model": -122.4,
+   "from": "final2.log",
+   "first200ms": -120.4
+  },
+  "A/x05_macro_steps_tone1k_decay2_04": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2_04",
+   "model": -120.2,
+   "from": "final2.log",
+   "first200ms": -121.8
+  },
+  "A/x05_macro_steps_tone1k_decay2_05": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2_05",
+   "model": -120.2,
+   "from": "final2.log",
+   "first200ms": -121.1
+  },
+  "A/x05_macro_steps_tone1k_decay2_06": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2_06",
+   "model": -121.4,
+   "from": "final2.log",
+   "first200ms": -121.6
+  },
+  "A/x05_macro_steps_tone1k_decay2_07": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2_07",
+   "model": -122.3,
+   "from": "final2.log",
+   "first200ms": -122.4
+  },
+  "A/x05_macro_steps_tone1k_decay2_08": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2_08",
+   "model": -122.2,
+   "from": "final2.log",
+   "first200ms": -121.0
+  },
+  "A/x05_macro_steps_tone1k_decay2_09": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2_09",
+   "model": -121.2,
+   "from": "final2.log",
+   "first200ms": -121.7
+  },
+  "A/x05_macro_steps_tone1k_decay2_10": {
+   "session": "A",
+   "case": "x05_macro_steps_tone1k_decay2_10",
+   "model": -122.0,
+   "from": "final2.log",
+   "first200ms": -119.7
+  },
+  "A/p020": {
+   "session": "A",
+   "case": "p020",
+   "model": -116.4,
+   "from": "final2.log"
+  },
+  "A/p030": {
+   "session": "A",
+   "case": "p030",
+   "model": -115.5,
+   "from": "final2.log"
+  },
+  "A/p040": {
+   "session": "A",
+   "case": "p040",
+   "model": -116.3,
+   "from": "final2.log"
+  },
+  "A/p050": {
+   "session": "A",
+   "case": "p050",
+   "model": -114.8,
+   "from": "final2.log"
+  },
+  "A/p060": {
+   "session": "A",
+   "case": "p060",
+   "model": -114.7,
+   "from": "final2.log"
+  },
+  "A/p070": {
+   "session": "A",
+   "case": "p070",
+   "model": -115.0,
+   "from": "final2.log"
+  },
+  "A/p080": {
+   "session": "A",
+   "case": "p080",
+   "model": -115.4,
+   "from": "final2.log"
+  },
+  "A/p090": {
+   "session": "A",
+   "case": "p090",
+   "model": -115.2,
+   "from": "final2.log"
+  },
+  "A/p099": {
+   "session": "A",
+   "case": "p099",
+   "model": -117.4,
+   "from": "final2.log"
+  },
+  "A/c15_ringout_0": {
+   "session": "A",
+   "case": "c15_ringout_0",
+   "model": -99.8,
+   "from": "final2.log"
+  },
+  "A/c01_macro0_decay0p5_train": {
+   "session": "A",
+   "case": "c01_macro0_decay0p5_train",
+   "model": -104.1,
+   "from": "FOAM_STATE.md, section 6"
+  },
+  "A/c16_macro0_decay2_prog_late": {
+   "session": "A",
+   "case": "c16_macro0_decay2_prog_late",
+   "model": -115.4,
+   "from": "FOAM_STATE.md, section 6"
+  },
+  "T90/p007": {
+   "session": "T90",
+   "case": "p007",
+   "model": -117.5,
+   "from": "t02_score_T90.log"
+  },
+  "T90/p008": {
+   "session": "T90",
+   "case": "p008",
+   "model": -117.4,
+   "from": "t02_score_T90.log"
+  },
+  "T90/f01_macro0_decay0p5_train": {
+   "session": "T90",
+   "case": "f01_macro0_decay0p5_train",
+   "model": -103.2,
+   "from": "t02_score_T90.log"
+  },
+  "T90/f02_macro100_decay0p5_train": {
+   "session": "T90",
+   "case": "f02_macro100_decay0p5_train",
+   "model": -104.0,
+   "from": "t02_score_T90.log"
+  },
+  "T90/f03_scan_macro100_decay0p5": {
+   "session": "T90",
+   "case": "f03_scan_macro100_decay0p5",
+   "model": -103.4,
+   "from": "t02_score_T90.log"
+  },
+  "T90/f04_tone_macro100_decay2": {
+   "session": "T90",
+   "case": "f04_tone_macro100_decay2",
+   "model": -116.9,
+   "from": "t02_score_T90.log"
+  },
+  "T90/k00_neutral": {
+   "session": "T90",
+   "case": "k00_neutral",
+   "model": -103.5,
+   "from": "t02_score_T90.log"
+  },
+  "T90/k16_neutral_again": {
+   "session": "T90",
+   "case": "k16_neutral_again",
+   "model": -97.0,
+   "from": "t02_score_T90.log"
+  },
+  "T90/k12_size30": {
+   "session": "T90",
+   "case": "k12_size30",
+   "model": -107.0,
+   "from": "t02_score_T90.log"
+  },
+  "T90/k13_size200": {
+   "session": "T90",
+   "case": "k13_size200",
+   "model": -100.0,
+   "from": "t02_score_T90.log"
+  },
+  "T90/k14_decay20": {
+   "session": "T90",
+   "case": "k14_decay20",
+   "model": -100.0,
+   "from": "t02_score_T90.log"
+  },
+  "T90/k15_macro50": {
+   "session": "T90",
+   "case": "k15_macro50",
+   "model": -100.9,
+   "from": "t02_score_T90.log"
+  },
+  "T90/n01_noise_macro100_decay2": {
+   "session": "T90",
+   "case": "n01_noise_macro100_decay2",
+   "model": -103.2,
+   "from": "t02_score_T90.log"
+  },
+  "T90/n02_noise_macro0_decay2": {
+   "session": "T90",
+   "case": "n02_noise_macro0_decay2",
+   "model": -103.1,
+   "from": "t02_score_T90.log"
+  },
+  "T90/end_probe": {
+   "session": "T90",
+   "case": "end_probe",
+   "model": -117.8,
+   "from": "t02_score_T90.log"
+  },
+  "T90/k01_predelay50ms": {
+   "session": "T90",
+   "case": "k01_predelay50ms",
+   "model": -103.34,
+   "from": "t03_controls.json",
+   "candidate": "A pre-delay in front of the converter (dry and F both from the delayed input)"
+  },
+  "T90/k02_predelay200ms": {
+   "session": "T90",
+   "case": "k02_predelay200ms",
+   "model": -103.14,
+   "from": "t03_controls.json",
+   "candidate": "A pre-delay in front of the converter (dry and F both from the delayed input)"
+  },
+  "T90/k03_hpf1k": {
+   "session": "T90",
+   "case": "k03_hpf1k",
+   "model": -102.16,
+   "from": "t03_controls.json",
+   "candidate": "A bilinear, host rate, 1000.00 Hz, in front of the converter"
+  },
+  "T90/k04_lpf2k": {
+   "session": "T90",
+   "case": "k04_lpf2k",
+   "model": -107.9,
+   "from": "t03_controls.json",
+   "candidate": "A bilinear, host rate, 2000.00 Hz, in front of the converter"
+  },
+  "T90/k05_width0": {
+   "session": "T90",
+   "case": "k05_width0",
+   "model": -103.35,
+   "from": "t03_controls.json",
+   "candidate": "A Tide law on the wet behind the network"
+  },
+  "T90/k06_width150": {
+   "session": "T90",
+   "case": "k06_width150",
+   "model": -103.15,
+   "from": "t03_controls.json",
+   "candidate": "A Tide law on the wet behind the network"
+  },
+  "T90/k07_mix50": {
+   "session": "T90",
+   "case": "k07_mix50",
+   "model": -112.8,
+   "from": "t03_controls.json",
+   "candidate": "A Tide law (dry 1, wet 1), dry delayed by 48 frames"
+  },
+  "T90/k10_ducking50": {
+   "session": "T90",
+   "case": "k10_ducking50",
+   "model": -94.13,
+   "from": "t03_controls.json",
+   "candidate": "A reduction on the wet at output time, keyed by the raw input (threshold -13.4 dBFS, Abyss's fit)"
+  },
+  "T90/m01_macro_motion_decay2": {
+   "session": "T90",
+   "case": "m01_macro_motion_decay2",
+   "model": -115.6,
+   "from": "t07_motion.log"
+  },
+  "T90/m01_00_macro0000": {
+   "session": "T90",
+   "case": "m01_00_macro0000",
+   "model": -115.9,
+   "from": "t07_motion.log",
+   "first250ms": -115.6
+  },
+  "T90/m01_01_macro0300": {
+   "session": "T90",
+   "case": "m01_01_macro0300",
+   "model": -116.3,
+   "from": "t07_motion.log",
+   "first250ms": -117.3
+  },
+  "T90/m01_02_macro0700": {
+   "session": "T90",
+   "case": "m01_02_macro0700",
+   "model": -117.3,
+   "from": "t07_motion.log",
+   "first250ms": -117.7
+  },
+  "T90/m01_03_macro1000": {
+   "session": "T90",
+   "case": "m01_03_macro1000",
+   "model": -116.6,
+   "from": "t07_motion.log",
+   "first250ms": -115.7
+  },
+  "T90/m01_04_macro0550": {
+   "session": "T90",
+   "case": "m01_04_macro0550",
+   "model": -115.5,
+   "from": "t07_motion.log",
+   "first250ms": -117.6
+  },
+  "T90/m01_05_macro0100": {
+   "session": "T90",
+   "case": "m01_05_macro0100",
+   "model": -115.9,
+   "from": "t07_motion.log",
+   "first250ms": -117.0
+  },
+  "T90/m01_06_macro1000": {
+   "session": "T90",
+   "case": "m01_06_macro1000",
+   "model": -116.6,
+   "from": "t07_motion.log",
+   "first250ms": -116.2
+  },
+  "T90/m01_07_macro0000": {
+   "session": "T90",
+   "case": "m01_07_macro0000",
+   "model": -112.1,
+   "from": "t07_motion.log",
+   "first250ms": -115.7
+  },
+  "T90/m01_08_macro0500": {
+   "session": "T90",
+   "case": "m01_08_macro0500",
+   "model": -115.8,
+   "from": "t07_motion.log",
+   "first250ms": -115.6
+  },
+  "T90/m01_staircase": {
+   "session": "T90",
+   "case": "m01_staircase",
+   "model": -115.7,
+   "from": "t07_motion.log"
+  },
+  "T90/m01_90_tail": {
+   "session": "T90",
+   "case": "m01_90_tail",
+   "model": -115.6,
+   "from": "t07_motion.log"
+  }
+ }
+}

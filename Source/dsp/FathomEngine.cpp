@@ -4,6 +4,7 @@
 #include "FathomConverter.h"
 #include "FathomEngineConstants.h"
 #include "FathomNetwork.h"
+#include "SpumeLayer.h"
 #include "UndertowConstants.h"
 #include "UndertowLayer.h"
 
@@ -183,15 +184,17 @@ struct FathomEngine::State
         FathomNetwork::Settings settings;
         settings.decaySeconds = parameters.decaySeconds;
         settings.sizeScale = parameters.sizeScale;
-        // Under the Undertow layer the network's own Macro rests: Tide stays
-        // out of the circuit and Macro moves the layer's voices.
-        settings.macro = undertowLayer ? 0.0f : parameters.macro;
+        // Under the Undertow and the Spume layer the network's own Macro
+        // rests: Tide stays out of the circuit and Macro moves the layer.
+        settings.macro = undertowLayer || spumeLayer ? 0.0f : parameters.macro;
         settings.lowCutHz = parameters.lowCutHz;
         settings.highDampingHz = parameters.highDampingHz;
         settings.freeze = parameters.freeze;
         network.setSettings(settings);
         if (undertowLayer)
             undertow.setMacro(static_cast<double>(parameters.macro), silent);
+        if (spumeLayer)
+            spume.setMacro(static_cast<double>(parameters.macro), silent);
         preDelay.setFrames(preDelayFrames(parameters.preDelaySeconds, hostRate), silent);
     }
 
@@ -204,33 +207,50 @@ struct FathomEngine::State
         network.silence();
         if (undertowLayer)
             undertow.silence();
+        if (spumeLayer)
+            spume.silence();
         silent = true;
     }
 
     // One internal sample of the core: under the Undertow layer the input
-    // takes the layer's voices first. A layer at rest adds nothing, and the
-    // input passes as it is.
+    // takes the layer's voices first, under the Spume layer it is crossfaded
+    // with its diffused copy. A layer at rest adds nothing, and the input
+    // passes as it is.
+    //
+    // Ocean's own: held, the network takes no input, and neither does the
+    // layer in front of it. The layer's input goes by the very share the
+    // network gives what it writes into its lines in this sample, through the
+    // same glide, so nothing that is played under Freeze waits in a layer to
+    // come back when Freeze ends.
     void processCore(double left, double right, double& wetLeft, double& wetRight) noexcept
     {
         if (undertowLayer)
         {
             auto addedLeft = 0.0;
             auto addedRight = 0.0;
-            undertow.process(left, right, addedLeft, addedRight);
+            undertow.process(left, right, network.nextInputShare(), addedLeft, addedRight);
             if (!undertow.atRest())
             {
                 left += addedLeft;
                 right += addedRight;
             }
         }
+        else if (spumeLayer)
+        {
+            spume.process(left, right, network.nextInputShare());
+        }
         network.process(left, right, wetLeft, wetRight);
+        ++coreSamples;
     }
 
     void idleCore() noexcept
     {
         if (undertowLayer)
             undertow.idle();
+        else if (spumeLayer)
+            spume.idle();
         network.idle();
+        ++coreSamples;
     }
 
     Parameters parameters;
@@ -238,6 +258,11 @@ struct FathomEngine::State
     Layer layer = Layer::tide;
     ClockOrigins origins;
     bool undertowLayer = false;
+    bool spumeLayer = false;
+    // Internal samples in front of the first frame (a test hook), and those
+    // the core has computed or passed since reset().
+    std::int64_t firstCoreSample = 0;
+    std::int64_t coreSamples = 0;
     bool prepared = false;
     bool silent = true;
 
@@ -248,6 +273,7 @@ struct FathomEngine::State
     FathomConverter toHost;
     FathomNetwork network;
     UndertowLayer undertow;
+    SpumeLayer spume;
 };
 
 FathomEngine::FathomEngine() : state_(std::make_unique<State>()) {}
@@ -282,8 +308,11 @@ void FathomEngine::prepare(double sampleRate)
     }
 
     state.undertowLayer = state.layer == Layer::undertow;
+    state.spumeLayer = state.layer == Layer::spume;
     if (state.undertowLayer)
         state.undertow.prepare(lattice, state.hostRate);
+    if (state.spumeLayer)
+        state.spume.prepare();
 
     state.network.prepare(state.voiceSeed);
     state.prepared = true;
@@ -300,13 +329,28 @@ void FathomEngine::reset() noexcept
     state.toInternal.reset();
     state.toHost.reset();
     state.network.reset(state.voiceSeed);
-    if (state.undertowLayer)
+    state.firstCoreSample = 0;
+    state.coreSamples = 0;
+    if (state.undertowLayer || state.spumeLayer)
     {
-        state.undertow.reset();
+        if (state.undertowLayer)
+        {
+            state.undertow.reset();
+            state.firstCoreSample = state.undertow.firstSample();
+        }
+        else
+        {
+            // Internal samples count from the same moment as host frames, so
+            // the frames in front of the first are whole lattice periods.
+            state.firstCoreSample = std::max<std::int64_t>(0, state.origins.firstFrame)
+                                  / state.lattice.internalStep * state.lattice.hostStep;
+            state.spume.setFirstSample(state.firstCoreSample);
+            state.spume.reset();
+        }
         // Test hook: the oscillators of the network were at their start phases
         // some samples in front of the first frame. The network passes that
         // time; a long one is shortened by whole periods of the accumulators.
-        auto steps = std::max<std::int64_t>(0, state.undertow.firstSample() - state.origins.oscillators);
+        auto steps = std::max<std::int64_t>(0, state.firstCoreSample - state.origins.oscillators);
         if (steps > undertow::oscillatorSettleSteps + undertow::oscillatorPeriodSteps)
             steps = undertow::oscillatorSettleSteps
                   + (steps - undertow::oscillatorSettleSteps) % undertow::oscillatorPeriodSteps;
@@ -360,6 +404,11 @@ void FathomEngine::setClockOriginsForTesting(const ClockOrigins& origins) noexce
     forwarded.phasors = origins.phasors;
     forwarded.freeRun = origins.freeRun;
     state.undertow.setClockOrigins(forwarded);
+}
+
+std::int64_t FathomEngine::nextCoreSampleForTesting() const noexcept
+{
+    return state_->firstCoreSample + state_->coreSamples;
 }
 
 void FathomEngine::setParameters(const Parameters& parameters) noexcept

@@ -16,6 +16,12 @@ the tests, the offline renderer and the scores. The editor, the processor's
 side of the host transport and the state are a colleague's work and are not
 described here.
 
+Undertow was released in 0.23.0 as this document then described it. One rule
+of Ocean's own has changed since, on the owner's decision of 10 October 2026:
+under Freeze the layer no longer takes new input (see "Freeze"). The working
+tree differs from 0.23.0 in that, and in nothing else of Undertow: with Freeze
+off every sample is the sample of 0.23.0.
+
 ## Scope and identity
 
 | | |
@@ -71,7 +77,8 @@ Ocean's controls act as in Fathom, because the layer is part of the input:
 
 | Ocean control | In Undertow |
 | --- | --- |
-| Decay, Size, Low Cut, High Damping, Freeze | Fathom's network; none of them reaches the layer. Under Freeze the network takes no input, so nothing of the layer enters either |
+| Decay, Size, Low Cut, High Damping | Fathom's network; none of them reaches the layer |
+| Freeze | Fathom's hold of the network, which takes no input while it is held; and the layer keeps none of its own either, by the same glide of 50 ms (see "Freeze"; not so in 0.23.0). What is played under Freeze is gone when Freeze ends; what the readers held before runs out |
 | Pre-delay | in front of the layer: the reversed copies are made from the delayed input |
 | Evolution | the knob itself, as in Fathom; here it moves the three voice gains |
 | Width, Mix, Focus, Harmony, Mono Safe | exactly Fathom's routing: engine wet, level stage, Harmony, Width, Focus, Ocean's linear Mix, the reference's clipper |
@@ -97,6 +104,7 @@ Fathom. The reference's Mix law is in the offline renderer and the tests only.
 | **A transport that starts, stops, jumps, loops or changes its tempo, and a position that tells nothing** | | **Ocean's own** |
 | **No tempo from the host: 120 BPM. Tempi outside 20 to 999 BPM: the nearer end** | | **Ocean's own** |
 | **The position in double precision on the input's own time** | | **Ocean's own** (the specification of this Character) |
+| **Under Freeze the layer keeps no new input, by the share the network gives its own** | | **Ocean's own** (the owner's decision of 10 October 2026, for Undertow and Spume alike; differs from 0.23.0) |
 | **Low Cut, High Damping, Freeze, Focus, Harmony, Mono Safe, Ocean's Mix** | | **Ocean's own**, as in Fathom |
 
 In the code everything that is Ocean's own is marked as such where it stands
@@ -201,6 +209,48 @@ have.
 - While another Character is selected the engine only keeps time, the layer's
   clocks with it; Undertow returns from silence with its chunks where a fresh
   instance that had idled as long would have them.
+
+## Freeze
+
+Freeze is Ocean's own hold of Fathom's network. Held, a line of the network
+loses nothing in a pass and takes no input. Between the two states the
+network's hold moves in a straight line over 50 ms, 2205 internal samples, the
+first step in the first internal sample behind the switch, and it lands on its
+end exactly. A network that is silent takes the switch at once.
+
+**In 0.23.0** the layer went on as if there were no Freeze. The network did
+not take what the layer added, so nothing was heard of it while Freeze was on.
+But the layer kept its input, and its readers play what they keep one to two
+chunks later, the recirculation longer: sound played under Freeze came back
+when Freeze ended. By the measure of the test below a burst of a quarter
+second that ended 1.05 s in front of the release returned at -7.2 dB of the
+same burst played with no Freeze, one that ended 50 ms in front of it at
+-4.0 dB, one that ended 3.25 s in front of it at -42 dB.
+
+**The rule now** (Ocean's own, by the owner's decision of 10 October 2026):
+the layer keeps its input by the network's own number. In every internal
+sample the layer is given the share the network applies in that sample to what
+it writes into its lines, one less the hold (`FathomNetwork::nextInputShare`),
+and what the layer keeps for its readers is its input times that share
+(`UndertowLayer::process`). So the layer stops listening over the same 50 ms
+in which the network does, keeps exactly nothing while Freeze is fully on, and
+listens again over the 50 ms of the release. Nothing else of the layer
+changes: the chunks stay on their grid, the readers, the recirculation and the
+grain readers run on, the gains move as they do, and with Freeze off the share
+is one and every sample is that of 0.23.0, to the bit.
+
+What is played under Freeze is therefore nowhere when Freeze ends. What the
+layer held before Freeze runs out as it would: the readers play the chunks
+they have, and the recirculation falls by its 14 dB a second at 120 BPM. On
+two steady tones the layer still adds a peak of 1.19 over the first second of
+a hold (1.15 with no hold) and 0.0078 over the fourth. Under Freeze the
+network does not take that; what is left of it at the release goes into the
+network again.
+
+The plain input is not the layer's to mute. The network takes or leaves it
+itself, and what it scales in a sample is what left its input pipeline of 44
+samples then, so against the input's own time the network's share runs a
+millisecond ahead of the layer's, under a glide of fifty.
 
 ## Method
 
@@ -362,6 +412,21 @@ tables above again, to the last digit.
 | Undertow engine allocation-free processing | no allocation in `processSample`, `advanceIdle`, `setTransport`, `setParameters` and `reset()` in either arithmetic, nor in `FDNReverb::process` across switches between Fathom and Undertow |
 | Undertow routing, crossfades and return through the plug-in | at Ocean's neutral controls the plug-in is the engine's wet through its level stage to the bit (four rates, Evolution 0, 45 and 100 %); Fathom and Undertow crossfade directly (distance 0 from the crossfade of the two chains); Default and Undertow crossfade as Default and Fathom do; left for longer than its fade, Undertow returns as an engine that only kept time, to the bit; stress at four rates with Freeze and input that is no signal |
 
+**Since 0.23.0.** The suite stands at 102 tests. Undertow has a thirteenth, for the Freeze rule, and one test with
+a flag of its own (`--test-engine-stages`) holds the level stages and Sub Anchors of the three engine Characters,
+Undertow's among them; the others that came are Spume's (`docs/SPUME.md`) and one of Fathom's for the same Freeze
+rule (`docs/FATHOM.md`). Result in `build-spume-dsp` (Release, arm64): 102 passed, 0 failed, in 94 s, and every
+`[METRIC]` line of the twelve tests above is the line of 0.23.0, character for character. No test of 0.23.0 asserted that the layer takes input under Freeze, so none was changed:
+the Freeze check in "Undertow engine determinism, clocks, reset and Freeze" holds that input does not reach a held
+network through the layer, which is true before and after. Twenty-four renders of the renderer with the Tide and
+the Undertow layer are the same bytes from the renderer of 0.23.0 and from the final one, and 52 recordings
+(sessions E, T90, S90 and the sixteen Macro steps of F), scored again, give every number of the tables above again.
+
+| Test | What it holds |
+| --- | --- |
+| Undertow under Freeze takes no new input | at Evolution 100 %, 48 kHz, 120 BPM, a Freeze of five seconds: a burst of a quarter second played wholly inside it leaves the output as it is without the burst, to the bit, from the first frame to the last, whether it ends 1.05 s or 50 ms in front of the release, in the engine and through the plug-in (Fathom at Evolution 100 %, under the same rule since the same day: nothing as well; in 0.23.0 -52.3 dB of the burst for the later one); a sound that began before Freeze and went on two seconds into it is, to the bit, that sound ended where the hold's glide ends; at Evolution 0 the engine is Fathom's to the bit through a Freeze and across both its edges at 44.1, 48 and 96 kHz. The layer alone: given a share, it adds to the bit what it adds for the input times that share; no click where the hold begins or ends (measure 0.0048, without the hold 0.0050, with the share taken at once 0.072); what it kept before the hold runs out under it. The engine: an impulse on the last steps of the hold's glide gives the engine that never held with the layer's part by the share of its sample, to -146.6 dB, and by the share of the next sample -70.9 dB |
+| Engine Characters' own level stages and Sub Anchors through switches | see `docs/SPUME.md`: Mono Safe on, Width 150 %, a level stage that is driven, Fathom, Spume and Undertow by turns; a shared stage or one that is not restarted fails it |
+
 **The click measure.** Two steady tones (220 and 330 Hz, 0.5 each) go into the layer at Macro 100 %; the measure
 is the largest second difference of what the layer adds. A tone of amplitude a and angular frequency w gives a w^2,
 a step of height h gives h. Under a transport that simply runs the measure is 0.0050; a transport event may not
@@ -377,6 +442,12 @@ generated headers that name the model's files, when the model moved into the cam
 the twelve new tests and "no allocations in process", passed with exit code 0 and no report from either sanitizer,
 in 9 min 40 s. The 77 older tests and the state
 tests were not run under the sanitizers again.
+
+With the Freeze rule, in `build-spume-sanitize` (the same flags): `AmanitaOceanDSPTests --test-undertow`, the
+thirteen tests of Undertow and "no allocations in process", passed with exit code 0 and no report from either
+sanitizer, in 11 min 6 s, and so did `--test-engine-stages`, in 50 s; every `[METRIC]` line is that of the Release
+build. With Fathom's rule in as well, the three Freeze tests ran again (`--test-freeze`): exit code 0 and no report,
+in 8 min 40 s.
 
 ## What is exact, and how far
 
@@ -464,6 +535,12 @@ instance than before. The whole DSP of the plug-in in Undertow was not timed.
   has no trim for it.
 - **The reference's Brightness, Transients and Ducking above 0 %** have no law
   in the campaign and no counterpart here, as in Fathom.
+- **Freeze** is Ocean's own; the reference's was not moved in Abyss. What
+  the layer held before Freeze still comes out of it when Freeze ends, as far
+  as it has not run out: behind a Freeze shorter than two chunks the readers'
+  last chunks of the sound from before, behind a longer one what the
+  recirculation still carries. Nothing played under Freeze is in it. Whether
+  that remainder is welcome behind a short Freeze was not listened to.
 - **Not seen in the reference**: a transport event under signal, a mode chosen
   while stopped, more than 4.6 hours of position, input above 0.5.
 
@@ -510,9 +587,16 @@ instance than before. The whole DSP of the plug-in in Undertow was not timed.
 - A transport event through a host: start, stop, loop, tempo automation and positions that tell nothing were
   exercised on the layer and the engine with synthetic transports, not in a sequencer.
 - Macro in motion was scored on one recording (part S4 of session F), at 120 BPM and 48 kHz.
+- The form of the Macro smoother. Undertow moves each gain through a one-pole of 10 ms per sample, which was
+  fitted. The reference's Foam mode later showed its 10 ms smoothing exactly, and in another form: once per block of
+  44 internal samples each gain keeps exp(-44/441) of its distance from its target and is then held
+  (`docs/SPUME.md`, "Evolution in motion"). That block-rate form probably describes Abyss's Macro smoothing as well
+  and may account for part of what is left behind a step here. It was not tried on the recording, and Undertow's
+  code is unchanged.
 - The level of Undertow against Fathom and against the other Characters was not measured on this build;
   `controls.md` 6 gives the reference's.
 - The holdout was scored once and after everything else; no second look.
+- The Freeze rule was tested in the engine and through `FDNReverb`, not in a host, and at 120 BPM only.
 
 ## Reproduction
 

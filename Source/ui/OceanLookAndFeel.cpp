@@ -23,6 +23,15 @@ constexpr float chevronHalfWidth = 3.5f;
 constexpr float chevronRise = 1.7f;
 constexpr float chevronDrop = 1.9f;
 constexpr float chevronStroke = 1.35f;
+// The chevrons that stand beside the field and step through its items: the
+// field's own chevron on its side, a size larger, in the same stroke.
+constexpr float stepHalfHeight = 4.5f;
+constexpr float stepDepth = 4.5f;
+// They stand on the moving field itself, with no plate under them: a dark
+// line this much wider than the stroke lies under it and keeps its outline
+// where the field runs light. Over the dark of the field it does not show.
+constexpr float stepKeyline = 2.0f;
+constexpr float stepKeylineAlpha = 0.70f;
 constexpr float listGap = 4.0f;
 constexpr float listPadding = 6.0f;
 constexpr float listCornerRadius = 10.0f;
@@ -437,6 +446,31 @@ void OceanLookAndFeel::drawComboBox(juce::Graphics& graphics,
     chevron.lineTo(chevronX + choice::chevronHalfWidth * scale,
                    chevronY - choice::chevronRise * scale);
     graphics.setColour(secondaryText().withAlpha(0.88f * enabledAlpha));
+    graphics.strokePath(chevron,
+                        juce::PathStrokeType(choice::chevronStroke * scale,
+                                             juce::PathStrokeType::curved,
+                                             juce::PathStrokeType::rounded));
+}
+
+void OceanLookAndFeel::drawStepChevron(juce::Graphics& graphics,
+                                       juce::Rectangle<float> area,
+                                       bool pointsRight,
+                                       float emphasis) const
+{
+    const auto scale = juce::jlimit(0.65f, 1.75f, area.getHeight() / choice::fieldHeight);
+    const auto centre = area.getCentre();
+    const auto reach = (pointsRight ? 0.5f : -0.5f) * choice::stepDepth * scale;
+    juce::Path chevron;
+    chevron.startNewSubPath(centre.x - reach, centre.y - choice::stepHalfHeight * scale);
+    chevron.lineTo(centre.x + reach, centre.y);
+    chevron.lineTo(centre.x - reach, centre.y + choice::stepHalfHeight * scale);
+    graphics.setColour(backgroundBottom().withAlpha(choice::stepKeylineAlpha));
+    graphics.strokePath(chevron,
+                        juce::PathStrokeType((choice::chevronStroke + choice::stepKeyline) * scale,
+                                             juce::PathStrokeType::curved,
+                                             juce::PathStrokeType::rounded));
+    graphics.setColour(secondaryText().withAlpha(0.88f).interpolatedWith(
+        accentColour_, juce::jlimit(0.0f, 1.0f, emphasis)));
     graphics.strokePath(chevron,
                         juce::PathStrokeType(choice::chevronStroke * scale,
                                              juce::PathStrokeType::curved,

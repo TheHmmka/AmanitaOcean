@@ -23,6 +23,17 @@ namespace amanita::dsp
 // the converter's output and adds them in front of the network, whose own
 // Macro then rests at 0; `macro` drives the voices, and their chunks follow
 // the host's transport.
+//
+// And a third: Spume, the model of the reference's Foam mode (SpumeLayer.h).
+// It crossfades the converter's output with a diffused copy of it in front of
+// the network, whose own Macro rests at 0 here as well; `macro` is the
+// crossfade. Nothing in it follows the host's transport.
+//
+// Ocean's own for all three layers: while the network is held (`freeze`) it
+// takes no input, and neither does the layer, by the network's own glide:
+// not the comb of Tide inside the network, and not Undertow or Spume in
+// front of it. What is played under the hold is nowhere when the hold ends;
+// what a layer took before runs out as it would.
 class FathomEngine
 {
 public:
@@ -30,7 +41,8 @@ public:
     enum class Layer
     {
         tide,
-        undertow
+        undertow,
+        spume
     };
 
     // What the host says about its transport at the first frame of a block.
@@ -42,10 +54,12 @@ public:
         bool hasTempo = false;       // false: the host gave no tempo
     };
 
-    // Test hook of the Undertow layer: where the clocks of an instance stand
-    // at its first frame, for a render that takes up a session of the
-    // reference in its middle. Internal samples and host frames count from
-    // the first frame the instance ever processed; all zero is a fresh one.
+    // Test hook of the Undertow and the Spume layer: where the clocks of an
+    // instance stand at its first frame, for a render that takes up a session
+    // of the reference in its middle. Internal samples and host frames count
+    // from the first frame the instance ever processed; all zero is a fresh
+    // one. Spume has the first two only: its blocks of 44 internal samples
+    // count from the first frame, and the oscillators are the network's.
     struct ClockOrigins
     {
         // Host frames processed in front of the first; a multiple of the
@@ -103,8 +117,8 @@ public:
                                  std::size_t blockCount) noexcept;
 
     // The layer `macro` drives; it takes effect at the next prepare(), which
-    // allocates the memory of the Undertow layer. With Layer::tide the engine
-    // is what it is without this call.
+    // allocates the memory of the Undertow or of the Spume layer. With
+    // Layer::tide the engine is what it is without this call.
     void setLayer(Layer layer) noexcept;
 
     // Undertow: the host's transport at the next frame. Call it in front of
@@ -120,6 +134,14 @@ public:
     // phasors to their places and takes as long as that needs.
     void setReferenceArithmetic(bool reference) noexcept;
     void setClockOriginsForTesting(const ClockOrigins& origins) noexcept;
+
+    // Test hook: the internal sample the core computes next, counted from the
+    // first frame the instance ever processed. The Spume layer moves its
+    // gains once per block of 44 of these and takes a new Macro at the block
+    // that begins next; a render that is to repeat a recording of the
+    // reference hands Macro over in front of the block the reference used it
+    // in first, which the reference's handling of host blocks decides.
+    [[nodiscard]] std::int64_t nextCoreSampleForTesting() const noexcept;
 
     void setParameters(const Parameters& parameters) noexcept;
 

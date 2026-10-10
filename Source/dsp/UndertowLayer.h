@@ -99,8 +99,15 @@ public:
 
     // One host frame of time, in front of the internal samples it brings.
     void hostFrame() noexcept;
-    // What the layer adds to one internal sample of each input.
-    void process(double left, double right, double& addedLeft, double& addedRight) noexcept;
+    // What the layer adds to one internal sample of each input. `inputShare`
+    // is the share of this sample the readers are given to keep: one, and
+    // none while the engine holds, with the hold's own glide between the two.
+    void process(double left, double right, double inputShare, double& addedLeft,
+                 double& addedRight) noexcept;
+    void process(double left, double right, double& addedLeft, double& addedRight) noexcept
+    {
+        process(left, right, 1.0, addedLeft, addedRight);
+    }
     // One internal sample of time without signal.
     void idle() noexcept;
 

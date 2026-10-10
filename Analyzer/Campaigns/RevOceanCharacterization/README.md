@@ -518,6 +518,47 @@ $PY emit_undertow_header.py --engine    # the engine's renderer against the mode
 $PY score_undertow_engine.py --table    # the engine against the recordings, beside the model; without --table it scores (needs the recordings)
 ```
 
+## Foam (Spume) (10 October 2026)
+
+The reference's third Macro Mode, Foam, became the eighth Character of Amanita Ocean, Spume: the
+base network of Tide with a fixed diffuser in front of it. Everything of it is in `foam/`:
+
+- `foam/model/`: the executable model, `foam_model.render(stimulus, first_frame, decay, size, macro)`,
+  with the diffuser alone in `foam_structure.py`, its constants in `structure_final.json` and the
+  helpers of the first look in `fcommon.py`. It imports `base.py` from `abyss/model/` (this campaign's
+  network with the oscillators counted from an origin) and `converters.py` and `network_model.py`
+  from this folder. The measured kernel of the first look (`kernel="measured"`) is not here: the
+  structure replaced it.
+- `foam/findings/`: `FOAM_STATE.md` (the mode on one page, for the port), `FOAM_FIRST_LOOK.md` (where
+  Foam sits, the measured kernel) and `FOAM_T90.md` (the second instance: the blind score, the outer
+  controls, Macro in motion, the change of mode); and `model_scores.json`, the model's own nulls
+  against the recordings, transcribed from its logs.
+- `foam/sessions/`: the scripts that made the attended recordings, as they ran, with a `README.md`;
+  `foam/sessions.json`: tempo, reported position and oscillator origin of sessions A and T90.
+- Not here: the recordings, their stimuli and each session's `info.json`. They stay under
+  `Analyzer/Results/RevOceanCharacterization/work/foam/session_<label>/` (not in Git), where the files
+  copied into `foam/` have their originals. The copies are byte for byte, except `fcommon.py`, which
+  differs in where it finds this folder, where the recordings are and where session A's oscillator
+  origin comes from (`foam/sessions.json`).
+
+Result. Foam = base(cos(pi/2 Macro) x + sin(pi/2 Macro) F(x)): F is 28 Schroeder all-passes in seven
+stages of four with Hadamard mixes between them, per channel, at the internal rate, with no clock in
+it; the two gains, not Macro, move by a one-pole of 10 ms run once per block of 44 internal samples.
+The model meets the recordings of two instances at -97 to -130 dB, the depth the base reaches at
+Macro 0. The C++ engine (`Source/dsp/SpumeDiffuser.*` and `SpumeLayer.*`, a layer of the Fathom
+engine) meets the model at -147.2 to -148.2 dB on whole renders and has the model's null on all 51
+recordings the model was scored on, to 0.1 dB, Macro in motion among them (73 rows with the parts of
+the two runs that move Macro). `docs/SPUME.md` has the
+Character, what of it is Ocean's own, the tests and the limits; `docs/SPUME_VALIDATION.json` every
+number.
+
+```sh
+PY=/Users/nespesha/Workspace/AmanitaSaturator/Plugin/.venv-tools/bin/python
+$PY emit_spume_header.py --check     # Source/dsp/SpumeConstants.h and Tests/SpumeGoldenVectors.h against the model
+$PY emit_spume_header.py --engine    # the engine's renderer against the model on whole renders (needs AmanitaOceanFathomRender)
+$PY score_spume_engine.py --table    # the engine against the recordings, beside the model; without --table it scores (needs the recordings)
+```
+
 ## Shared datasets
 
 - `datasets.grid_responses(input_channel)`: 980 unit-impulse responses per

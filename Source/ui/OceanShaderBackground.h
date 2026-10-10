@@ -18,7 +18,7 @@ namespace amanita::ui
 class OceanShaderBackground final : private juce::OpenGLRenderer
 {
 public:
-    static constexpr int characterCount = 7;
+    static constexpr int characterCount = 8;
 
     struct Snapshot
     {
@@ -134,7 +134,7 @@ private:
     juce::Component* attachedComponent_ = nullptr;
 
     std::array<float, characterCount> characterBlend_ {
-        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
+        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
     };
     float renderedEvolution_ = 0.0f;
     float renderedFocus_ = 1.0f;

@@ -9,7 +9,7 @@ namespace amanita::ui
 class DeepCurrentRenderer final
 {
 public:
-    static constexpr int characterCount = 7;
+    static constexpr int characterCount = 8;
 
     void reset(int characterIndex,
                float evolution,
@@ -50,7 +50,7 @@ private:
 
     juce::Image overlay_;
     std::array<float, characterCount> characterBlend_ {
-        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
+        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
     };
     double timeSeconds_ = 0.0;
     float evolution_ = 0.0f;

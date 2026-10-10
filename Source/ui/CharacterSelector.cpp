@@ -2,6 +2,7 @@
 #include "OceanLookAndFeel.h"
 
 #include <array>
+#include <cmath>
 
 namespace amanita::ui
 {
@@ -47,7 +48,12 @@ constexpr std::array<CharacterDescription::Text, CharacterSelector::characterCou
           "REVERSED VOICES IN TEMPO",
           "What you just played is pulled back under and returned in reverse: at pitch, an "
           "octave above, an octave below, in step with the tempo of the song. Evolution "
-          "lets the three voices in, one by one." }
+          "lets the three voices in, one by one." },
+        { "SPUME",
+          "28 ALL-PASS INPUT DIFFUSER",
+          "Every sound breaks before it reaches the deep. The strike dissolves into a fine, "
+          "slow spray that hangs for a moment and then sinks into the water below. "
+          "Evolution turns the wave from a clean strike into pure spume." }
     }};
 
 // Design measures of the description block. Its parts are set apart by the
@@ -70,6 +76,16 @@ constexpr float paragraphLineHeight = 14.0f;
 // give a widow company.
 constexpr float widowAllowance = 0.15f;
 } // namespace block
+
+// The ease of a step chevron between its resting tone and the accent: at
+// every frame it covers this share of what is left, which brings it within a
+// twentieth of its goal in about 150 ms.
+namespace step
+{
+constexpr int easeFramesPerSecond = 60;
+constexpr float easePerFrame = 0.28f;
+constexpr float easeEnd = 0.01f;
+} // namespace step
 
 [[nodiscard]] juce::Font blockFont(float height, bool bold, float tracking)
 {
@@ -171,6 +187,116 @@ void CharacterSelector::moveSelection(int offset)
 
     const auto selectedIndex = juce::jlimit(0, count - 1, getSelectedItemIndex());
     setSelectedItemIndex((selectedIndex + offset + count) % count, juce::sendNotificationSync);
+}
+
+CharacterStepButton::CharacterStepButton(Direction direction)
+    : direction_(direction)
+{
+    const auto steppingBack = direction_ == Direction::previous;
+    setComponentID(steppingBack ? "character-previous" : "character-next");
+    setAccessible(true);
+    setTitle(steppingBack ? "Previous" : "Next");
+    setDescription(steppingBack ? "Selects the reverb character before the one shown."
+                                : "Selects the reverb character after the one shown.");
+    setWantsKeyboardFocus(false);
+    setMouseClickGrabsKeyboardFocus(false);
+}
+
+void CharacterStepButton::paint(juce::Graphics& graphics)
+{
+    if (const auto* lookAndFeel = dynamic_cast<const OceanLookAndFeel*>(&getLookAndFeel()))
+        lookAndFeel->drawStepChevron(graphics, getLocalBounds().toFloat(),
+                                     direction_ == Direction::next, emphasis_);
+}
+
+void CharacterStepButton::mouseEnter(const juce::MouseEvent&)
+{
+    pointerOver_ = true;
+    followPointer();
+}
+
+void CharacterStepButton::mouseExit(const juce::MouseEvent&)
+{
+    pointerOver_ = false;
+    followPointer();
+}
+
+void CharacterStepButton::mouseDown(const juce::MouseEvent& event)
+{
+    pressed_ = event.mods.isLeftButtonDown();
+    if (pressed_)
+        pointerOver_ = true;
+    followPointer();
+}
+
+void CharacterStepButton::mouseDrag(const juce::MouseEvent& event)
+{
+    // No exit is reported while a button is held, so a press that leaves the
+    // chevron gives its accent up here and takes it again when it returns.
+    pointerOver_ = getLocalBounds().toFloat().contains(event.position);
+    followPointer();
+}
+
+void CharacterStepButton::mouseUp(const juce::MouseEvent& event)
+{
+    // A press that was dragged off the chevron is given up.
+    const auto inside = getLocalBounds().toFloat().contains(event.position);
+    const auto steps = pressed_ && inside;
+    if (pressed_)
+        pointerOver_ = inside;
+    pressed_ = false;
+    followPointer();
+    if (steps && onStep != nullptr)
+        onStep();
+}
+
+float CharacterStepButton::getEmphasis() const noexcept
+{
+    return emphasis_;
+}
+
+std::unique_ptr<juce::AccessibilityHandler> CharacterStepButton::createAccessibilityHandler()
+{
+    return std::make_unique<juce::AccessibilityHandler>(
+        *this,
+        juce::AccessibilityRole::button,
+        juce::AccessibilityActions().addAction(juce::AccessibilityActionType::press,
+                                               [this]
+                                               {
+                                                   if (onStep != nullptr)
+                                                       onStep();
+                                               }));
+}
+
+void CharacterStepButton::timerCallback()
+{
+    const auto wanted = emphasisWanted();
+    emphasis_ += (wanted - emphasis_) * step::easePerFrame;
+    if (std::abs(wanted - emphasis_) < step::easeEnd)
+    {
+        emphasis_ = wanted;
+        stopTimer();
+    }
+    repaint();
+}
+
+void CharacterStepButton::followPointer()
+{
+    if (! isShowing())
+    {
+        stopTimer();
+        emphasis_ = emphasisWanted();
+        repaint();
+    }
+    else if (! juce::approximatelyEqual(emphasis_, emphasisWanted()))
+    {
+        startTimerHz(step::easeFramesPerSecond);
+    }
+}
+
+float CharacterStepButton::emphasisWanted() const noexcept
+{
+    return pointerOver_ ? 1.0f : 0.0f;
 }
 
 CharacterDescription::CharacterDescription()

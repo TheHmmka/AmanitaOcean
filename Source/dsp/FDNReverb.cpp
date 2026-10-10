@@ -115,8 +115,8 @@ static_assert(FDNReverb::numDelayLines == CurrentField::numLines);
 
 // Fathom reads Ocean's controls in the units of its reference. Its Macro
 // follows the Evolution knob itself, not the smoothed curve the FDN Characters
-// use. Undertow reads them the same way: it is the same engine under another
-// layer.
+// use. Undertow and Spume read them the same way: each is the same engine
+// under another layer.
 [[nodiscard]] FathomEngine::Parameters fathomParameters(const ReverbParameters& parameters) noexcept
 {
     FathomEngine::Parameters fathom;
@@ -138,28 +138,41 @@ static_assert(FDNReverb::numDelayLines == CurrentField::numLines);
     return fathomAmount >= 1.0f ? fathom : ocean + fathomAmount * (fathom - ocean);
 }
 
-// The two Characters that are engines of their own beside the FDN.
+// The three Characters that are engines of their own beside the FDN.
 [[nodiscard]] bool isEngineMode(ReverbMode mode) noexcept
 {
-    return mode == ReverbMode::fathom || mode == ReverbMode::undertow;
+    return mode == ReverbMode::fathom || mode == ReverbMode::undertow
+        || mode == ReverbMode::spume;
 }
 
-// What the two engines give together, each by its amount: the value of the one
+// What two engines give together, each by its amount: the value of the one
 // that is in alone, itself, and a crossfade while one takes over from the other.
 template <typename Frame>
-[[nodiscard]] Frame blendEngines(const Frame& fathom, const Frame& undertow,
-                                 float fathomAmount, float undertowAmount) noexcept
+[[nodiscard]] Frame blendEngines(const Frame& first, const Frame& second,
+                                 float firstAmount, float secondAmount) noexcept
 {
-    if (!(undertowAmount > 0.0f))
-        return fathom;
-    if (!(fathomAmount > 0.0f))
-        return undertow;
+    if (!(secondAmount > 0.0f))
+        return first;
+    if (!(firstAmount > 0.0f))
+        return second;
 
-    const auto share = undertowAmount / (fathomAmount + undertowAmount);
-    auto blended = fathom;
-    blended.left += share * (undertow.left - fathom.left);
-    blended.right += share * (undertow.right - fathom.right);
+    const auto share = secondAmount / (firstAmount + secondAmount);
+    auto blended = first;
+    blended.left += share * (second.left - first.left);
+    blended.right += share * (second.right - first.right);
     return blended;
+}
+
+// The same for the three: Fathom and Undertow by their amounts, and what they
+// give together with Spume by theirs. With one of the three out it is the
+// crossfade of the other two, and with two out the third itself.
+template <typename Frame>
+[[nodiscard]] Frame blendEngines(const Frame& fathom, const Frame& undertow, const Frame& spume,
+                                 float fathomAmount, float undertowAmount,
+                                 float spumeAmount) noexcept
+{
+    return blendEngines(blendEngines(fathom, undertow, fathomAmount, undertowAmount), spume,
+                        fathomAmount + undertowAmount, spumeAmount);
 }
 
 // Output guard of a settled Fathom: finite, inside the bound every Character
@@ -374,6 +387,11 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
     undertow_.prepare(sampleRate_);
     undertowLevelStage_.prepare(sampleRate_);
     undertowSubAnchor_.prepare(sampleRate_);
+    spume_.setLayer(FathomEngine::Layer::spume);
+    spume_.setParameters(fathomParameters(parameters_));
+    spume_.prepare(sampleRate_);
+    spumeLevelStage_.prepare(sampleRate_);
+    spumeSubAnchor_.prepare(sampleRate_);
     harmonicAnalyzer_.prepare(sampleRate_);
     const auto& initialAnalysis = harmonicAnalyzer_.getFrame();
     harmonicTail_.prepare(sampleRate_,
@@ -396,6 +414,8 @@ void FDNReverb::prepare(double sampleRate, int maximumBlockSize)
                           parameters_.mode == ReverbMode::fathom ? 1.0f : 0.0f);
     undertowAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                             parameters_.mode == ReverbMode::undertow ? 1.0f : 0.0f);
+    spumeAmount_.prepare(sampleRate_, characterModeMorphSeconds,
+                         parameters_.mode == ReverbMode::spume ? 1.0f : 0.0f);
     engineAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                           isEngineMode(parameters_.mode) ? 1.0f : 0.0f);
     veilAmount_.prepare(sampleRate_, characterModeMorphSeconds,
@@ -440,6 +460,8 @@ void FDNReverb::reset() noexcept
                           parameters_.mode == ReverbMode::fathom ? 1.0f : 0.0f);
     undertowAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                             parameters_.mode == ReverbMode::undertow ? 1.0f : 0.0f);
+    spumeAmount_.prepare(sampleRate_, characterModeMorphSeconds,
+                         parameters_.mode == ReverbMode::spume ? 1.0f : 0.0f);
     engineAmount_.prepare(sampleRate_, characterModeMorphSeconds,
                           isEngineMode(parameters_.mode) ? 1.0f : 0.0f);
     veilAmount_.prepare(sampleRate_, characterModeMorphSeconds,
@@ -463,6 +485,9 @@ void FDNReverb::reset() noexcept
     undertow_.reset();
     undertowLevelStage_.reset();
     undertowSubAnchor_.reset();
+    spume_.reset();
+    spumeLevelStage_.reset();
+    spumeSubAnchor_.reset();
     harmonicAnalyzer_.reset();
     if (parameters_.autoHarmony)
     {
@@ -482,6 +507,7 @@ void FDNReverb::reset() noexcept
     currentFieldStrength_ = 0.0f;
     fathomEngaged_ = false;
     undertowEngaged_ = false;
+    spumeEngaged_ = false;
 }
 
 void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
@@ -494,6 +520,7 @@ void FDNReverb::setParameters(const ReverbParameters& newParameters) noexcept
         case ReverbMode::current:
         case ReverbMode::drift:
         case ReverbMode::fathom:
+        case ReverbMode::spume:
         case ReverbMode::undertow:
         case ReverbMode::veil:
             parameters_.mode = newParameters.mode;
@@ -564,6 +591,7 @@ void FDNReverb::updateTargets() noexcept
     driftAmount_.setTarget(parameters_.mode == ReverbMode::drift ? 1.0f : 0.0f);
     fathomAmount_.setTarget(parameters_.mode == ReverbMode::fathom ? 1.0f : 0.0f);
     undertowAmount_.setTarget(parameters_.mode == ReverbMode::undertow ? 1.0f : 0.0f);
+    spumeAmount_.setTarget(parameters_.mode == ReverbMode::spume ? 1.0f : 0.0f);
     engineAmount_.setTarget(isEngineMode(parameters_.mode) ? 1.0f : 0.0f);
     veilAmount_.setTarget(parameters_.mode == ReverbMode::veil ? 1.0f : 0.0f);
     mix_.setTarget(parameters_.mix);
@@ -590,6 +618,7 @@ void FDNReverb::updateTargets() noexcept
     freeze_.setTarget(parameters_.freeze ? 1.0f : 0.0f);
     fathom_.setParameters(fathomParameters(parameters_));
     undertow_.setParameters(fathomParameters(parameters_));
+    spume_.setParameters(fathomParameters(parameters_));
 
     for (std::size_t index = 0; index < numDelayLines; ++index)
     {
@@ -657,12 +686,13 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     const auto driftAmount = driftAmount_.next();
     const auto fathomAmount = fathomAmount_.next();
     const auto undertowAmount = undertowAmount_.next();
+    const auto spumeAmount = spumeAmount_.next();
     const auto engineAmount = engineAmount_.next();
     const auto veilAmount = veilAmount_.next();
     const auto evolution = smoothCurve(evolution_.next());
-    // Fathom and Undertow are not part of this sum: behind them the FDN runs as
-    // Default, so a switch between either and Default leaves the FDN's own
-    // path as it is.
+    // Fathom, Undertow and Spume are not part of this sum: behind them the FDN
+    // runs as Default, so a switch between any of them and Default leaves the
+    // FDN's own path as it is.
     const auto defaultAmount = std::clamp(
         1.0f - bloomAmount - currentAmount - driftAmount - veilAmount,
         0.0f, 1.0f);
@@ -845,10 +875,16 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     // hold together, on a ramp of its own: it is the amount of the one that
     // is in, and it stays at one while one takes over from the other, so the
     // two crossfade directly and nothing of the FDN shows between them.
+    //
+    // Spume is a third, in the same place and with a level stage of its own;
+    // any two of the three crossfade directly. It does not hear the host's
+    // transport, and while another Character is selected its engine only
+    // keeps time, so its diffuser and its network are empty when it returns.
     const auto fathomDryLeft = sanitise(left);
     const auto fathomDryRight = sanitise(right);
     FathomEngine::Frame fathomWet;
     FathomEngine::Frame undertowWet;
+    FathomEngine::Frame spumeWet;
     if (fathomAmount > 0.0f)
     {
         fathomWet = fathomLevelStage_.process(
@@ -881,9 +917,26 @@ void FDNReverb::processSample(float& left, float& right) noexcept
         }
         undertow_.advanceIdle();
     }
+    if (spumeAmount > 0.0f)
+    {
+        spumeWet = spumeLevelStage_.process(
+            fathomDryLeft, fathomDryRight, spume_.processSample(fathomDryLeft, fathomDryRight));
+        spumeEngaged_ = true;
+    }
+    else
+    {
+        if (spumeEngaged_)
+        {
+            spumeLevelStage_.reset();
+            spumeSubAnchor_.reset();
+            spumeEngaged_ = false;
+        }
+        spume_.advanceIdle();
+    }
     if (engineAmount > 0.0f)
     {
-        const auto engineWet = blendEngines(fathomWet, undertowWet, fathomAmount, undertowAmount);
+        const auto engineWet = blendEngines(fathomWet, undertowWet, spumeWet,
+                                            fathomAmount, undertowAmount, spumeAmount);
         wetLeft = morphToFathom(wetLeft, sanitise(engineWet.left), engineAmount);
         wetRight = morphToFathom(wetRight, sanitise(engineWet.right), engineAmount);
     }
@@ -918,23 +971,29 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     // of any stereo wet, whereas the shared-sign decoder is a projection of
     // the FDN's eight lines and has no counterpart in Fathom's networks. With
     // Mono Safe off the anchor is out of the circuit; its filter keeps
-    // tracking the wet so that it fades in settled. Undertow has the same law
-    // and an anchor of its own, which tracks the wet while Undertow is in.
+    // tracking the wet so that it fades in settled. Undertow and Spume have
+    // the same law and each an anchor of its own, which tracks the wet while
+    // its Character is in.
     if (engineAmount > 0.0f)
     {
         auto fathomWidenedWet = FathomEngine::applyWidth({ wetLeft, wetRight }, width);
         StereoField::Frame fathomAnchoredWet;
         StereoField::Frame undertowAnchoredWet;
+        StereoField::Frame spumeAnchoredWet;
         if (fathomAmount > 0.0f)
             fathomAnchoredWet = fathomSubAnchor_.applyWidth(
                 fathomWidenedWet.left, fathomWidenedWet.right, 1.0f);
         if (undertowAmount > 0.0f)
             undertowAnchoredWet = undertowSubAnchor_.applyWidth(
                 fathomWidenedWet.left, fathomWidenedWet.right, 1.0f);
+        if (spumeAmount > 0.0f)
+            spumeAnchoredWet = spumeSubAnchor_.applyWidth(
+                fathomWidenedWet.left, fathomWidenedWet.right, 1.0f);
         if (monoSafeStereoAmount > 0.0f)
         {
             const auto anchoredWet = blendEngines(fathomAnchoredWet, undertowAnchoredWet,
-                                                  fathomAmount, undertowAmount);
+                                                  spumeAnchoredWet, fathomAmount, undertowAmount,
+                                                  spumeAmount);
             fathomWidenedWet.left += monoSafeStereoAmount
                                    * (anchoredWet.left - fathomWidenedWet.left);
             fathomWidenedWet.right += monoSafeStereoAmount
@@ -958,7 +1017,7 @@ void FDNReverb::processSample(float& left, float& right) noexcept
     // level where it is, and ends in the reference's clipper. At Mix 100 % its
     // wet passes as it is: the sum would round it to the grid of the dry
     // signal. Settled, it leaves through a guard that keeps the floor of its
-    // engine. Undertow leaves the same way.
+    // engine. Undertow and Spume leave the same way.
     if (engineAmount > 0.0f)
     {
         if (mix >= 1.0f)

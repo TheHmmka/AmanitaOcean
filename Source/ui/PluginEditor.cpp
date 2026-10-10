@@ -10,8 +10,8 @@ namespace
 {
 // The calm 4 px vertical rhythm of Amanita Analog Filter with Ocean's own
 // hierarchy: the Character drop-down on the window's vertical axis as the
-// heading of the group under it, the description block and the Evolution knob
-// mirrored about that axis.
+// heading of the group under it, a step chevron on either side of it, the
+// description block and the Evolution knob mirrored about that axis.
 namespace layout
 {
 constexpr float axisX = 480.0f;
@@ -21,6 +21,10 @@ constexpr float headerRuleY = 80.0f;
 constexpr float characterSelectorY = 112.0f;
 constexpr float characterSelectorWidth = 340.0f;
 constexpr float characterSelectorHeight = 40.0f;
+// The step chevrons take the pointer in areas as high as the drop-down, this
+// far from its sides; the chevrons themselves stand in the middle of those.
+constexpr float characterStepGap = 4.0f;
+constexpr float characterStepWidth = amanita::ui::CharacterStepButton::designWidth;
 // The Evolution knob is placed by the centre of its dial. The outer edge of
 // its ring lies 103.6 / 224 of the dial's size from that centre, as
 // OceanLookAndFeel draws it.
@@ -48,6 +52,8 @@ static_assert(amanita::ui::CharacterSelector::characterCount
               == amanita::ui::DeepCurrentRenderer::characterCount);
 static_assert(amanita::ui::CharacterSelector::characterCount
               == amanita::ui::OceanShaderBackground::characterCount);
+static_assert(amanita::ui::CharacterStepButton::designHeight
+              == static_cast<int>(layout::characterSelectorHeight));
 
 [[nodiscard]] juce::Font uiFont(float height,
                                 int style = juce::Font::plain,
@@ -138,9 +144,12 @@ AmanitaOceanAudioProcessorEditor::AmanitaOceanAudioProcessorEditor(
     {
         updateCharacterVisuals(characterSelector_.getSelectedItemIndex());
     };
+    previousCharacter_.onStep = [this] { characterSelector_.moveSelection(-1); };
+    nextCharacter_.onStep = [this] { characterSelector_.moveSelection(1); };
 
-    for (auto* component : std::array<juce::Component*, 12> {
-             &characterSelector_, &characterDescription_, &evolutionKnob_,
+    for (auto* component : std::array<juce::Component*, 14> {
+             &characterSelector_, &previousCharacter_, &nextCharacter_,
+             &characterDescription_, &evolutionKnob_,
              &preDelayKnob_, &sizeKnob_, &decayKnob_, &lowCutKnob_, &dampingKnob_,
              &harmonyKnob_, &widthKnob_, &focusKnob_, &mixKnob_
          })
@@ -309,6 +318,14 @@ void AmanitaOceanAudioProcessorEditor::resized()
         scaledBounds(layout::axisX - 0.5f * layout::characterSelectorWidth,
                      layout::characterSelectorY,
                      layout::characterSelectorWidth, layout::characterSelectorHeight));
+    const auto stepReach = 0.5f * layout::characterSelectorWidth + layout::characterStepGap;
+    previousCharacter_.setBounds(
+        scaledBounds(layout::axisX - stepReach - layout::characterStepWidth,
+                     layout::characterSelectorY,
+                     layout::characterStepWidth, layout::characterSelectorHeight));
+    nextCharacter_.setBounds(
+        scaledBounds(layout::axisX + stepReach, layout::characterSelectorY,
+                     layout::characterStepWidth, layout::characterSelectorHeight));
     evolutionKnob_.setBounds(
         scaledBounds(layout::evolutionX, layout::evolutionY,
                      layout::evolutionWidth, layout::evolutionHeight));
@@ -437,6 +454,8 @@ void AmanitaOceanAudioProcessorEditor::timerCallback()
                  })
                 knob->repaint();
             characterSelector_.repaint();
+            previousCharacter_.repaint();
+            nextCharacter_.repaint();
             freezeButton_.repaint();
             monoSafeButton_.repaint();
         }
@@ -536,20 +555,27 @@ void AmanitaOceanAudioProcessorEditor::drawBathymetricField(juce::Graphics& grap
             const auto undertowY = baseY - undertow * 0.62f * std::sin(angle) * undertowSwell
                 + undertow * 0.16f * fine;
 
+            const auto spumeRipple = std::sin(angle * 7.0f + spread * 9.0f - phase * 1.98f);
+            const auto spume = evolution * (1.0f + 3.0f * spread) * scale;
+            const auto spumeX = baseX + spume * std::cos(angle) * spumeRipple;
+            const auto spumeY = baseY + spume * std::sin(angle) * spumeRipple;
+
             const auto x = characterBlend[0] * defaultX
                          + characterBlend[1] * bloomX
                          + characterBlend[2] * driftX
                          + characterBlend[3] * veilX
                          + characterBlend[4] * currentX
                          + characterBlend[5] * fathomX
-                         + characterBlend[6] * undertowX;
+                         + characterBlend[6] * undertowX
+                         + characterBlend[7] * spumeX;
             const auto y = characterBlend[0] * defaultY
                          + characterBlend[1] * bloomY
                          + characterBlend[2] * driftY
                          + characterBlend[3] * veilY
                          + characterBlend[4] * currentY
                          + characterBlend[5] * fathomY
-                         + characterBlend[6] * undertowY;
+                         + characterBlend[6] * undertowY
+                         + characterBlend[7] * spumeY;
 
             if (point == 0)
                 path.startNewSubPath(x, y);

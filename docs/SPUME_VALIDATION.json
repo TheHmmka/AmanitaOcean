@@ -1,0 +1,1915 @@
+{
+ "schema": "amanita-ocean.spume-validation/1",
+ "date": "2026-10-10",
+ "status": "Local development model in the working tree. Not a release: version unchanged, nothing installed, published or signed, nothing listened to. DSP only: the diffuser, the layer, the engine that carries it, the plug-in's routing, the tests, the offline renderer and the scores. Editor, processor and state are a colleague's work.",
+ "document": "docs/SPUME.md",
+ "character": {
+  "name": "Spume",
+  "index": 7,
+  "reverbMode": "ReverbMode::spume (Source/dsp/FDNReverb.h)",
+  "engineInterface": "Source/dsp/FathomEngine.h: Layer::spume; test hooks setClockOriginsForTesting (first frame, oscillators) and nextCoreSampleForTesting",
+  "layer": "Source/dsp/SpumeLayer.h with Source/dsp/SpumeDiffuser.h",
+  "evolution": "the knob itself is the crossfade of the plain input (cos) and the diffused one (sin); at 0 the Character is Fathom at Evolution 0 to the bit",
+  "mix": "Ocean's own linear Mix, as for Fathom and Undertow; the reference's Mix law is in the offline renderer only",
+  "hostTransport": "not heard"
+ },
+ "reference": {
+  "name": "Rev OCEAN",
+  "manufacturer": "Arturia",
+  "mode": "Macro Mode Foam",
+  "recordings": "two attended sessions at 48 kHz in host blocks of 512 frames: A at 120 BPM with the play head at the frame count; T90 at 90 BPM with the play head 0.25 s ahead, another instance, scored blind by the model",
+  "measuredAs": "A black box, from recorded audio alone. Its binaries and files were not inspected and no session was opened for this work.",
+  "namedIn": "documentation only"
+ },
+ "tools": {
+  "python": "3.12.10",
+  "numpy": "2.3.5",
+  "scipy": "1.16.1",
+  "compiler": "Apple clang 21.0.0 (clang-2100.3.34.2), arm64-apple-darwin25.6.0",
+  "cmake": "3.27.7",
+  "juce": "8.0.14",
+  "os": "macOS 26.7 (25G229)",
+  "machine": "Apple M4 Max"
+ },
+ "build": {
+  "folder": "build-spume-dsp",
+  "configuration": "Release, arm64",
+  "installed": false,
+  "rendererSha256": "8fa942e841ff2061f9ddca714bc85b41ac52ee24abeee6306122baa677ba9eb7",
+  "note": "A fresh folder. The committed tree (0.23.0) was built in it first, as the baseline of the older tests and of the Fathom and Undertow renders; every score and test result here is of the final sources."
+ },
+ "sourcesSha256": {
+  "Source/dsp/SpumeDiffuser.h": "8a3547d9b3b545052e91ae911b92810553babf7a72136437e1fdd7f29930797f",
+  "Source/dsp/SpumeDiffuser.cpp": "692fbd814fb87fdc37cf545224c9bada13d6aa91b1abba3cb72a5ffa7d59ed16",
+  "Source/dsp/SpumeLayer.h": "1ff075a5640af36cf21ebad8486c51fa3f9794650d22f60f373760c9b511991e",
+  "Source/dsp/SpumeLayer.cpp": "70fcb07423bdbb175c982643413dab148726865f981ec8549d494c17aab7187a",
+  "Source/dsp/SpumeConstants.h": "3d20aa8ce069aded133fb5e73011245af161d3fc80758312ff55b38bf3beeea4",
+  "Source/dsp/FathomEngine.h": "3e1dd3fea3a4d02e8eb64b1b7a6617e8c548bc346339097cdf428e1711ecc673",
+  "Source/dsp/FathomEngine.cpp": "2d68a65c92bcaf118370f464757165353396ac41faa33f99a8506786da1ca09c",
+  "Source/dsp/FathomNetwork.h": "36989c8f52d4c418095f4044f3bf6dc47de4deebd0ad1bf1f0cd350e20345054",
+  "Source/dsp/FathomNetwork.cpp": "5cca9e482a130a99ec4a51d9e68f8fb6511e092c0d6c8da3fc9b100ec2c77e23",
+  "Source/dsp/FathomConverter.h": "39f963b7dd190693ed22824c4541f4ae2c927a4cc6430ac11ed87f6bb00002ee",
+  "Source/dsp/FathomConverter.cpp": "79070f4a5dcc50ad6f172825e7630a6f3f0740679bb85bbc8ba8364808902d1a",
+  "Source/dsp/FathomEngineConstants.h": "6d1de1a71fbf33427abd0c9ae7ea147b4746efc8a043192b01ee45d2865b2c68",
+  "Source/dsp/FathomExactArithmetic.h": "5b2cfbf8fa64a30e9d23e23b880e159b93e7f2c8927275d8ce97b089619c0429",
+  "Source/dsp/UndertowLayer.h": "a848038d94a36801ab43a1dccc701981852abf2377993b4bfd12e99e65ef497e",
+  "Source/dsp/UndertowLayer.cpp": "2137941873c26d3cb469819b245acdb5e84953b7b8d2b86af98199ba150d8a1d",
+  "Source/dsp/UndertowConstants.h": "6aad794f616947163a26c4b788672c86bf78014ab3d31048038f408324ade65b",
+  "Source/dsp/FDNReverb.h": "3f72ad968973863ca710a77b5fdf7bfd2092b5d7a873d2534c7519e7ad003fd7",
+  "Source/dsp/FDNReverb.cpp": "53efaa4c456e46d86ac7e3bfe7f7fcb8ac1a541a4e1f61839f19bfe8bebbf3f8",
+  "Tools/FathomRender.cpp": "a5094d61bf6fadc411452915cf5a08338a19e0b1b448463cfc6f1f6296c1e198",
+  "Tests/DspTests.cpp": "57818b57100c65cd5b85ecb2d161cb12df66015d960c4d6f53de788409cbf2a1",
+  "Tests/SpumeGoldenVectors.h": "8a716c58e792bd3c3a821ef1073aee69ca3e54f594b004c8c9757cedff0e4171"
+ },
+ "campaignSha256": {
+  "Analyzer/Campaigns/RevOceanCharacterization/emit_spume_header.py": "d3c79ffb168df656e406006b687f7d66689cc83b257c8e22fca6cb0ba8d1dede",
+  "Analyzer/Campaigns/RevOceanCharacterization/score_spume_engine.py": "f0bc5adfd9ec1091fcab7b106cb4f6c42f3bbf42d9e75806377e98a50d266246",
+  "Analyzer/Campaigns/RevOceanCharacterization/foam/sessions.json": "3169e0a568de51b0db21831ab1157c9e6e617394378c275fcf8aeb1fb317030c"
+ },
+ "foamFolder": {
+  "path": "Analyzer/Campaigns/RevOceanCharacterization/foam/",
+  "what": "the campaign's own copies of the model, the findings and the session scripts, so that the generated headers can be made again from the tracked tree; the originals stay under Analyzer/Results/RevOceanCharacterization/work/foam (not in Git), where the recordings are",
+  "copiedByteForByte": "model/foam_model.py, model/foam_structure.py, model/structure_final.json, the three findings, the two session scripts; model/fcommon.py differs from analysis/fcommon.py in where it finds the campaign, where the recordings are and where the oscillator origin of session A comes from (foam/sessions.json); nothing computed differs",
+  "originalFcommonSha256": "ab38e97c0d381510ea203beffe8e000677638c27c08efdf927710c20a741a6e6",
+  "notCopied": "the measured kernel of the first look (kernel_long_x03_0.npy): foam_model.render(kernel='measured') is not available from the campaign folder, and nothing here uses it",
+  "written": "findings/model_scores.json (the model's nulls transcribed from its logs), sessions.json, sessions/README.md"
+ },
+ "modelSha256": {
+  "Analyzer/Campaigns/RevOceanCharacterization/foam/model/foam_model.py": "a4596fca91cdfcf9bc35cf531cf2b605a679172dd7a5cf029390949b70af0ac8",
+  "Analyzer/Campaigns/RevOceanCharacterization/foam/model/foam_structure.py": "ccbad9f7b57593aa055f284888f28b4388977a8c0ccd9e330b5c53a762d4ea32",
+  "Analyzer/Campaigns/RevOceanCharacterization/foam/model/structure_final.json": "9686b74217b32b20cc935ba5517cc06433ca326ae33e82c8bb1e516f1abfd5bd",
+  "Analyzer/Campaigns/RevOceanCharacterization/foam/model/fcommon.py": "46a22fdd5397eed00086ed0f09b1fdddf0c54f7a93f6b5e4c3b90fd45272e1ee",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/model/base.py": "9b197bb67d8781809daea63e60fad56bdfb16b4aa705d59243f39a2c94b92c8e",
+  "Analyzer/Campaigns/RevOceanCharacterization/abyss/model/abyss_core.c": "518f04da361a1f71d7e82aa5408c510407d81ba290e4ba173587507158227eca"
+ },
+ "findingsSha256": {
+  "Analyzer/Campaigns/RevOceanCharacterization/foam/findings/FOAM_STATE.md": "ccb37ec9d1743a6d9eb547bc5cd66287c5c69b039267855f0550d0ab2ca01fdd",
+  "Analyzer/Campaigns/RevOceanCharacterization/foam/findings/FOAM_FIRST_LOOK.md": "6bebb32cc6177c5ec6eb5a8ed442e65c5feb6699c971e3abbafccb95a770fe92",
+  "Analyzer/Campaigns/RevOceanCharacterization/foam/findings/FOAM_T90.md": "a18060a32d8ab46b3980d8e91b51dea3cdb09a453a48d11ce1eef027177ce1e8",
+  "Analyzer/Campaigns/RevOceanCharacterization/foam/findings/model_scores.json": "ad511b4f869bfd84403ccf5476db04811ba2c5fe953f1952629b9c2a3d2d9bfa"
+ },
+ "sessionScriptsSha256": {
+  "Analyzer/Campaigns/RevOceanCharacterization/foam/sessions/probe3.py": "b3c0719b72a882631c105b598ad910d7b70ffd81bf75cad7b7e39d25737567ba",
+  "Analyzer/Campaigns/RevOceanCharacterization/foam/sessions/probe_foam2.py": "174876c2cde345875cc555d6ed27a52163423be579a7e6553a56d2bdc40eb6a1"
+ },
+ "scores": {
+  "convention": "null = 10 log10(sum (candidate - reference)^2 / sum reference^2) over the whole recording, both channels; no gain, delay or polarity fitted",
+  "diffuserAgainstTheModel": {
+   "test": "Spume diffuser against the model",
+   "against": "foam_structure.kernel: the answer to a unit impulse",
+   "samplesCompared": 12000,
+   "ofThemNotZero": 806,
+   "largestDistanceOfASample": 1.30104e-18,
+   "sumsEverySamples": 4000,
+   "sumsAsFarAs": 60000,
+   "largestDistanceOfASum": 3.44169e-15,
+   "form": "one delay line per all-pass (w[n] = x[n] - g w[n-D], y[n] = g w[n] + w[n-D]) against the model's two; double precision"
+  },
+  "portAgainstTheModel": {
+   "command": "emit_spume_header.py --engine",
+   "wholeRendersDb": {
+    "impulses48000": {
+     "macro": 1.0,
+     "withTheLayer": -147.53,
+     "theBaseAlone": -147.71,
+     "theDiffusedPartAlone": -147.53
+    },
+    "burst48000": {
+     "macro": 0.5,
+     "withTheLayer": -147.42,
+     "theBaseAlone": -147.47,
+     "theDiffusedPartAlone": -142.54
+    },
+    "tone48000": {
+     "macro": 0.25,
+     "withTheLayer": -148.15,
+     "theBaseAlone": -148.2,
+     "theDiffusedPartAlone": -137.07
+    },
+    "late48000": {
+     "macro": 1.0,
+     "firstFrame": 28800000,
+     "oscillatorOrigin": 23964028,
+     "withTheLayer": -147.47,
+     "theBaseAlone": -147.36,
+     "theDiffusedPartAlone": -147.47
+    },
+    "impulses44100": {
+     "macro": 0.5,
+     "withTheLayer": -147.26,
+     "theBaseAlone": -147.03,
+     "theDiffusedPartAlone": -142.73
+    },
+    "burst44100": {
+     "macro": 1.0,
+     "withTheLayer": -147.24,
+     "theBaseAlone": -147.29,
+     "theDiffusedPartAlone": -147.24
+    },
+    "tone44100": {
+     "macro": 0.25,
+     "withTheLayer": -148.04,
+     "theBaseAlone": -148.05,
+     "theDiffusedPartAlone": -137.03
+    },
+    "motion48000": {
+     "macro": "0.2, then 0.9, 0.4, 0.0, 1.0 and 0.65 with the host calls that begin at frames 24000, 43008, 60416, 86047, 86815",
+     "withTheLayer": -147.63,
+     "theBaseAlone": -147.6
+    }
+   },
+   "goldenExcerpts": {
+    "count": 24,
+    "frames": 160,
+    "limitDb": -130.0,
+    "worstDb": -145.7,
+    "macroHandedOverABlockLateBestDb": -35.09
+   },
+   "limitedBy": "the engine's single-precision line memory, as without the layer; nothing of the layer is approximated"
+  },
+  "engineAgainstRecordings": {
+   "command": "score_spume_engine.py",
+   "report": "Analyzer/Results/RevOceanCharacterization/work/foam/engine/scores.json (not in Git; every row is under \"rows\" here)",
+   "modelScores": "Analyzer/Campaigns/RevOceanCharacterization/foam/findings/model_scores.json (to a tenth of a decibel, as the model's logs give them)",
+   "recordings": 59,
+   "recordedSeconds": 2622.3,
+   "rows": 81,
+   "rowsScoredByTheModelToo": 73,
+   "sameAsTheModelTo0p05Db": 72,
+   "sameAsTheModelTo0p1Db": 73,
+   "largestDifferenceFromTheModelDb": 0.1,
+   "aboveMacro0AtFixedControlsDb": {
+    "worst": -97.05,
+    "best": -130.0,
+    "count": 53
+   },
+   "groups": {
+    "T90, Pre Delay": {
+     "recordings": 2,
+     "scoredByTheModelToo": 2,
+     "engineDb": {
+      "worst": -103.14,
+      "best": -103.34
+     },
+     "modelDb": {
+      "worst": -103.14,
+      "best": -103.34
+     },
+     "largestDifferenceFromTheModelDb": 0.0
+    },
+    "T90, Width and Mix (the reference's laws in the renderer)": {
+     "recordings": 3,
+     "scoredByTheModelToo": 3,
+     "engineDb": {
+      "worst": -103.15,
+      "best": -112.8
+     },
+     "modelDb": {
+      "worst": -103.15,
+      "best": -112.8
+     },
+     "largestDifferenceFromTheModelDb": 0.0
+    },
+    "Macro 0, the base alone": {
+     "recordings": 4,
+     "scoredByTheModelToo": 4,
+     "engineDb": {
+      "worst": -103.12,
+      "best": -115.44
+     },
+     "modelDb": {
+      "worst": -103.1,
+      "best": -115.4
+     },
+     "largestDifferenceFromTheModelDb": 0.04
+    },
+    "A, cases at fixed controls above Macro 0": {
+     "recordings": 14,
+     "scoredByTheModelToo": 14,
+     "engineDb": {
+      "worst": -99.79,
+      "best": -130.0
+     },
+     "modelDb": {
+      "worst": -99.8,
+      "best": -130.1
+     },
+     "largestDifferenceFromTheModelDb": 0.1
+    },
+    "A, probes": {
+     "recordings": 17,
+     "scoredByTheModelToo": 9,
+     "engineDb": {
+      "worst": -114.35,
+      "best": -117.42
+     },
+     "modelDb": {
+      "worst": -114.7,
+      "best": -117.4
+     },
+     "largestDifferenceFromTheModelDb": 0.05
+    },
+    "A, impulse maps, tone and sweep": {
+     "recordings": 4,
+     "scoredByTheModelToo": 4,
+     "engineDb": {
+      "worst": -104.14,
+      "best": -121.16
+     },
+     "modelDb": {
+      "worst": -104.1,
+      "best": -121.2
+     },
+     "largestDifferenceFromTheModelDb": 0.05
+    },
+    "A, x05: eleven gapless steps of Macro as one": {
+     "recordings": 1,
+     "scoredByTheModelToo": 1,
+     "engineDb": {
+      "worst": -121.4,
+      "best": -121.4
+     },
+     "modelDb": {
+      "worst": -121.4,
+      "best": -121.4
+     },
+     "largestDifferenceFromTheModelDb": 0.0
+    },
+    "T90 at fixed controls above Macro 0": {
+     "recordings": 13,
+     "scoredByTheModelToo": 13,
+     "engineDb": {
+      "worst": -97.05,
+      "best": -117.81
+     },
+     "modelDb": {
+      "worst": -97.0,
+      "best": -117.8
+     },
+     "largestDifferenceFromTheModelDb": 0.05
+    },
+    "T90, m01: Macro in motion as one": {
+     "recordings": 1,
+     "scoredByTheModelToo": 1,
+     "engineDb": {
+      "worst": -115.55,
+      "best": -115.55
+     },
+     "modelDb": {
+      "worst": -115.6,
+      "best": -115.6
+     },
+     "largestDifferenceFromTheModelDb": 0.05
+    }
+   },
+   "notScored": {
+    "x01_silence_macro100_decay0p5": "silence in; the recording peaks at 8e-37",
+    "c15_ringout_1": "Decay is turned down at its start; neither the model nor the renderer moves Decay in a render",
+    "k03_hpf1k, k04_lpf2k": "the reference's input filters in front of the converter; Ocean has none there",
+    "k08, k09 (Brightness), k10 (Ducking), k11 (Transients)": "controls of the reference the engine does not have"
+   }
+  },
+  "macroInMotion": {
+   "handOver": "every change at the block foam_model.first_block names for the host frame its call began at (AmanitaOceanFathomRender --macro-at-blocks)",
+   "x05": {
+    "recording": "session A: eleven gapless steps of 20 s under a tone of 1 kHz, Macro 0, 10, ..., 100 %, one render",
+    "wholeRun": {
+     "model": -121.4,
+     "engine": -121.4
+    },
+    "steps": [
+     {
+      "case": "x05_macro_steps_tone1k_decay2_00",
+      "macro": 0.0,
+      "model": -121.0,
+      "engine": -121.01,
+      "modelFirst200ms": -123.0,
+      "engineFirst200ms": -122.98
+     },
+     {
+      "case": "x05_macro_steps_tone1k_decay2_01",
+      "macro": 0.1,
+      "model": -121.7,
+      "engine": -121.71,
+      "modelFirst200ms": -121.3,
+      "engineFirst200ms": -121.28
+     },
+     {
+      "case": "x05_macro_steps_tone1k_decay2_02",
+      "macro": 0.2,
+      "model": -122.1,
+      "engine": -122.13,
+      "modelFirst200ms": -121.2,
+      "engineFirst200ms": -121.21
+     },
+     {
+      "case": "x05_macro_steps_tone1k_decay2_03",
+      "macro": 0.3,
+      "model": -122.4,
+      "engine": -122.35,
+      "modelFirst200ms": -120.4,
+      "engineFirst200ms": -120.37
+     },
+     {
+      "case": "x05_macro_steps_tone1k_decay2_04",
+      "macro": 0.4,
+      "model": -120.2,
+      "engine": -120.17,
+      "modelFirst200ms": -121.8,
+      "engineFirst200ms": -121.73
+     },
+     {
+      "case": "x05_macro_steps_tone1k_decay2_05",
+      "macro": 0.5,
+      "model": -120.2,
+      "engine": -120.2,
+      "modelFirst200ms": -121.1,
+      "engineFirst200ms": -121.07
+     },
+     {
+      "case": "x05_macro_steps_tone1k_decay2_06",
+      "macro": 0.6,
+      "model": -121.4,
+      "engine": -121.41,
+      "modelFirst200ms": -121.6,
+      "engineFirst200ms": -121.6
+     },
+     {
+      "case": "x05_macro_steps_tone1k_decay2_07",
+      "macro": 0.7,
+      "model": -122.3,
+      "engine": -122.3,
+      "modelFirst200ms": -122.4,
+      "engineFirst200ms": -122.38
+     },
+     {
+      "case": "x05_macro_steps_tone1k_decay2_08",
+      "macro": 0.8,
+      "model": -122.2,
+      "engine": -122.19,
+      "modelFirst200ms": -121.0,
+      "engineFirst200ms": -121.0
+     },
+     {
+      "case": "x05_macro_steps_tone1k_decay2_09",
+      "macro": 0.9,
+      "model": -121.2,
+      "engine": -121.18,
+      "modelFirst200ms": -121.7,
+      "engineFirst200ms": -121.66
+     },
+     {
+      "case": "x05_macro_steps_tone1k_decay2_10",
+      "macro": 1.0,
+      "model": -122.0,
+      "engine": -121.96,
+      "modelFirst200ms": -119.7,
+      "engineFirst200ms": -119.73
+     }
+    ]
+   },
+   "m01": {
+    "recording": "session T90: nine steps of 6.25 s under a tone of 1 kHz left and 3 kHz right, a staircase of 81 plays of 50 ms from 0 to 100 % and back, six seconds of silence at Macro 0, one render",
+    "wholeRun": {
+     "model": -115.6,
+     "engine": -115.55
+    },
+    "parts": [
+     {
+      "case": "m01_00_macro0000",
+      "macro": 0.0,
+      "model": -115.9,
+      "engine": -115.9,
+      "modelFirst250ms": -115.6,
+      "engineFirst250ms": -115.64
+     },
+     {
+      "case": "m01_01_macro0300",
+      "macro": 0.3,
+      "model": -116.3,
+      "engine": -116.32,
+      "modelFirst250ms": -117.3,
+      "engineFirst250ms": -117.3
+     },
+     {
+      "case": "m01_02_macro0700",
+      "macro": 0.7,
+      "model": -117.3,
+      "engine": -117.26,
+      "modelFirst250ms": -117.7,
+      "engineFirst250ms": -117.7
+     },
+     {
+      "case": "m01_03_macro1000",
+      "macro": 1.0,
+      "model": -116.6,
+      "engine": -116.55,
+      "modelFirst250ms": -115.7,
+      "engineFirst250ms": -115.66
+     },
+     {
+      "case": "m01_04_macro0550",
+      "macro": 0.55,
+      "model": -115.5,
+      "engine": -115.53,
+      "modelFirst250ms": -117.6,
+      "engineFirst250ms": -117.57
+     },
+     {
+      "case": "m01_05_macro0100",
+      "macro": 0.1,
+      "model": -115.9,
+      "engine": -115.86,
+      "modelFirst250ms": -117.0,
+      "engineFirst250ms": -116.98
+     },
+     {
+      "case": "m01_06_macro1000",
+      "macro": 1.0,
+      "model": -116.6,
+      "engine": -116.63,
+      "modelFirst250ms": -116.2,
+      "engineFirst250ms": -116.17
+     },
+     {
+      "case": "m01_07_macro0000",
+      "macro": 0.0,
+      "model": -112.1,
+      "engine": -112.1,
+      "modelFirst250ms": -115.7,
+      "engineFirst250ms": -115.71
+     },
+     {
+      "case": "m01_08_macro0500",
+      "macro": 0.5,
+      "model": -115.8,
+      "engine": -115.83,
+      "modelFirst250ms": -115.6,
+      "engineFirst250ms": -115.59
+     },
+     {
+      "case": "m01_staircase",
+      "macro": 0.0,
+      "model": -115.7,
+      "engine": -115.66,
+      "modelFirst250ms": null,
+      "engineFirst250ms": null
+     },
+     {
+      "case": "m01_90_tail",
+      "macro": 0.0,
+      "model": -115.6,
+      "engine": -115.64,
+      "modelFirst250ms": null,
+      "engineFirst250ms": null
+     }
+    ]
+   }
+  },
+  "rows": {
+   "A/c01_macro0_decay0p5_train": {
+    "session": "A",
+    "case": "c01_macro0_decay0p5_train",
+    "T": 3010.0,
+    "seconds": 24.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -104.13,
+    "engine_s": 0.8,
+    "model": -104.1
+   },
+   "A/c02_macro100_decay0p5_train": {
+    "session": "A",
+    "case": "c02_macro100_decay0p5_train",
+    "T": 3044.0,
+    "seconds": 24.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -104.72,
+    "engine_s": 0.8,
+    "model": -104.7
+   },
+   "A/c03_macro100_decay2_imp3": {
+    "session": "A",
+    "case": "c03_macro100_decay2_imp3",
+    "T": 3078.0,
+    "seconds": 30.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -103.02,
+    "engine_s": 0.9,
+    "model": -103.0
+   },
+   "A/c04_macro100_decay2_prog": {
+    "session": "A",
+    "case": "c04_macro100_decay2_prog",
+    "T": 3118.0,
+    "seconds": 30.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.72,
+    "engine_s": 0.9,
+    "model": -116.7
+   },
+   "A/c05_macro100_decay2_noise": {
+    "session": "A",
+    "case": "c05_macro100_decay2_noise",
+    "T": 3158.0,
+    "seconds": 30.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -102.82,
+    "engine_s": 1.0,
+    "model": -102.8
+   },
+   "A/c06_macro100_decay2_sine1k": {
+    "session": "A",
+    "case": "c06_macro100_decay2_sine1k",
+    "T": 3198.0,
+    "seconds": 18.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -122.41,
+    "engine_s": 0.8,
+    "model": -122.4
+   },
+   "A/c07_macro100_decay2_sine220": {
+    "session": "A",
+    "case": "c07_macro100_decay2_sine220",
+    "T": 3226.0,
+    "seconds": 18.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -130.0,
+    "engine_s": 0.6,
+    "model": -130.1
+   },
+   "A/c08_macro50_decay2_imp3": {
+    "session": "A",
+    "case": "c08_macro50_decay2_imp3",
+    "T": 3254.0,
+    "seconds": 30.0,
+    "macro": 0.5,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -103.82,
+    "engine_s": 0.9,
+    "model": -103.8
+   },
+   "A/c09_macro25_decay2_imp3": {
+    "session": "A",
+    "case": "c09_macro25_decay2_imp3",
+    "T": 3294.0,
+    "seconds": 30.0,
+    "macro": 0.25,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -107.88,
+    "engine_s": 0.9,
+    "model": -107.9
+   },
+   "A/c10_macro75_decay2_imp3": {
+    "session": "A",
+    "case": "c10_macro75_decay2_imp3",
+    "T": 3334.0,
+    "seconds": 30.0,
+    "macro": 0.75,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -103.54,
+    "engine_s": 0.9,
+    "model": -103.5
+   },
+   "A/c11_macro100_decay2_imp3_again": {
+    "session": "A",
+    "case": "c11_macro100_decay2_imp3_again",
+    "T": 3374.0,
+    "seconds": 30.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -102.47,
+    "engine_s": 0.9,
+    "model": -102.5
+   },
+   "A/c12_macro100_decay2_size60_imp3": {
+    "session": "A",
+    "case": "c12_macro100_decay2_size60_imp3",
+    "T": 3414.0,
+    "seconds": 30.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 60.0,
+    "engine": -104.47,
+    "engine_s": 1.0,
+    "model": -104.5
+   },
+   "A/c13_macro100_decay2_size150_imp3": {
+    "session": "A",
+    "case": "c13_macro100_decay2_size150_imp3",
+    "T": 3454.0,
+    "seconds": 30.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 150.0,
+    "engine": -102.07,
+    "engine_s": 1.0,
+    "model": -102.1
+   },
+   "A/c14_macro100_decay8_imp3": {
+    "session": "A",
+    "case": "c14_macro100_decay8_imp3",
+    "T": 3494.0,
+    "seconds": 30.0,
+    "macro": 1.0,
+    "decay": 8.0,
+    "size": 100.0,
+    "engine": -101.34,
+    "engine_s": 1.0,
+    "model": -101.3
+   },
+   "A/c15_ringout_0": {
+    "session": "A",
+    "case": "c15_ringout_0",
+    "T": 3558.0,
+    "seconds": 2.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -99.79,
+    "engine_s": 0.4,
+    "model": -99.8
+   },
+   "A/c16_macro0_decay2_prog_late": {
+    "session": "A",
+    "case": "c16_macro0_decay2_prog_late",
+    "T": 3534.0,
+    "seconds": 14.0,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.44,
+    "engine_s": 0.6,
+    "model": -115.4
+   },
+   "A/p020": {
+    "session": "A",
+    "case": "p020",
+    "T": 610.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.41,
+    "engine_s": 0.4,
+    "model": -116.4
+   },
+   "A/p025": {
+    "session": "A",
+    "case": "p025",
+    "T": 760.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -114.35,
+    "engine_s": 0.5
+   },
+   "A/p030": {
+    "session": "A",
+    "case": "p030",
+    "T": 910.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.51,
+    "engine_s": 0.5,
+    "model": -115.5
+   },
+   "A/p035": {
+    "session": "A",
+    "case": "p035",
+    "T": 1060.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -114.35,
+    "engine_s": 0.6
+   },
+   "A/p040": {
+    "session": "A",
+    "case": "p040",
+    "T": 1210.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.31,
+    "engine_s": 0.7,
+    "model": -116.3
+   },
+   "A/p045": {
+    "session": "A",
+    "case": "p045",
+    "T": 1360.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.49,
+    "engine_s": 0.8
+   },
+   "A/p050": {
+    "session": "A",
+    "case": "p050",
+    "T": 1510.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -114.81,
+    "engine_s": 0.7,
+    "model": -114.8
+   },
+   "A/p055": {
+    "session": "A",
+    "case": "p055",
+    "T": 1660.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.38,
+    "engine_s": 0.7
+   },
+   "A/p060": {
+    "session": "A",
+    "case": "p060",
+    "T": 1810.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -114.7,
+    "engine_s": 0.7,
+    "model": -114.7
+   },
+   "A/p065": {
+    "session": "A",
+    "case": "p065",
+    "T": 1960.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.82,
+    "engine_s": 0.8
+   },
+   "A/p070": {
+    "session": "A",
+    "case": "p070",
+    "T": 2110.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.03,
+    "engine_s": 0.7,
+    "model": -115.0
+   },
+   "A/p075": {
+    "session": "A",
+    "case": "p075",
+    "T": 2260.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.51,
+    "engine_s": 0.8
+   },
+   "A/p080": {
+    "session": "A",
+    "case": "p080",
+    "T": 2410.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.36,
+    "engine_s": 0.7,
+    "model": -115.4
+   },
+   "A/p085": {
+    "session": "A",
+    "case": "p085",
+    "T": 2560.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.54,
+    "engine_s": 0.8
+   },
+   "A/p090": {
+    "session": "A",
+    "case": "p090",
+    "T": 2710.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.25,
+    "engine_s": 0.7,
+    "model": -115.2
+   },
+   "A/p095": {
+    "session": "A",
+    "case": "p095",
+    "T": 2860.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.61,
+    "engine_s": 0.8
+   },
+   "A/p099": {
+    "session": "A",
+    "case": "p099",
+    "T": 2980.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -117.42,
+    "engine_s": 0.7,
+    "model": -117.4
+   },
+   "A/x02_impulse_map_left_macro100_decay0p5": {
+    "session": "A",
+    "case": "x02_impulse_map_left_macro100_decay0p5",
+    "T": 3680.0,
+    "seconds": 600.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -104.14,
+    "engine_s": 11.2,
+    "model": -104.1
+   },
+   "A/x03_impulse_map_right_macro100_decay0p5": {
+    "session": "A",
+    "case": "x03_impulse_map_right_macro100_decay0p5",
+    "T": 4290.0,
+    "seconds": 300.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -104.43,
+    "engine_s": 5.7,
+    "model": -104.4
+   },
+   "A/x04_tone1k_120s_macro100_decay2": {
+    "session": "A",
+    "case": "x04_tone1k_120s_macro100_decay2",
+    "T": 4600.0,
+    "seconds": 140.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -121.16,
+    "engine_s": 2.9,
+    "model": -121.2
+   },
+   "A/x05_macro_steps_tone1k_decay2": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2",
+    "T": 4830.0,
+    "seconds": 220.0,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -121.4,
+    "note": "eleven steps of Macro as one",
+    "model": -121.4
+   },
+   "A/x05_macro_steps_tone1k_decay2_00": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2_00",
+    "T": 4830.0,
+    "seconds": 20.0,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -121.01,
+    "engine_first": -122.98,
+    "model": -121.0,
+    "model_first": -123.0
+   },
+   "A/x05_macro_steps_tone1k_decay2_01": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2_01",
+    "T": 4850.0,
+    "seconds": 20.0,
+    "macro": 0.1,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -121.71,
+    "engine_first": -121.28,
+    "model": -121.7,
+    "model_first": -121.3
+   },
+   "A/x05_macro_steps_tone1k_decay2_02": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2_02",
+    "T": 4870.0,
+    "seconds": 20.0,
+    "macro": 0.2,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -122.13,
+    "engine_first": -121.21,
+    "model": -122.1,
+    "model_first": -121.2
+   },
+   "A/x05_macro_steps_tone1k_decay2_03": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2_03",
+    "T": 4890.0,
+    "seconds": 20.0,
+    "macro": 0.3,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -122.35,
+    "engine_first": -120.37,
+    "model": -122.4,
+    "model_first": -120.4
+   },
+   "A/x05_macro_steps_tone1k_decay2_04": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2_04",
+    "T": 4910.0,
+    "seconds": 20.0,
+    "macro": 0.4,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -120.17,
+    "engine_first": -121.73,
+    "model": -120.2,
+    "model_first": -121.8
+   },
+   "A/x05_macro_steps_tone1k_decay2_05": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2_05",
+    "T": 4930.0,
+    "seconds": 20.0,
+    "macro": 0.5,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -120.2,
+    "engine_first": -121.07,
+    "model": -120.2,
+    "model_first": -121.1
+   },
+   "A/x05_macro_steps_tone1k_decay2_06": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2_06",
+    "T": 4950.0,
+    "seconds": 20.0,
+    "macro": 0.6,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -121.41,
+    "engine_first": -121.6,
+    "model": -121.4,
+    "model_first": -121.6
+   },
+   "A/x05_macro_steps_tone1k_decay2_07": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2_07",
+    "T": 4970.0,
+    "seconds": 20.0,
+    "macro": 0.7,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -122.3,
+    "engine_first": -122.38,
+    "model": -122.3,
+    "model_first": -122.4
+   },
+   "A/x05_macro_steps_tone1k_decay2_08": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2_08",
+    "T": 4990.0,
+    "seconds": 20.0,
+    "macro": 0.8,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -122.19,
+    "engine_first": -121.0,
+    "model": -122.2,
+    "model_first": -121.0
+   },
+   "A/x05_macro_steps_tone1k_decay2_09": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2_09",
+    "T": 5010.0,
+    "seconds": 20.0,
+    "macro": 0.9,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -121.18,
+    "engine_first": -121.66,
+    "model": -121.2,
+    "model_first": -121.7
+   },
+   "A/x05_macro_steps_tone1k_decay2_10": {
+    "session": "A",
+    "case": "x05_macro_steps_tone1k_decay2_10",
+    "T": 5030.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -121.96,
+    "engine_first": -119.73,
+    "model": -122.0,
+    "model_first": -119.7
+   },
+   "A/x06_sweep_50_to_12k_macro100_decay2": {
+    "session": "A",
+    "case": "x06_sweep_50_to_12k_macro100_decay2",
+    "T": 4750.0,
+    "seconds": 70.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -110.65,
+    "engine_s": 1.6,
+    "model": -110.7
+   },
+   "T90/end_probe": {
+    "session": "T90",
+    "case": "end_probe",
+    "T": 1108.3,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -117.81,
+    "engine_s": 0.7,
+    "model": -117.8
+   },
+   "T90/f01_macro0_decay0p5_train": {
+    "session": "T90",
+    "case": "f01_macro0_decay0p5_train",
+    "T": 280.0,
+    "seconds": 24.0,
+    "macro": 0.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -103.16,
+    "engine_s": 0.5,
+    "model": -103.2
+   },
+   "T90/f02_macro100_decay0p5_train": {
+    "session": "T90",
+    "case": "f02_macro100_decay0p5_train",
+    "T": 314.0,
+    "seconds": 24.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -103.99,
+    "engine_s": 0.5,
+    "model": -104.0
+   },
+   "T90/f03_scan_macro100_decay0p5": {
+    "session": "T90",
+    "case": "f03_scan_macro100_decay0p5",
+    "T": 348.0,
+    "seconds": 100.0,
+    "macro": 1.0,
+    "decay": 0.5,
+    "size": 100.0,
+    "engine": -103.41,
+    "engine_s": 1.9,
+    "model": -103.4
+   },
+   "T90/f04_tone_macro100_decay2": {
+    "session": "T90",
+    "case": "f04_tone_macro100_decay2",
+    "T": 458.0,
+    "seconds": 70.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.93,
+    "note": "four plays and the tail as one",
+    "model": -116.9
+   },
+   "T90/k00_neutral": {
+    "session": "T90",
+    "case": "k00_neutral",
+    "T": 538.0,
+    "seconds": 16.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -103.51,
+    "engine_s": 0.5,
+    "model": -103.5
+   },
+   "T90/k01_predelay50ms": {
+    "session": "T90",
+    "case": "k01_predelay50ms",
+    "T": 564.0,
+    "seconds": 16.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -103.34,
+    "engine_s": 0.5,
+    "controls": "Pre Delay 50 ms",
+    "model": -103.34
+   },
+   "T90/k02_predelay200ms": {
+    "session": "T90",
+    "case": "k02_predelay200ms",
+    "T": 590.0,
+    "seconds": 16.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -103.14,
+    "engine_s": 0.5,
+    "controls": "Pre Delay 200 ms",
+    "model": -103.14
+   },
+   "T90/k05_width0": {
+    "session": "T90",
+    "case": "k05_width0",
+    "T": 668.0,
+    "seconds": 16.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -103.35,
+    "engine_s": 0.5,
+    "controls": "Width 0 %, the reference's law",
+    "model": -103.35
+   },
+   "T90/k06_width150": {
+    "session": "T90",
+    "case": "k06_width150",
+    "T": 694.0,
+    "seconds": 16.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -103.15,
+    "engine_s": 0.6,
+    "controls": "Width 150 %, the reference's law",
+    "model": -103.15
+   },
+   "T90/k07_mix50": {
+    "session": "T90",
+    "case": "k07_mix50",
+    "T": 720.0,
+    "seconds": 16.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -112.8,
+    "engine_s": 0.5,
+    "controls": "Mix 50 %, the reference's law",
+    "model": -112.8
+   },
+   "T90/k12_size30": {
+    "session": "T90",
+    "case": "k12_size30",
+    "T": 850.0,
+    "seconds": 16.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 30.0,
+    "engine": -106.96,
+    "engine_s": 0.6,
+    "model": -107.0
+   },
+   "T90/k13_size200": {
+    "session": "T90",
+    "case": "k13_size200",
+    "T": 876.0,
+    "seconds": 16.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 200.0,
+    "engine": -100.05,
+    "engine_s": 0.6,
+    "model": -100.0
+   },
+   "T90/k14_decay20": {
+    "session": "T90",
+    "case": "k14_decay20",
+    "T": 902.0,
+    "seconds": 16.0,
+    "macro": 1.0,
+    "decay": 20.0,
+    "size": 100.0,
+    "engine": -99.95,
+    "engine_s": 0.6,
+    "model": -100.0
+   },
+   "T90/k15_macro50": {
+    "session": "T90",
+    "case": "k15_macro50",
+    "T": 928.0,
+    "seconds": 16.0,
+    "macro": 0.5,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -100.89,
+    "engine_s": 0.6,
+    "model": -100.9
+   },
+   "T90/k16_neutral_again": {
+    "session": "T90",
+    "case": "k16_neutral_again",
+    "T": 954.0,
+    "seconds": 16.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -97.05,
+    "engine_s": 0.7,
+    "model": -97.0
+   },
+   "T90/m01_00_macro0000": {
+    "session": "T90",
+    "case": "m01_00_macro0000",
+    "T": 980.0,
+    "seconds": 6.2,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.9,
+    "engine_first": -115.64,
+    "model": -115.9,
+    "model_first": -115.6
+   },
+   "T90/m01_01_macro0300": {
+    "session": "T90",
+    "case": "m01_01_macro0300",
+    "T": 986.3,
+    "seconds": 6.2,
+    "macro": 0.3,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.32,
+    "engine_first": -117.3,
+    "model": -116.3,
+    "model_first": -117.3
+   },
+   "T90/m01_02_macro0700": {
+    "session": "T90",
+    "case": "m01_02_macro0700",
+    "T": 992.5,
+    "seconds": 6.2,
+    "macro": 0.7,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -117.26,
+    "engine_first": -117.7,
+    "model": -117.3,
+    "model_first": -117.7
+   },
+   "T90/m01_03_macro1000": {
+    "session": "T90",
+    "case": "m01_03_macro1000",
+    "T": 998.8,
+    "seconds": 6.2,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.55,
+    "engine_first": -115.66,
+    "model": -116.6,
+    "model_first": -115.7
+   },
+   "T90/m01_04_macro0550": {
+    "session": "T90",
+    "case": "m01_04_macro0550",
+    "T": 1005.0,
+    "seconds": 6.2,
+    "macro": 0.55,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.53,
+    "engine_first": -117.57,
+    "model": -115.5,
+    "model_first": -117.6
+   },
+   "T90/m01_05_macro0100": {
+    "session": "T90",
+    "case": "m01_05_macro0100",
+    "T": 1011.3,
+    "seconds": 6.2,
+    "macro": 0.1,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.86,
+    "engine_first": -116.98,
+    "model": -115.9,
+    "model_first": -117.0
+   },
+   "T90/m01_06_macro1000": {
+    "session": "T90",
+    "case": "m01_06_macro1000",
+    "T": 1017.5,
+    "seconds": 6.2,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -116.63,
+    "engine_first": -116.17,
+    "model": -116.6,
+    "model_first": -116.2
+   },
+   "T90/m01_07_macro0000": {
+    "session": "T90",
+    "case": "m01_07_macro0000",
+    "T": 1023.8,
+    "seconds": 6.2,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -112.1,
+    "engine_first": -115.71,
+    "model": -112.1,
+    "model_first": -115.7
+   },
+   "T90/m01_08_macro0500": {
+    "session": "T90",
+    "case": "m01_08_macro0500",
+    "T": 1030.0,
+    "seconds": 6.2,
+    "macro": 0.5,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.83,
+    "engine_first": -115.59,
+    "model": -115.8,
+    "model_first": -115.6
+   },
+   "T90/m01_90_tail": {
+    "session": "T90",
+    "case": "m01_90_tail",
+    "T": 1040.3,
+    "seconds": 6.0,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.64,
+    "model": -115.6
+   },
+   "T90/m01_macro_motion_decay2": {
+    "session": "T90",
+    "case": "m01_macro_motion_decay2",
+    "T": 980.0,
+    "seconds": 66.3,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.55,
+    "note": "90 plays and the tail as one",
+    "model": -115.6
+   },
+   "T90/m01_staircase": {
+    "session": "T90",
+    "case": "m01_staircase",
+    "T": 1036.3,
+    "seconds": 4.0,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -115.66,
+    "note": "81 plays of 50 ms, 0 -> 100 -> 0 %",
+    "model": -115.7
+   },
+   "T90/n01_noise_macro100_decay2": {
+    "session": "T90",
+    "case": "n01_noise_macro100_decay2",
+    "T": 1056.3,
+    "seconds": 16.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -103.2,
+    "engine_s": 0.7,
+    "model": -103.2
+   },
+   "T90/n02_noise_macro0_decay2": {
+    "session": "T90",
+    "case": "n02_noise_macro0_decay2",
+    "T": 1082.3,
+    "seconds": 16.0,
+    "macro": 0.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -103.12,
+    "engine_s": 0.7,
+    "model": -103.1
+   },
+   "T90/p007": {
+    "session": "T90",
+    "case": "p007",
+    "T": 220.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -117.45,
+    "engine_s": 0.4,
+    "model": -117.5
+   },
+   "T90/p008": {
+    "session": "T90",
+    "case": "p008",
+    "T": 250.0,
+    "seconds": 20.0,
+    "macro": 1.0,
+    "decay": 2.0,
+    "size": 100.0,
+    "engine": -117.36,
+    "engine_s": 0.4,
+    "model": -117.4
+   }
+  }
+ },
+ "evolutionInMotion": {
+  "law": "measured: at the first sample of a block of 44 internal samples (samples 43 modulo 44 from the first frame) each of the two gains keeps exp(-44/441) = 0.9050426198534351 of its distance from its target (cos and sin of pi/2 Evolution) and is held over the block",
+  "whereANewEvolutionEnters": "Ocean's own: at the first block that begins at or after its arrival; at once while the layer holds no signal",
+  "gainFloor": "Ocean's own: a gain within 1e-12 of its target takes the target (277 blocks, 0.28 s, behind a full step)",
+  "theReferencesBlock": {
+   "rule": "foam_model.first_block: the reference converts in chunks of 48 host frames and a block takes the value of the host call in which its chunk is completed; fitted on two alignments; kept in the renderer and the golden test",
+   "engineBlockAgainstItAt48kHz": "never earlier; the same block or the next (44 internal samples, 1 ms, later)",
+   "shareOfHostCallsWithTheSameBlock": {
+    "blocks of 32 to 2048 frames (powers of two)": "0.56 to 0.59",
+    "blocks of 512 frames": 0.59,
+    "blocks of 48, 96 or 480 frames": 0.17,
+    "every frame taken as the start of a call": 0.41
+   },
+   "measuredOver": "17 000 host frames, by FathomEngine::nextCoreSampleForTesting"
+  }
+ },
+ "tests": {
+  "dspExecutable": {
+   "binary": "build-spume-dsp/AmanitaOceanDSPTests",
+   "passed": 102,
+   "failed": 0,
+   "exitCode": 0,
+   "seconds": 94.0,
+   "olderTests": 89,
+   "newTests": 13,
+   "newTestsBy": {
+    "--test-spume": "ten: the nine of the port and 'Spume under Freeze takes no new input'",
+    "--test-undertow": "'Undertow under Freeze takes no new input', with Undertow's twelve of 0.23.0",
+    "--test-engine-stages": "'Engine Characters' own level stages and Sub Anchors through switches'",
+    "--test-fathom": "'Fathom under Freeze takes no new input', with Fathom's twenty-five (docs/FATHOM.md)",
+    "--test-freeze": "the three Freeze tests together"
+   },
+   "olderMetricLines": "every [METRIC] line of the 89 older tests (269 lines) equals that of the committed tree built in the same folder, but for one of Fathom's under Freeze that moved with Fathom's own rule (docs/FATHOM.md); so does every line of the nine tests of the port after the Freeze rules went in",
+   "existingTestsChangedForTheFreezeRule": "none: no existing test asserted that a layer takes input under Freeze; the Freeze checks in 'Undertow engine determinism, clocks, reset and Freeze' and 'Spume engine determinism, reset, Pre Delay and Freeze' hold that input does not reach a held network through the layer, before and after",
+   "existingTestChanged": "'Fathom sample rates and stability': the mode that does not exist is spume + 1 (it was undertow + 1); allowed by the lead"
+  },
+  "stateExecutable": {
+   "binary": "build-spume-dsp/AmanitaOceanStateTests",
+   "result": "passed",
+   "exitCode": 0,
+   "seconds": 8.3,
+   "owner": "the colleague's file; run, not edited; built from the colleague's sources as they stood on 10 October with the Freeze rule in",
+   "metricLines": "those of the run before the Freeze rule, but for four of Fathom's that follow the random voice seed of each instance and differ from run to run"
+  },
+  "rendererBitIdentity": "twenty-four renders with the Tide and the Undertow layer (44.1, 48, 96 kHz; with and without the outer laws, Macro steps, transports running and stopped, an idle warm-up) are the same bytes from the renderer of the committed tree and from the final one",
+  "scoredAgainWithTheFreezeRule": {
+   "spume": {
+    "command": "score_spume_engine.py A AM T90 T90K T90M",
+    "rows": 60,
+    "of": 81,
+    "scoresChanged": 0
+   },
+   "undertow": {
+    "command": "score_undertow_engine.py --tool build-spume-dsp/AmanitaOceanFathomRender E T90 S90 FS4",
+    "recordings": 52,
+    "scoresChanged": 0
+   },
+   "generators": "emit_engine_header.py, emit_engine_constants.py, emit_undertow_header.py and emit_spume_header.py --check: every generated header up to date; --engine of the last two: every null against the model as before"
+  },
+  "newTests": [
+   "Spume diffuser against the model",
+   "Spume engine golden vectors",
+   "Spume at Evolution 0",
+   "Spume engine determinism, reset, Pre Delay and Freeze",
+   "Spume independence of the host's block length",
+   "Spume Evolution steps and ramps",
+   "Spume silence, denormals and hostile input",
+   "Spume engine allocation-free processing",
+   "Spume routing, crossfades and return through the plug-in",
+   "Spume under Freeze takes no new input"
+  ],
+  "metrics": {
+   "Spume diffuser against the model": "worst sample=1.30104e-18, worst sum=3.44169e-15, energy of 60000 samples=0.907318",
+   "Spume golden vectors": "worst null against the model=-145.702 dB, limit=-130 dB; Macro handed over a block late=-35.086 dB at best",
+   "Spume gain steps on a constant": "worst distance from the one-pole of 10 ms at the block rate=4.46809e-13, largest step=0.0949574 of the way (1 - exp(-44/441)=0.0949574)",
+   "Spume Macro in motion": "click measure at rest=0.00186315, steps=0.0975904, steps taken at once=0.848772, ramp=0.00176789; distance from the law, steps=1.01574e-12, ramp=7.36716e-13",
+   "Spume diffuser": "last sound 22.6132 s behind the start of half a second of input",
+   "Fathom to Spume switch": "largest distance from the crossfade=0, peak of its two sides=0.117839",
+   "Spume to Fathom switch": "largest distance from the crossfade=1.11759e-08, peak of its two sides=0.102913",
+   "Undertow to Spume switch": "largest distance from the crossfade=0, peak of its two sides=0.165599",
+   "Spume to Undertow switch": "largest distance from the crossfade=9.31323e-09, peak of its two sides=0.0988062",
+   "Fathom to Undertow to Spume switch": "largest distance from the three by their amounts=0, peak of its sides=0.117839, samples with all three=4799",
+   "Default to Spume switch": "largest distance from the crossfade=2.6077e-08, peak of its two sides=0.18918",
+   "Spume to Default switch": "largest distance from the crossfade=2.23517e-08, peak of its two sides=0.18918",
+   "Spume under Freeze at Evolution 100 %": "of a burst played wholly inside it, behind the release there is nothing (the burst ended 1.05 s in front of the release) and nothing (50 ms in front); Fathom at Evolution 100 % by the same measure: nothing and nothing",
+   "Spume layer at Macro 1 through a hold of four seconds": "click measure=0.00160462 (without the hold 0.00150316, with the share taken at once 0.016701), distance from the input by its gain and the diffused input by its share=0",
+   "Spume layer at Macro 0.62 through a hold of four seconds": "click measure=0.00194806 (without the hold 0.00186315, with the share taken at once 0.0138205), distance from the input by its gain and the diffused input by its share=1.11022e-16",
+   "Spume engine, an impulse on the last steps of the hold's glide against the engine that never held, given the impulse by the share of its sample": "null=-142.539 dB at worst (by the share of the next sample -66.8163 dB at best)",
+   "Engine Characters' outer stages through 5 switches": "largest distance from stages of their own, from rest at every visit=0, peak=0.695555, allowed=2.78222e-06; level stages that were not restarted stand 0.00193 away at least, anchors that were not 1.55941e-05 (grain 8.29166e-08)"
+  },
+  "clickMeasure": {
+   "definition": "largest second difference of what the layer hands the network for two steady tones (220 and 330 Hz, 0.5 each)",
+   "macroAtRestAt62Percent": 0.00186315,
+   "steps25Between0And100Percent": 0.0975904,
+   "theSameStepsTakenAtOnce": 0.848772,
+   "rampInHostBlocksOf256Frames": 0.00176789,
+   "note": "a step of Macro moves each gain 9.5 % of the way in its first block, as the measured law has it"
+  },
+  "sanitizers": {
+   "folder": "build-spume-sanitize",
+   "configuration": "Debug, arm64, -fsanitize=address,undefined -fno-omit-frame-pointer",
+   "beforeTheFreezeRule": {
+    "command": "AmanitaOceanDSPTests --test-spume",
+    "tests": "the nine tests of the port and \"no allocations in process\"",
+    "exitCode": 0,
+    "reports": 0,
+    "seconds": 458.9,
+    "metricLines": "those of the Release build to the last digit"
+   },
+   "withTheFreezeRule": {
+    "folder": "build-spume-sanitize",
+    "configuration": "Debug, arm64, -fsanitize=address,undefined -fno-omit-frame-pointer",
+    "runs": {
+     "--test-spume": {
+      "passed": 11,
+      "failed": 0,
+      "reports": 0,
+      "time": "10:51.13 total",
+      "metricLinesThoseOfTheReleaseBuild": true,
+      "tests": [
+       "Spume diffuser against the model",
+       "Spume engine golden vectors",
+       "Spume at Evolution 0",
+       "Spume engine determinism, reset, Pre Delay and Freeze",
+       "Spume independence of the host's block length",
+       "Spume Evolution steps and ramps",
+       "Spume silence, denormals and hostile input",
+       "Spume engine allocation-free processing",
+       "Spume routing, crossfades and return through the plug-in",
+       "Spume under Freeze takes no new input",
+       "no allocations in process"
+      ]
+     },
+     "--test-undertow": {
+      "passed": 14,
+      "failed": 0,
+      "reports": 0,
+      "time": "11:05.88 total",
+      "metricLinesThoseOfTheReleaseBuild": true,
+      "tests": [
+       "Undertow engine golden vectors",
+       "Undertow at Evolution 0",
+       "Undertow engine determinism, clocks, reset and Freeze",
+       "Undertow independence of the host's block length",
+       "Undertow transport start, stop, jump, loop and tempo",
+       "Undertow tempo ramps and steps in host blocks of any length",
+       "Undertow position that tells nothing",
+       "Undertow Macro steps",
+       "Undertow long run stays on the grid",
+       "Undertow silence, denormals and hostile input",
+       "Undertow engine allocation-free processing",
+       "Undertow routing, crossfades and return through the plug-in",
+       "Undertow under Freeze takes no new input",
+       "no allocations in process"
+      ]
+     },
+     "--test-engine-stages": {
+      "passed": 2,
+      "failed": 0,
+      "reports": 0,
+      "time": "49.835 total",
+      "metricLinesThoseOfTheReleaseBuild": true,
+      "tests": [
+       "Engine Characters' own level stages and Sub Anchors through switches",
+       "no allocations in process"
+      ]
+     }
+    }
+   },
+   "withFathomsRuleInAsWell": {
+    "folder": "build-spume-sanitize",
+    "configuration": "Debug, arm64, -fsanitize=address,undefined -fno-omit-frame-pointer",
+    "command": "AmanitaOceanDSPTests --test-freeze",
+    "tests": [
+     "Fathom under Freeze takes no new input",
+     "Undertow under Freeze takes no new input",
+     "Spume under Freeze takes no new input",
+     "no allocations in process"
+    ],
+    "failed": 0,
+    "reports": 0,
+    "time": "8:39.58 total",
+    "metricLinesThoseOfTheReleaseBuild": true,
+    "builtBefore": "a comment added to FathomEngine.h afterwards"
+   }
+  },
+  "engineStages": {
+   "test": "Engine Characters' own level stages and Sub Anchors through switches",
+   "programme": "Mono Safe on, Width 150 %, Mix 100 %, Evolution 50 %, 48 kHz; bursts of an 88 Hz tone that differs between the sides, by turns at 0.9 and 0.54; Fathom, Spume, Fathom, Undertow, Spume, Undertow with stays of 1 s and the input running on",
+   "distanceFromStagesOfTheirOwn": 0.0,
+   "allowedOfThePeak": 4e-06,
+   "peak": 0.695555,
+   "levelStagesNotRestartedStandAway": 0.00193,
+   "anchorsNotRestartedStandAway": 1.55941e-05,
+   "secondVisitsAgainstAPlugInThatWasNeverThere": "bit for bit, three of three",
+   "mutantsOfFDNReverbBuiltOutOfTheTree": {
+    "count": 26,
+    "killed": 26,
+    "named": {
+     "Spume uses Fathom's level stage": 0.0046,
+     "Spume uses Undertow's Sub Anchor": 0.0154,
+     "no restart of level stage and anchor on disengage (all three, and each engine alone)": "0.0019 to 0.0031",
+     "anchor never restarted (all three, and each engine alone)": "1.6e-5 to 3.0e-5; and bit for bit by the second comparison alone, at the first frame behind the switch",
+     "Undertow shares Fathom's level stage and Sub Anchor": 0.0104
+    },
+    "others": "level stage alone not restarted, per engine; each of the twelve ways one engine can use another's level stage or Sub Anchor"
+   }
+  }
+ },
+ "freeze": {
+  "decidedBy": "the owner, 10 October 2026, for Spume and Undertow alike",
+  "rule": "Ocean's own: under Freeze the layer in front of the network takes no new input. In every internal sample the layer is given the share the network applies in that sample to what it writes into its lines, one less the hold (FathomNetwork::nextInputShare); the diffuser's input is the layer's input times that share (SpumeLayer::process). The hold moves in a straight line over 50 ms (2205 internal samples), the first step in the first internal sample behind the switch, and lands on its end exactly; a silent network takes the switch at once. The plain input is the network's to take or leave, as before.",
+  "withFreezeOff": "the share is one and every sample is what it was, to the bit",
+  "whatWasInTheDiffuserBefore": "runs out as it would, by 28.4 dB a second; the held network does not take it, and what is left at the release goes into the network again",
+  "againstTheInputsOwnTime": "the network scales what left its input pipeline of 44 samples in that sample, so its share runs a millisecond ahead of the diffuser's, under a glide of fifty",
+  "aBurstPlayedWhollyInsideAFreezeOfFiveSeconds": {
+   "measure": "energy of what the burst (a quarter second of noise at 0.3) adds to the four seconds behind the release, over the energy of the wet of the same burst played with no Freeze over the four seconds from its start; engine at 48 kHz, Decay 2 s, Evolution 100 %",
+   "burstEnds1p05sInFrontOfTheRelease": {
+    "spumeNow": "nothing: no bit differs",
+    "spumeBeforeTheRuleDb": -6.62,
+    "fathomNow": "nothing",
+    "fathomBeforeItsOwnRuleDb": "nothing"
+   },
+   "burstEnds0p25sInFrontOfTheRelease": {
+    "spumeNow": "nothing: no bit differs",
+    "spumeBeforeTheRuleDb": -0.03,
+    "fathomNow": "nothing",
+    "fathomBeforeItsOwnRuleDb": -161.44
+   },
+   "burstEnds50msInFrontOfTheRelease": {
+    "spumeNow": "nothing: no bit differs",
+    "spumeBeforeTheRuleDb": -0.0,
+    "fathomNow": "nothing",
+    "fathomBeforeItsOwnRuleDb": -52.26
+   },
+   "burstEnds3p25sInFrontOfTheRelease": {
+    "spumeNow": "nothing: no bit differs",
+    "spumeBeforeTheRuleDb": -67.59,
+    "fathomNow": "nothing",
+    "fathomBeforeItsOwnRuleDb": "nothing"
+   },
+   "burstEnds10msInFrontOfTheRelease": {
+    "spumeAtEvolution100Now": "nothing",
+    "spumeAtEvolution0NowDb": -138.51,
+    "what": "the network's input equaliser is not held and rings for some ten milliseconds; that is the plain input's path, at every Character"
+   },
+   "throughThePlugIn": "the output with the burst is the output without it, to the bit",
+   "beforeTheRuleMeasuredOn": "the same engine with the share held at one (a scratch build; not in the tree)"
+  },
+  "aSoundThatBeganBeforeFreeze": "is, to the bit, that sound ended where the hold's glide ends (50 ms behind the switch, with 256 frames of room for what the rate converters reach): what it played under Freeze is nowhere; what it played before is held by the network and runs out in the diffuser",
+  "evolution0": "the engine is Fathom's to the bit through a Freeze and across both its edges, at 44.1, 48 and 96 kHz",
+  "theShareToTheSample": {
+   "what": "Spume engine at 44.1 kHz, an impulse 2160, 2175 and 2190 samples behind the release, against the engine that never held, given the impulse by the share of its sample",
+   "nullDb": -142.539,
+   "byTheShareOfTheNextSampleDb": -66.8163
+  },
+  "clickMeasure": {
+   "definition": "largest second difference of what the layer hands the network for two steady tones, through a hold of four seconds with the share on the glide of 2205 samples at either end",
+   "macro100": {
+    "throughTheHold": 0.00160462,
+    "withoutTheHold": 0.00150316,
+    "shareTakenAtOnce": 0.016701
+   },
+   "macro62": {
+    "throughTheHold": 0.00194806,
+    "withoutTheHold": 0.00186315,
+    "shareTakenAtOnce": 0.0138205
+   },
+   "limit": "1.5 times the measure without the hold"
+  },
+  "mutantsBuiltOutOfTheTree": {
+   "killedByTheSpumeTest": [
+    "Spume given the share one (the behaviour before the rule)",
+    "the share of the sample before",
+    "the share taken at once where the hold begins to move",
+    "the share taken at once where the hold has arrived",
+    "Spume alone given the share at once",
+    "the layer ignores the share",
+    "the layer mutes its plain input too"
+   ],
+   "survived": 0
+  },
+  "fathom": "under the same rule since the same day: its Tide comb takes its input by the lines' own share (docs/FATHOM.md)"
+ },
+ "cpu": {
+  "machine": "one core of an Apple M4 Max, stereo, Release, 20 s of noise per figure, best of three with other work on the machine",
+  "percentOfOneCore": {
+   "engineWithTideAtMacro100": {
+    "44100": 1.4,
+    "48000": 1.51,
+    "96000": 1.56
+   },
+   "engineWithTideAtMacro0": {
+    "44100": 1.4,
+    "48000": 1.49,
+    "96000": 1.54
+   },
+   "engineWithUndertowAtMacro100": {
+    "44100": 1.67,
+    "48000": 1.7,
+    "96000": 1.8
+   },
+   "engineWithSpumeAtMacro100": {
+    "44100": 1.53,
+    "48000": 1.63,
+    "96000": 1.8
+   },
+   "engineWithSpumeAtMacro50": {
+    "44100": 1.54,
+    "48000": 1.64,
+    "96000": 1.8
+   },
+   "engineWithSpumeAtMacro0": {
+    "44100": 1.52,
+    "48000": 1.62,
+    "96000": 1.8
+   },
+   "advanceIdleWithTide": {
+    "44100": 0.051,
+    "48000": 0.064,
+    "96000": 0.08
+   },
+   "advanceIdleWithSpume": {
+    "44100": 0.052,
+    "48000": 0.063,
+    "96000": 0.081
+   }
+  },
+  "layerPercentOfOneCore": {
+   "44100": 0.13,
+   "48000": 0.12,
+   "96000": 0.24
+  },
+  "layerMemoryMegabytes": 2.9,
+  "layerMemory": "28 lines of 179 737 frames in all (4.08 s), left and right, double precision: 2 875 792 bytes",
+  "plugInMemoryMoreThanBeforeMegabytes": "about 6 (the layer and a third engine of about 3 at 48 kHz)",
+  "notMeasured": "the whole DSP of the plug-in in Spume; why the layer costs twice as much at 96 kHz"
+ },
+ "properties": {
+  "diffuser": {
+   "directCopy": 0.0038062556242677453,
+   "energyOver12Seconds": 0.9987,
+   "energyCentroidSeconds": 1.023,
+   "shareOfEnergyBefore0p5Seconds": 0.016,
+   "shareOfEnergyBefore1Second": 0.489,
+   "loudest50msAtSeconds": 0.95,
+   "remainingEnergy60DbDownAtSeconds": 3.14,
+   "slopeDbPerSecond": -28.4,
+   "exactSilenceBehindHalfASecondOfTonesSeconds": 22.61,
+   "from": "foam_structure.kernel; the last figure from the test"
+  },
+  "wetLevelOnNoiseAgainstEvolution0Db": {
+   "10": 0.0,
+   "25": 0.0,
+   "50": -0.0,
+   "75": -0.01,
+   "90": -0.02,
+   "100": -0.02,
+   "measured": "the engine at 48 kHz, Decay 2 s, noise at 0.1 rms, the last 12 of 20 s"
+  }
+ },
+ "measuredAndOwn": {
+  "measured": [
+   "base untouched, the crossfade in front of the equaliser, left and right separate with the same diffuser (two instances)",
+   "Decay, Size, tempo, play head and the host block grid do not enter the diffuser (two instances)",
+   "the 28 delays (two instances), the seven gains, the Hadamard mixes, input one half per path, output the plain sum, seven stages",
+   "gains cos and sin of pi/2 Macro, the diffused gain behind the diffuser, which runs at every Macro (two instances)",
+   "the two gains move, not Macro: a one-pole of 10 ms run once per block of 44 internal samples and held (99 changes, two instances)",
+   "a block begins at internal samples 43 modulo 44 (two instances)",
+   "pre-delay in front of the diffuser; Width, Mix and the level stage on the wet (the second instance)",
+   "a change of mode in silence empties the network and the diffuser and restarts the oscillators (once)"
+  ],
+  "fitted": [
+   "which block of 44 first uses a new Macro: the reference's handling of host blocks, on two alignments; not in the engine"
+  ],
+  "oceansOwn": [
+   "a new Evolution enters at the first block of 44 that begins at or after its arrival; at once while the layer holds no signal",
+   "a gain within 1e-12 of its target is on it",
+   "what a line of the diffuser holds under 1e-30 is silence",
+   "while another Character is selected the engine only keeps time; it returns with the diffuser and the network empty, the gains on their targets and the oscillators where they would be",
+   "under Freeze the diffuser takes no new input, by the share the network gives its own in the same sample",
+   "Low Cut, High Damping, Freeze, Focus, Harmony, Mono Safe and the linear Mix, as in Fathom"
+  ]
+ },
+ "deviationsFromTheSpecification": [
+  "setLayer takes effect at the next prepare(), as for Undertow: the diffuser's memory is allocated there",
+  "two rules of Ocean's own beyond the floor of the lines, where none was expected: the floor of the gains (1e-12), without which a settled Spume at Evolution 0 is not Fathom to the bit, and the block a new Evolution enters at (the first that begins at or after its arrival)",
+  "the all-pass holds one delay line, not the model's two, in double precision; the same filter (1.3e-18 from the model's answer to an impulse)",
+  "FathomEngine::nextCoreSampleForTesting() is new in the interface: the renderer and the golden test hand a change of Macro over at a block by it",
+  "the plug-in blends Fathom and Undertow by their amounts and the two with Spume by theirs; the amount of the three together is the ramp Undertow brought"
+ ],
+ "limits": [
+  "One host rate was recorded: 48 kHz in blocks of 512. The golden vectors at 44.1 kHz check the port against the model, not the model against the reference; the reference's rule for the block of a new Macro was seen at 48 kHz only.",
+  "The reference's Transients and Brightness are not part of Ocean. In Foam its Transients stage sits in front of the diffuser; neither has a law.",
+  "The reference's high-pass and low-pass act in front of the diffuser; Ocean's Low Cut and High Damping are filters of its own inside the network's loop, behind it.",
+  "A change of mode under signal was never recorded. Ocean crossfades the Characters and enters Spume empty; its oscillators are not restarted there.",
+  "Input above 0.5 was not recorded.",
+  "Under Evolution automation the plug-in takes a new value at the reference's block or one block (1 ms) later; only the renderer and the golden test place it exactly.",
+  "The gains move in stairs of up to 9.5 % of the way once a millisecond, as measured in the reference; not listened to.",
+  "The wash has its own length: 28.4 dB a second whatever Decay is, 60 dB down some 3.1 s behind the input at the shortest Decay.",
+  "The precision of the reference's all-passes is not known; the engine's lines are double precision.",
+  "The 28 delays follow no law the engine uses; the campaign's reading of them is a guess.",
+  "Freeze is Ocean's own and was not moved in Foam. What the diffuser took before Freeze runs out in it and, as far as it has not, is heard again when Freeze ends; nothing played under Freeze is in it. Not listened to.",
+  "The network's input equaliser is not held: a burst that ends 10 ms in front of the release leaves -138.5 dB of itself at Evolution 0 (nothing at 100 %)."
+ ],
+ "notRun": [
+  "No listening test, no DAW, no plug-in validator; no plug-in bundle built or rendered here.",
+  "No build for x86_64, with GCC or MSVC, or with -ffp-contract=fast.",
+  "Sanitizers on the new tests and Undertow's only.",
+  "The Freeze rule in a host.",
+  "No recording of the reference at a host rate other than 48 kHz or in blocks other than 512.",
+  "The second recording of c15 (Decay in motion) was not scored.",
+  "No holdout exists for Foam; session T90 is the blind test of the model.",
+  "The level of Spume against the other Characters was not measured beyond the wet on noise against Evolution 0."
+ ]
+}

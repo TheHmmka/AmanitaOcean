@@ -9,11 +9,13 @@
 #include "dsp/HarmonicTail.h"
 #include "dsp/LateralDecay.h"
 #include "dsp/SpatialDucker.h"
+#include "dsp/SpumeLayer.h"
 #include "dsp/StereoField.h"
 #include "dsp/UndertowLayer.h"
 #include "dsp/VeilCharacter.h"
 
 #include "FathomGoldenVectors.h"
+#include "SpumeGoldenVectors.h"
 #include "UndertowGoldenVectors.h"
 
 #include <algorithm>
@@ -4443,7 +4445,7 @@ void testFathomSampleRatesAndStability()
     require(reverb.getParameters().mode == ReverbMode::fathom,
             "Fathom mode was not accepted");
     ReverbParameters pastTheEnd;
-    pastTheEnd.mode = static_cast<ReverbMode>(static_cast<int>(ReverbMode::undertow) + 1);
+    pastTheEnd.mode = static_cast<ReverbMode>(static_cast<int>(ReverbMode::spume) + 1);
     reverb.setParameters(pastTheEnd);
     require(reverb.getParameters().mode == ReverbMode::defaultMode,
             "The value after the last mode did not fall back to Default");
@@ -12476,6 +12478,2492 @@ void testUndertowPositionThatTellsNothing()
     }
     require(onGrid >= 9, "Undertow return test saw too few chunks on the host's grid");
 }
+
+// ------------------------------------------------------------------- Spume
+
+using amanita::dsp::SpumeDiffuser;
+using amanita::dsp::SpumeLayer;
+
+void prepareSpumeEngine(FathomEngine& engine, const FathomEngine::Parameters& parameters,
+                        double sampleRate)
+{
+    engine.setLayer(FathomEngine::Layer::spume);
+    engine.setParameters(parameters);
+    engine.prepare(sampleRate);
+}
+
+[[nodiscard]] FathomEngine::Parameters spumeTestParameters(float macro) noexcept
+{
+    FathomEngine::Parameters parameters;
+    parameters.decaySeconds = 1.5f;
+    parameters.sizeScale = 1.2f;
+    parameters.preDelaySeconds = 0.004f;
+    parameters.macro = macro;
+    return parameters;
+}
+
+void idleSpume(FathomEngine& engine, int frameCount) noexcept
+{
+    for (auto frame = 0; frame < frameCount; ++frame)
+        engine.advanceIdle();
+}
+
+// The diffuser alone against the campaign's model of it: its answer to an
+// impulse sample by sample over the first 12000, and by its sums as far as
+// 60000, behind the crest of the wash.
+void testSpumeDiffuserAgainstTheModel()
+{
+    namespace golden = amanita::dsp::spumegolden;
+    namespace spume = amanita::dsp::spume;
+
+    auto longest = 0;
+    auto total = 0;
+    for (const auto& stage : spume::delaySamples)
+    {
+        for (const auto delay : stage)
+        {
+            longest = std::max(longest, delay);
+            total += delay;
+        }
+    }
+    require(longest == spume::longestDelaySamples && total == spume::totalDelaySamples,
+            "Spume constants disagree about the delays of the diffuser");
+    require(std::abs(spume::gainBlockRetention - std::exp(-44.0 / 441.0)) <= 1.0e-16,
+            "Spume gains do not keep what a one-pole of 10 ms keeps over a block");
+
+    const auto reach = golden::diffuserKernelSums[std::size(golden::diffuserKernelSums) - 1].samples;
+    SpumeDiffuser diffuser;
+    diffuser.prepare();
+    std::vector<double> answer(static_cast<std::size_t>(reach));
+    for (auto sample = 0; sample < reach; ++sample)
+    {
+        auto left = 0.0;
+        auto right = 0.0;
+        diffuser.process(sample == 0 ? 1.0 : 0.0, sample == 0 ? -0.5 : 0.0, left, right);
+        // The two inputs go through two of the same.
+        require(!(right < -0.5 * left) && !(right > -0.5 * left),
+                "Spume diffuser treats its two inputs differently, sample " + std::to_string(sample));
+        answer[static_cast<std::size_t>(sample)] = left;
+    }
+
+    std::size_t listed = 0;
+    auto worstSample = 0.0;
+    for (auto sample = 0; sample < golden::diffuserKernelSamples; ++sample)
+    {
+        auto expected = 0.0;
+        if (listed < std::size(golden::diffuserKernel) && golden::diffuserKernel[listed].sample == sample)
+            expected = golden::diffuserKernel[listed++].value;
+        worstSample = std::max(worstSample,
+                               std::abs(answer[static_cast<std::size_t>(sample)] - expected));
+    }
+    require(listed == std::size(golden::diffuserKernel),
+            "Spume golden kernel is not in the order of its samples");
+
+    auto weightedSum = 0.0;
+    auto energy = 0.0;
+    auto worstSum = 0.0;
+    std::size_t row = 0;
+    for (auto sample = 0; sample < reach; ++sample)
+    {
+        const auto value = answer[static_cast<std::size_t>(sample)];
+        weightedSum += static_cast<double>(fathomNoise(sample, 0)) * value;
+        energy += value * value;
+        if (row < std::size(golden::diffuserKernelSums)
+            && golden::diffuserKernelSums[row].samples == sample + 1)
+        {
+            worstSum = std::max({ worstSum,
+                                  std::abs(weightedSum - golden::diffuserKernelSums[row].weightedSum),
+                                  std::abs(energy - golden::diffuserKernelSums[row].energy) });
+            ++row;
+        }
+    }
+    require(row == std::size(golden::diffuserKernelSums), "Spume golden kernel sums were not all reached");
+
+    std::cout << "[METRIC] Spume diffuser against the model: worst sample=" << worstSample
+              << ", worst sum=" << worstSum << ", energy of " << reach << " samples=" << energy << '\n';
+    require(worstSample <= 1.0e-15,
+            "Spume diffuser misses the model's answer to an impulse: " + std::to_string(worstSample));
+    require(worstSum <= 1.0e-12,
+            "Spume diffuser misses the sums of the model's answer to an impulse: "
+                + std::to_string(worstSum));
+
+    // clear() leaves the lines' memory as it is and forgets what they hold all the same.
+    for (auto sample = 0; sample < 40000; ++sample)
+    {
+        auto left = 0.0;
+        auto right = 0.0;
+        diffuser.process(static_cast<double>(fathomNoise(sample, 70)),
+                         static_cast<double>(fathomNoise(sample, 71)), left, right);
+    }
+    diffuser.clear();
+    for (auto sample = 0; sample < reach; ++sample)
+    {
+        auto left = 0.0;
+        auto right = 0.0;
+        diffuser.process(sample == 0 ? 1.0 : 0.0, sample == 0 ? -0.5 : 0.0, left, right);
+        require(sameBits(left, answer[static_cast<std::size_t>(sample)]),
+                "Spume diffuser kept something through clear(), sample " + std::to_string(sample));
+    }
+}
+
+void testSpumeEngineGoldenVectors()
+{
+    namespace golden = amanita::dsp::spumegolden;
+    namespace spume = amanita::dsp::spume;
+    // The model is the campaign's of the reference's Foam mode. The engine
+    // stores the signals of its network's lines in single precision and sits
+    // about 147 dB under the model on whole renders, as it does without the
+    // layer; the model itself meets the reference at -97 to -130 dB.
+    constexpr auto nullLimitDb = -130.0;
+    // The model names the block of 44 internal samples that first uses each
+    // new Macro. Handed over one block late, a change must show.
+    constexpr auto lateNullFloorDb = -60.0;
+    auto worstNullDb = -400.0;
+    auto bestLateNullDb = 0.0;
+
+    // The engine's render of a vector, with every change of Macro handed over
+    // `lateSamples` internal samples behind its block.
+    const auto render = [](const golden::Vector& vector, int frameCount, long long lateSamples)
+    {
+        FathomEngine::Parameters parameters;
+        parameters.decaySeconds = golden::decaySeconds;
+        parameters.sizeScale = golden::sizeScale;
+        parameters.macro = vector.macro;
+        FathomEngine::ClockOrigins origins;
+        origins.firstFrame = vector.firstFrame;
+        origins.oscillators = vector.origin;
+        FathomEngine engine;
+        engine.setClockOriginsForTesting(origins);
+        prepareSpumeEngine(engine, parameters, static_cast<double>(vector.hostRate));
+
+        const auto programmeFrames = static_cast<int>(vector.programme.size() / 2);
+        std::size_t change = 0;
+        std::vector<float> rendered;
+        rendered.reserve(2 * static_cast<std::size_t>(frameCount));
+        for (auto frame = 0; frame < frameCount; ++frame)
+        {
+            // The layer takes a new Macro at the block that begins next, so a
+            // value meant for the block at a given sample is handed over once
+            // the block in front of it has begun.
+            for (; change < vector.changes.size()
+                   && engine.nextCoreSampleForTesting()
+                          > vector.changes[change].firstBlockSample + lateSamples - spume::gainBlockSamples;
+                 ++change)
+            {
+                parameters.macro = vector.changes[change].macro;
+                engine.setParameters(parameters);
+            }
+
+            FathomEngine::Frame input;
+            for (const auto& impulse : vector.impulses)
+                if (impulse.frame == frame)
+                    (impulse.channel == 0 ? input.left : input.right) += impulse.amplitude;
+            const auto programmeFrame = frame - vector.programmeFirstFrame;
+            if (programmeFrame >= 0 && programmeFrame < programmeFrames)
+            {
+                input.left += vector.programme[2 * static_cast<std::size_t>(programmeFrame)];
+                input.right += vector.programme[2 * static_cast<std::size_t>(programmeFrame) + 1];
+            }
+            if (frame < vector.noiseFrames)
+            {
+                input.left += golden::noiseAmplitude * fathomNoise(frame, golden::noiseChannel);
+                input.right += golden::noiseAmplitude * fathomNoise(frame, golden::noiseChannel + 1);
+            }
+            const auto wet = engine.processSample(input.left, input.right);
+            rendered.push_back(wet.left);
+            rendered.push_back(wet.right);
+        }
+        return rendered;
+    };
+
+    for (const auto& vector : golden::vectors)
+    {
+        auto frameCount = 0;
+        for (const auto& excerpt : vector.excerpts)
+            frameCount = std::max(frameCount,
+                                  excerpt.firstFrame + static_cast<int>(excerpt.model.size() / 2));
+
+        const auto rendered = render(vector, frameCount, 0);
+        for (const auto& excerpt : vector.excerpts)
+        {
+            const auto nullDb = fathomNullDb(
+                std::span<const float>(rendered).subspan(
+                    2 * static_cast<std::size_t>(excerpt.firstFrame), excerpt.model.size()),
+                excerpt.model);
+            worstNullDb = std::max(worstNullDb, nullDb);
+            require(nullDb <= nullLimitDb,
+                    std::string("Spume engine misses the golden vector ") + vector.name
+                        + " from frame " + std::to_string(excerpt.firstFrame)
+                        + ": null=" + std::to_string(nullDb) + " dB");
+        }
+
+        if (vector.changes.empty())
+            continue;
+        const auto late = render(vector, frameCount, spume::gainBlockSamples);
+        for (const auto& excerpt : vector.excerpts)
+        {
+            const auto nullDb = fathomNullDb(
+                std::span<const float>(late).subspan(
+                    2 * static_cast<std::size_t>(excerpt.firstFrame), excerpt.model.size()),
+                excerpt.model);
+            bestLateNullDb = std::min(bestLateNullDb, nullDb);
+            require(nullDb >= lateNullFloorDb,
+                    std::string("Spume golden vector ") + vector.name + " from frame "
+                        + std::to_string(excerpt.firstFrame)
+                        + " does not tell the block of a change from the next: null="
+                        + std::to_string(nullDb) + " dB");
+        }
+    }
+
+    std::cout << "[METRIC] Spume golden vectors: worst null against the model=" << worstNullDb
+              << " dB, limit=" << nullLimitDb << " dB; Macro handed over a block late="
+              << bestLateNullDb << " dB at best\n";
+}
+
+// At Macro 0 the plain gain rests at one and the diffused one at zero, and
+// the layer hands the network its input as it is: the engine is Fathom's at
+// Macro 0 to the bit.
+void testSpumeIsFathomAtEvolutionZero()
+{
+    constexpr std::array<double, 3> sampleRates { 44100.0, 48000.0, 96000.0 };
+    for (const auto sampleRate : sampleRates)
+    {
+        const auto label = "Spume at Evolution 0, " + std::to_string(static_cast<int>(sampleRate))
+                         + " Hz: ";
+        const auto frameCount = static_cast<int>(sampleRate * 1.6);
+        const auto parameters = spumeTestParameters(0.0f);
+
+        FathomEngine tide;
+        tide.setParameters(parameters);
+        tide.prepare(sampleRate);
+        const auto expected = renderFathomProgramme(tide, frameCount);
+
+        FathomEngine spume;
+        prepareSpumeEngine(spume, parameters, sampleRate);
+        requireSameFathomRender(renderFathomProgramme(spume, frameCount), expected,
+                                label + "fresh instance");
+
+        // Macro came down from 100 %: once the gains have arrived and the
+        // network has fallen silent the engine is Fathom's again, whatever the
+        // diffuser still holds.
+        auto loud = parameters;
+        loud.decaySeconds = 0.2f;
+        loud.macro = 1.0f;
+        auto quiet = loud;
+        quiet.macro = 0.0f;
+        FathomEngine visited;
+        prepareSpumeEngine(visited, loud, sampleRate);
+        FathomEngine plain;
+        plain.setParameters(quiet);
+        plain.prepare(sampleRate);
+        const auto visitFrames = static_cast<int>(sampleRate * 0.5);
+        const auto restFrames = static_cast<int>(sampleRate * 9.0);
+        auto lastSound = -1;
+        for (auto frame = 0; frame < visitFrames + restFrames; ++frame)
+        {
+            if (frame == visitFrames)
+                visited.setParameters(quiet);
+            const auto input = frame < visitFrames ? fathomProgramme(frame % 3000) : FathomEngine::Frame {};
+            const auto wet = visited.processSample(input.left, input.right);
+            static_cast<void>(plain.processSample(input.left, input.right));
+            if (std::abs(wet.left) > 0.0f || std::abs(wet.right) > 0.0f)
+                lastSound = frame;
+        }
+        require(lastSound >= visitFrames && lastSound < visitFrames + static_cast<int>(sampleRate * 8.0),
+                label + "the engine did not fall silent behind Macro 100 %");
+        requireSameFathomRender(renderFathomProgramme(visited, frameCount),
+                                renderFathomProgramme(plain, frameCount),
+                                label + "settled after a visit at Macro 100 %");
+    }
+
+    // Through the plug-in: a settled Spume at Evolution 0 is a settled Fathom
+    // and a settled Undertow.
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto blockSize = 256;
+    auto parameters = fathomNeutralParameters();
+    parameters.evolution = 0.0f;
+    parameters.preDelayMs = 7.0f;
+    parameters.width = 1.3f;
+    parameters.mix = 0.8f;
+    constexpr std::array<ReverbMode, 3> modes { ReverbMode::fathom, ReverbMode::undertow, ReverbMode::spume };
+    std::array<FDNReverb, 3> reverbs;
+    for (std::size_t index = 0; index < modes.size(); ++index)
+    {
+        auto own = parameters;
+        own.mode = modes[index];
+        reverbs[index].setParameters(own);
+        reverbs[index].prepare(sampleRate, blockSize);
+    }
+    std::array<std::array<float, blockSize>, 3> left {};
+    std::array<std::array<float, blockSize>, 3> right {};
+    auto peak = 0.0f;
+    for (auto block = 0; block < 150; ++block)
+    {
+        for (std::size_t frame = 0; frame < blockSize; ++frame)
+        {
+            const auto input = fathomBursts(block * blockSize + static_cast<int>(frame), sampleRate);
+            for (std::size_t index = 0; index < modes.size(); ++index)
+            {
+                left[index][frame] = input.left;
+                right[index][frame] = input.right;
+            }
+        }
+        HostTransport transport;
+        transport.quarterNotes = 3.0 + block * blockSize / sampleRate * 2.0;
+        transport.bpm = 120.0;
+        transport.playing = true;
+        transport.hasTempo = true;
+        for (std::size_t index = 0; index < modes.size(); ++index)
+        {
+            reverbs[index].setHostTransport(transport);
+            reverbs[index].process(left[index].data(), right[index].data(), blockSize);
+        }
+        for (std::size_t frame = 0; frame < blockSize; ++frame)
+        {
+            require(sameBits(left[2][frame], left[0][frame]) && sameBits(right[2][frame], right[0][frame]),
+                    "A settled Spume at Evolution 0 is not a settled Fathom at Evolution 0");
+            require(sameBits(left[2][frame], left[1][frame]) && sameBits(right[2][frame], right[1][frame]),
+                    "A settled Spume at Evolution 0 is not a settled Undertow at Evolution 0");
+            peak = std::max(peak, std::abs(left[2][frame]));
+        }
+    }
+    require(peak > 0.01f, "The Evolution 0 comparison of Spume, Fathom and Undertow saw no signal");
+}
+
+void testSpumeEngineDeterminismAndReset()
+{
+    constexpr std::array<double, 3> sampleRates { 44100.0, 48000.0, 96000.0 };
+    for (const auto sampleRate : sampleRates)
+    {
+        const auto label = "Spume engine at " + std::to_string(static_cast<int>(sampleRate)) + " Hz, ";
+        const auto warmupFrames = static_cast<int>(sampleRate * 0.35);
+        const auto programmeFrames = static_cast<int>(sampleRate * 1.9);
+        const auto parameters = spumeTestParameters(1.0f);
+
+        const auto excite = [](FathomEngine& engine, int frames)
+        {
+            for (auto frame = 0; frame < frames; ++frame)
+                static_cast<void>(engine.processSample(0.3f * fathomNoise(frame, 2),
+                                                       0.3f * fathomNoise(frame, 3)));
+        };
+
+        FathomEngine fresh;
+        prepareSpumeEngine(fresh, parameters, sampleRate);
+        idleSpume(fresh, warmupFrames);
+        const auto expected = renderFathomProgramme(fresh, programmeFrames);
+
+        // The layer is in the render: Macro 0 gives another one.
+        {
+            FathomEngine plain;
+            prepareSpumeEngine(plain, spumeTestParameters(0.0f), sampleRate);
+            idleSpume(plain, warmupFrames);
+            const auto base = renderFathomProgramme(plain, programmeFrames);
+            auto layerEnergy = 0.0;
+            auto baseEnergy = 0.0;
+            for (std::size_t index = 0; index < expected.size(); ++index)
+            {
+                require(std::isfinite(expected[index]), label + "the programme produced NaN/Inf");
+                const auto difference = static_cast<double>(expected[index]) - base[index];
+                layerEnergy += difference * difference;
+                baseEnergy += static_cast<double>(base[index]) * base[index];
+            }
+            require(baseEnergy > 1.0e-6 && layerEnergy > 0.05 * baseEnergy,
+                    label + "Macro 100 % left the programme as Macro 0 has it");
+        }
+        {
+            FathomEngine second;
+            prepareSpumeEngine(second, parameters, sampleRate);
+            idleSpume(second, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(second, programmeFrames), expected,
+                                    label + "second instance");
+        }
+        {
+            FathomEngine used;
+            prepareSpumeEngine(used, parameters, sampleRate);
+            excite(used, 9000);
+            used.reset();
+            idleSpume(used, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(used, programmeFrames), expected,
+                                    label + "after reset()");
+        }
+        {
+            FathomEngine prepared;
+            prepareSpumeEngine(prepared, parameters, sampleRate * 2.0);
+            excite(prepared, 9000);
+            prepared.prepare(sampleRate);
+            idleSpume(prepared, warmupFrames);
+            requireSameFathomRender(renderFathomProgramme(prepared, programmeFrames), expected,
+                                    label + "after prepare() at another rate");
+        }
+        {
+            // Silence in gives exact silence out at every Macro: the layer
+            // has no noise of its own.
+            FathomEngine silent;
+            prepareSpumeEngine(silent, parameters, sampleRate);
+            for (auto frame = 0; frame < warmupFrames; ++frame)
+            {
+                const auto wet = silent.processSample(0.0f, 0.0f);
+                require(!(std::abs(wet.left) > 0.0f) && !(std::abs(wet.right) > 0.0f),
+                        label + "silence in did not give silence out");
+            }
+            requireSameFathomRender(renderFathomProgramme(silent, programmeFrames), expected,
+                                    label + "processed silence against advanceIdle()");
+        }
+        {
+            // The layer does not hear the host's transport.
+            FathomEngine told;
+            prepareSpumeEngine(told, parameters, sampleRate);
+            idleSpume(told, warmupFrames);
+            std::vector<float> rendered;
+            rendered.reserve(2 * static_cast<std::size_t>(programmeFrames));
+            for (auto frame = 0; frame < programmeFrames; ++frame)
+            {
+                if (frame % 96 == 0)
+                {
+                    FathomEngine::Transport transport;
+                    transport.hasTempo = (frame / 96) % 5 != 0;
+                    transport.bpm = 60.0 + static_cast<double>(frame % 700);
+                    transport.playing = (frame / 96) % 3 != 0;
+                    transport.quarterNotes = static_cast<double>(frame % 9000) * 0.01;
+                    told.setTransport(transport);
+                }
+                const auto input = fathomProgramme(frame);
+                const auto wet = told.processSample(input.left, input.right);
+                rendered.push_back(wet.left);
+                rendered.push_back(wet.right);
+            }
+            requireSameFathomRender(rendered, expected, label + "under a host that says its transport");
+        }
+
+        // Left idle after sound, the engine starts from silence, the diffuser
+        // empty, with its blocks where a fresh instance has them.
+        for (const auto idleFrames : { 1, 2, 3000 })
+        {
+            constexpr auto soundFrames = 31000;
+            FathomEngine reference;
+            prepareSpumeEngine(reference, parameters, sampleRate);
+            idleSpume(reference, soundFrames + idleFrames);
+            const auto afterIdle = renderFathomProgramme(reference, programmeFrames);
+
+            FathomEngine sounded;
+            prepareSpumeEngine(sounded, parameters, sampleRate);
+            excite(sounded, soundFrames);
+            idleSpume(sounded, idleFrames);
+            requireSameFathomRender(renderFathomProgramme(sounded, programmeFrames), afterIdle,
+                                    label + "after sound and " + std::to_string(idleFrames) + " idle frames");
+        }
+
+        // The diffuser takes the input behind the pre-delay, as the network
+        // does: Pre Delay moves the whole of the wet and nothing within it.
+        {
+            auto delayedParameters = parameters;
+            delayedParameters.preDelaySeconds = 0.05f;
+            auto plainParameters = parameters;
+            plainParameters.preDelaySeconds = 0.0f;
+            // The reference's pre-delay is one frame short of its time.
+            const auto delayFrames = static_cast<int>(
+                std::floor(50.0f * static_cast<float>(sampleRate) / 1000.0f)) - 1;
+            FathomEngine delayed;
+            FathomEngine early;
+            prepareSpumeEngine(delayed, delayedParameters, sampleRate);
+            prepareSpumeEngine(early, plainParameters, sampleRate);
+            auto peak = 0.0f;
+            for (auto frame = 0; frame < programmeFrames; ++frame)
+            {
+                const auto now = fathomProgramme(frame);
+                const auto then = frame >= delayFrames ? fathomProgramme(frame - delayFrames)
+                                                       : FathomEngine::Frame {};
+                const auto first = delayed.processSample(now.left, now.right);
+                const auto second = early.processSample(then.left, then.right);
+                require(sameBits(first.left, second.left) && sameBits(first.right, second.right),
+                        label + "Pre Delay is not a delay of the layer's input, frame "
+                            + std::to_string(frame));
+                peak = std::max({ peak, std::abs(first.left), std::abs(first.right) });
+            }
+            require(peak > 1.0e-3f, label + "the Pre Delay comparison saw no signal");
+        }
+
+        // Held, the network takes no input, and the layer is part of the
+        // input: once Freeze has arrived nothing the engine is given changes
+        // what it holds, and the diffuser's wash of what came before stays out.
+        {
+            const auto holdFrame = static_cast<int>(sampleRate * 0.6);
+            const auto partFrame = static_cast<int>(sampleRate * 0.75);
+            const auto endFrame = static_cast<int>(sampleRate * 1.75);
+            FathomEngine fed;
+            FathomEngine starved;
+            prepareSpumeEngine(fed, parameters, sampleRate);
+            prepareSpumeEngine(starved, parameters, sampleRate);
+            auto held = parameters;
+            held.freeze = true;
+            auto heldPeak = 0.0f;
+            for (auto frame = 0; frame < endFrame; ++frame)
+            {
+                if (frame == holdFrame)
+                {
+                    fed.setParameters(held);
+                    starved.setParameters(held);
+                }
+                const auto shared = frame < partFrame;
+                const auto left = 0.3f * fathomNoise(frame, 2);
+                const auto right = 0.3f * fathomNoise(frame, 3);
+                const auto first = fed.processSample(left, right);
+                const auto second = starved.processSample(shared ? left : 0.0f, shared ? right : 0.0f);
+                require(sameBits(first.left, second.left) && sameBits(first.right, second.right),
+                        label + "input reaches a held network through the layer, frame " + std::to_string(frame));
+                if (!shared)
+                    heldPeak = std::max({ heldPeak, std::abs(first.left), std::abs(first.right) });
+            }
+            require(heldPeak > 1.0e-3f, label + "Freeze held nothing");
+        }
+    }
+}
+
+// Nothing in Spume counts the host's blocks: the layer's own blocks of 44
+// internal samples count frames. However the host cuts its calls and whatever
+// it says of its transport, the output is the same, also while Evolution moves.
+void testSpumeHostBlockInvariance()
+{
+    for (const auto sampleRate : { 44100.0, 48000.0, 96000.0 })
+    {
+        const auto label = "Spume at " + std::to_string(static_cast<int>(sampleRate)) + " Hz, ";
+        const auto frameCount = static_cast<int>(sampleRate * 1.5);
+        // Evolution moves in front of these frames; the third move comes
+        // before the gains have settled on the second.
+        const std::array<std::pair<int, float>, 5> moves {{
+            { static_cast<int>(sampleRate * 0.30), 0.2f },
+            { static_cast<int>(sampleRate * 0.55), 1.0f },
+            { static_cast<int>(sampleRate * 0.55) + 173, 0.6f },
+            { static_cast<int>(sampleRate * 0.90), 0.0f },
+            { static_cast<int>(sampleRate * 1.20), 0.85f }
+        }};
+
+        const auto render = [&](int blockFrames, bool saysTransport)
+        {
+            ReverbParameters parameters;
+            parameters.mode = ReverbMode::spume;
+            parameters.mix = 0.7f;
+            parameters.decaySeconds = 3.0f;
+            parameters.preDelayMs = 11.0f;
+            parameters.evolution = 0.8f;
+            parameters.width = 1.2f;
+            FDNReverb reverb;
+            reverb.setParameters(parameters);
+            reverb.prepare(sampleRate, blockFrames);
+
+            std::vector<float> left(static_cast<std::size_t>(frameCount));
+            std::vector<float> right(static_cast<std::size_t>(frameCount));
+            for (auto frame = 0; frame < frameCount; ++frame)
+            {
+                const auto input = fathomBursts(frame, sampleRate, 0.5f);
+                left[static_cast<std::size_t>(frame)] = input.left;
+                right[static_cast<std::size_t>(frame)] = input.right;
+            }
+
+            std::size_t move = 0;
+            for (auto offset = 0; offset < frameCount;)
+            {
+                for (; move < moves.size() && moves[move].first == offset; ++move)
+                {
+                    parameters.evolution = moves[move].second;
+                    reverb.setParameters(parameters);
+                }
+                // A call ends where Evolution moves next.
+                auto count = std::min(blockFrames, frameCount - offset);
+                if (move < moves.size())
+                    count = std::min(count, moves[move].first - offset);
+                if (saysTransport)
+                {
+                    HostTransport transport;
+                    transport.quarterNotes = 3.0 + static_cast<double>(offset % 7001) * 0.013;
+                    transport.bpm = 60.0 + static_cast<double>(offset % 190);
+                    transport.playing = (offset / blockFrames) % 3 != 0;
+                    transport.hasTempo = (offset / blockFrames) % 11 != 0;
+                    reverb.setHostTransport(transport);
+                }
+                reverb.process(left.data() + offset, right.data() + offset, count);
+                offset += count;
+            }
+
+            std::vector<float> rendered;
+            rendered.reserve(2 * static_cast<std::size_t>(frameCount));
+            for (auto frame = 0; frame < frameCount; ++frame)
+            {
+                rendered.push_back(left[static_cast<std::size_t>(frame)]);
+                rendered.push_back(right[static_cast<std::size_t>(frame)]);
+            }
+            return rendered;
+        };
+
+        const auto expected = render(1, false);
+        auto peak = 0.0f;
+        for (const auto value : expected)
+            peak = std::max(peak, std::abs(value));
+        require(peak > 0.05f, label + "the block length programme stayed silent");
+        for (const auto blockFrames : { 32, 127, 512, 1000 })
+            requireSameFathomRender(render(blockFrames, false), expected,
+                                    label + "host blocks of " + std::to_string(blockFrames) + " frames");
+        requireSameFathomRender(render(64, true), expected, label + "a host that says its transport");
+    }
+}
+
+// The layer on its own at the internal rate, beside a diffuser that takes the
+// same input: what the layer hands the network is its input and that
+// diffuser's output, each times its gain.
+struct SpumeLayerRig
+{
+    explicit SpumeLayerRig(double macro)
+    {
+        layer.prepare();
+        layer.setMacro(macro, true);
+        diffuser.prepare();
+    }
+
+    // One internal sample.
+    void process(const std::array<double, 2>& input) noexcept
+    {
+        plain = input;
+        diffuser.process(input[0], input[1], diffused[0], diffused[1]);
+        output = input;
+        layer.process(output[0], output[1]);
+        ++samples;
+    }
+
+    SpumeLayer layer;
+    SpumeDiffuser diffuser;
+    std::array<double, 2> plain {};
+    std::array<double, 2> diffused {};
+    std::array<double, 2> output {};
+    // Samples taken so far: the index of the next one in the layer's count.
+    long long samples = 0;
+};
+
+// What may come in front of a sample of a run of the layer.
+struct SpumeMove
+{
+    double macro = -1.0;   // below zero: Macro stays
+    bool atOnce = false;
+};
+
+struct SpumeRun
+{
+    // Largest second difference of what the layer hands on: for a tone of
+    // amplitude a and angular frequency w per sample it is a w^2, and a step
+    // of height h gives h itself.
+    double click = 0.0;
+    // Largest distance of what the layer hands on from the law of its gains.
+    double lawDistance = 0.0;
+    double plainPeak = 0.0;
+    double diffusedPeak = 0.0;
+    bool finite = true;
+};
+
+// The layer over two steady tones while `move` moves Macro, against the law
+// in the test's own words: the plain gain goes to cos(pi/2 Macro) and the
+// diffused one to sin(pi/2 Macro); at the first sample of a block of 44,
+// samples 43 modulo 44 of the layer's count, each keeps exp(-44/441) of its
+// distance from where it is going, and it is held over the block.
+template <typename Move>
+[[nodiscard]] SpumeRun runSpumeLayer(double firstMacro, long long sampleCount, Move&& move)
+{
+    constexpr auto halfPi = 1.57079632679489661923;
+    const auto retention = std::exp(-44.0 / 441.0);
+    auto plainTarget = std::cos(halfPi * firstMacro);
+    auto diffusedTarget = std::sin(halfPi * firstMacro);
+    auto plainGain = plainTarget;
+    auto diffusedGain = diffusedTarget;
+
+    SpumeLayerRig rig(firstMacro);
+    SpumeRun run;
+    std::array<std::array<double, 2>, 2> before {};
+    for (long long sample = 0; sample < sampleCount; ++sample)
+    {
+        const SpumeMove moved = move(sample);
+        if (!(moved.macro < 0.0))
+        {
+            rig.layer.setMacro(moved.macro, moved.atOnce);
+            plainTarget = std::cos(halfPi * moved.macro);
+            diffusedTarget = std::sin(halfPi * moved.macro);
+            if (moved.atOnce)
+            {
+                plainGain = plainTarget;
+                diffusedGain = diffusedTarget;
+            }
+        }
+        if (sample % 44 == 43)
+        {
+            plainGain = plainTarget + (plainGain - plainTarget) * retention;
+            diffusedGain = diffusedTarget + (diffusedGain - diffusedTarget) * retention;
+        }
+
+        rig.process(undertowTones(sample));
+        for (std::size_t channel = 0; channel < 2; ++channel)
+        {
+            const auto now = rig.output[channel];
+            run.finite = run.finite && std::isfinite(now);
+            run.lawDistance = std::max(
+                run.lawDistance,
+                std::abs(now - (plainGain * rig.plain[channel] + diffusedGain * rig.diffused[channel])));
+            run.click = std::max(run.click,
+                                 std::abs(now - 2.0 * before[1][channel] + before[0][channel]));
+            run.plainPeak = std::max(run.plainPeak, std::abs(rig.plain[channel]));
+            run.diffusedPeak = std::max(run.diffusedPeak, std::abs(rig.diffused[channel]));
+        }
+        before[0] = before[1];
+        before[1] = rig.output;
+    }
+    return run;
+}
+
+// Macro in motion. The two gains, not Macro, are what moves, by the law the
+// campaign measured: a one-pole of 10 ms run once per block of 44 internal
+// samples and held over it. Ocean's own is only where a new Macro enters: at
+// the first block that begins once it has arrived.
+void testSpumeEvolutionStepsAndRamps()
+{
+    namespace spume = amanita::dsp::spume;
+    constexpr auto halfPi = 1.57079632679489661923;
+    const auto retention = std::exp(-44.0 / 441.0);
+
+    // From the output alone. Both inputs are constant and the diffuser has
+    // settled on them, where its four paths add up to twice the input: what
+    // the layer hands on is then a constant times each gain, and every step
+    // of it is a step of the gains.
+    {
+        constexpr auto level = 0.25;
+        constexpr std::array<double, 2> constant { level, -0.5 * level };
+        SpumeLayerRig rig(1.0);
+        for (auto sample = 0; sample < 14 * 44100; ++sample)
+            rig.process(constant);
+        require(std::abs(rig.diffused[0] - 2.0 * level) <= 1.0e-13
+                    && std::abs(rig.diffused[1] + level) <= 1.0e-13,
+                "Spume diffuser did not settle on twice a constant input");
+
+        // How far into a block of 44 a change arrives, and the Macro it brings.
+        struct Step
+        {
+            int intoBlock;
+            double macro;
+        };
+        constexpr std::array<Step, 6> steps {{
+            { 10, 0.3 }, { 0, 0.0 }, { 43, 1.0 }, { 21, 0.62 }, { 1, 0.07 }, { 30, 0.0 }
+        }};
+        constexpr auto settledBlocks = 400;
+        auto worstStair = 0.0;
+        auto largestStep = 0.0;
+        for (const auto& step : steps)
+        {
+            while ((rig.samples - spume::gainBlockPhase) % spume::gainBlockSamples != step.intoBlock)
+                rig.process(constant);
+            const auto from = rig.output;
+            const auto gain = std::cos(halfPi * step.macro) + 2.0 * std::sin(halfPi * step.macro);
+            const std::array<double, 2> target { constant[0] * gain, constant[1] * gain };
+
+            rig.layer.setMacro(step.macro, false);
+            auto blocks = 0;
+            auto last = from;
+            for (auto sample = 0; sample < settledBlocks * spume::gainBlockSamples; ++sample)
+            {
+                // The sample that comes next begins a block.
+                const auto begins = (rig.samples - spume::gainBlockPhase) % spume::gainBlockSamples == 0;
+                if (begins)
+                    ++blocks;
+                rig.process(constant);
+                const auto kept = std::pow(retention, blocks);
+                for (std::size_t channel = 0; channel < 2; ++channel)
+                {
+                    worstStair = std::max(
+                        worstStair,
+                        std::abs(rig.output[channel] - (target[channel] + (from[channel] - target[channel]) * kept)));
+                    // Within a block the gains are held.
+                    require(begins || std::abs(rig.output[channel] - last[channel]) <= 1.0e-15,
+                            "Spume gains move inside a block of 44 samples");
+                    largestStep = std::max(largestStep,
+                                           std::abs(rig.output[channel] - last[channel])
+                                               / std::max(1.0e-300, std::abs(from[channel] - target[channel])));
+                }
+                last = rig.output;
+            }
+            require(std::abs(rig.output[0] - target[0]) <= 1.0e-13
+                        && std::abs(rig.output[1] - target[1]) <= 1.0e-13,
+                    "Spume gains did not arrive at Macro " + std::to_string(step.macro));
+            if (!(step.macro > 0.0))
+                require(rig.layer.atRest() && sameBits(rig.output[0], constant[0])
+                            && sameBits(rig.output[1], constant[1]),
+                        "Spume layer does not come to rest at Macro 0");
+        }
+        std::cout << "[METRIC] Spume gain steps on a constant: worst distance from the one-pole of 10 ms at "
+                     "the block rate=" << worstStair << ", largest step=" << largestStep
+                  << " of the way (1 - exp(-44/441)=" << 1.0 - retention << ")\n";
+        require(worstStair <= 2.0e-12,
+                "Spume gains do not follow a one-pole of 10 ms run once per block of 44 samples: "
+                    + std::to_string(worstStair));
+        require(largestStep <= (1.0 - retention) * (1.0 + 1.0e-9),
+                "Spume gains take a larger step than the law gives them");
+    }
+
+    // Two tones through steps of Macro and through a ramp of it.
+    constexpr long long sampleCount = 441000;
+    constexpr std::array<double, 8> positions { 0.0, 1.0, 0.3, 0.7, 0.05, 0.62, 0.0, 1.0 };
+    const auto stepsOf = [&](bool atOnce)
+    {
+        return [&positions, atOnce](long long sample)
+        {
+            constexpr long long first = 9000;
+            constexpr long long apart = 17641;
+            if (sample < first || (sample - first) % apart != 0)
+                return SpumeMove {};
+            return SpumeMove { positions[static_cast<std::size_t>((sample - first) / apart) % positions.size()],
+                               atOnce };
+        };
+    };
+    const auto calm = runSpumeLayer(0.62, sampleCount, [](long long) { return SpumeMove {}; });
+    const auto stepped = runSpumeLayer(1.0, sampleCount, stepsOf(false));
+    const auto switched = runSpumeLayer(1.0, sampleCount, stepsOf(true));
+    // A host that automates Evolution in blocks of 256 frames: up over three
+    // seconds, down to 20 % over two.
+    const auto ramped = runSpumeLayer(0.0, sampleCount, [](long long sample)
+    {
+        constexpr long long first = 44100;
+        if (sample < first || (sample - first) % 256 != 0)
+            return SpumeMove {};
+        const auto seconds = static_cast<double>(sample - first) / 44100.0;
+        return SpumeMove { seconds < 3.0 ? seconds / 3.0 : std::max(0.2, 1.0 - 0.4 * (seconds - 3.0)), false };
+    });
+
+    std::cout << "[METRIC] Spume Macro in motion: click measure at rest=" << calm.click
+              << ", steps=" << stepped.click << ", steps taken at once=" << switched.click
+              << ", ramp=" << ramped.click << "; distance from the law, steps=" << stepped.lawDistance
+              << ", ramp=" << ramped.lawDistance << '\n';
+    require(calm.finite && stepped.finite && switched.finite && ramped.finite,
+            "Spume layer produced NaN/Inf under Macro in motion");
+    require(calm.diffusedPeak > 0.1 && calm.lawDistance <= 1.0e-11,
+            "Spume layer at rest is not its input and the diffused one by their gains");
+    require(stepped.lawDistance <= 1.0e-11 && ramped.lawDistance <= 1.0e-11,
+            "Spume gains do not follow the measured law under Macro in motion");
+    // No step of Macro puts more into a sample than the law's share of the
+    // way; taken at once the same steps are several times that.
+    require(stepped.click <= calm.click + (1.0 - retention) * (stepped.plainPeak + stepped.diffusedPeak),
+            "Spume Macro steps click");
+    require(switched.click >= 3.0 * stepped.click, "Spume click measure does not see a step taken at once");
+    require(ramped.click <= 2.0 * calm.click, "Spume Macro ramp clicks");
+
+    // The engine through steps of Macro on noise.
+    FathomEngine engine;
+    auto parameters = spumeTestParameters(0.0f);
+    prepareSpumeEngine(engine, parameters, 48000.0);
+    auto enginePeak = 0.0f;
+    for (auto frame = 0; frame < 240000; ++frame)
+    {
+        if (frame % 7919 == 0)
+        {
+            parameters.macro = static_cast<float>((frame / 7919) % 6) / 5.0f;
+            engine.setParameters(parameters);
+        }
+        const auto wet = engine.processSample(0.4f * fathomNoise(frame, 32), 0.4f * fathomNoise(frame, 33));
+        require(std::isfinite(wet.left) && std::isfinite(wet.right), "Spume Macro steps produced NaN/Inf");
+        enginePeak = std::max({ enginePeak, std::abs(wet.left), std::abs(wet.right) });
+    }
+    require(enginePeak > 0.05f && enginePeak < 8.0f, "Spume engine left its range under Macro steps");
+}
+
+void testSpumeSilenceDenormalsAndHostileInput()
+{
+    // The longest all-pass of the diffuser loses 11 dB a pass of 0.4 s and no
+    // more. Its lines hold nothing under a floor, so the wash ends in exact
+    // silence and never reaches the denormal range.
+    {
+        SpumeDiffuser diffuser;
+        diffuser.prepare();
+        auto lastSound = -1;
+        auto denormals = 0;
+        for (auto sample = 0; sample < 44100 * 40; ++sample)
+        {
+            const auto input = sample < 22050 ? undertowTones(sample) : std::array<double, 2> { 0.0, 0.0 };
+            auto left = 0.0;
+            auto right = 0.0;
+            diffuser.process(input[0], input[1], left, right);
+            for (const auto value : { left, right })
+            {
+                if (std::fpclassify(value) == FP_SUBNORMAL)
+                    ++denormals;
+                if (std::abs(value) > 0.0)
+                    lastSound = sample;
+            }
+        }
+        std::cout << "[METRIC] Spume diffuser: last sound " << static_cast<double>(lastSound) / 44100.0
+                  << " s behind the start of half a second of input\n";
+        require(denormals == 0, "Spume diffuser lets its lines reach the denormal range");
+        require(lastSound > 44100 * 10 && lastSound < 44100 * 35,
+                "Spume diffuser did not fall silent behind its input: last sound at sample "
+                    + std::to_string(lastSound));
+    }
+
+    constexpr std::array<float, 8> hostileSamples {
+        std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::max(),
+        -1.0e30f, std::numeric_limits<float>::denorm_min(), 1.0e-39f, -0.0f
+    };
+    for (const auto sampleRate : { 44100.0, 48000.0, 96000.0 })
+    {
+        const auto label = "Spume engine at " + std::to_string(static_cast<int>(sampleRate)) + " Hz ";
+
+        // Input that is all denormal is silence to the engine.
+        {
+            FathomEngine engine;
+            prepareSpumeEngine(engine, spumeTestParameters(1.0f), sampleRate);
+            for (auto frame = 0; frame < 30000; ++frame)
+            {
+                const auto wet = engine.processSample(frame % 2 == 0 ? 1.0e-39f : -1.0e-41f,
+                                                      std::numeric_limits<float>::denorm_min());
+                require(!(std::abs(wet.left) > 0.0f) && !(std::abs(wet.right) > 0.0f),
+                        label + "turned denormal input into sound");
+            }
+        }
+
+        auto parameters = spumeTestParameters(1.0f);
+        parameters.decaySeconds = 30.0f;
+        parameters.sizeScale = 2.0f;
+        parameters.preDelaySeconds = 0.25f;
+        FathomEngine engine;
+        FathomEngine::LevelStage levelStage;
+        prepareSpumeEngine(engine, parameters, sampleRate);
+        levelStage.prepare(sampleRate);
+        auto peak = 0.0f;
+        const auto frames = static_cast<int>(sampleRate * 1.5);
+        for (auto frame = 0; frame < frames; ++frame)
+        {
+            if (frame % 997 == 0)
+            {
+                const auto step = frame / 997;
+                parameters.decaySeconds = step % 3 == 0 ? 0.2f : 60.0f;
+                parameters.sizeScale = step % 2 == 0 ? 0.15f : 2.0f;
+                parameters.macro = step % 4 == 0 ? 0.0f : step % 4 == 1 ? 1.0f
+                                 : step % 4 == 2 ? 0.5f : std::numeric_limits<float>::quiet_NaN();
+                parameters.freeze = step % 6 == 5;
+                engine.setParameters(parameters);
+            }
+            auto left = fathomNoise(frame, 4);
+            auto right = fathomNoise(frame, 5);
+            if (frame % 61 == 0)
+                left = hostileSamples[static_cast<std::size_t>(frame / 61) % hostileSamples.size()];
+            if (frame % 89 == 0)
+                right = hostileSamples[static_cast<std::size_t>(frame / 89) % hostileSamples.size()];
+            auto wet = levelStage.process(left, right, engine.processSample(left, right));
+            wet = FathomEngine::applyWidth(wet, 2.0f);
+            wet.left = FathomEngine::clip(wet.left);
+            wet.right = FathomEngine::clip(wet.right);
+            require(std::isfinite(wet.left) && std::isfinite(wet.right),
+                    label + "let hostile input through as NaN/Inf");
+            peak = std::max({ peak, std::abs(wet.left), std::abs(wet.right) });
+        }
+        require(peak <= 3.99f, label + "left the clipper's range under hostile input");
+
+        // Once the input is gone the wash of the diffuser falls by 28 dB a
+        // second whatever Decay says, and the engine comes to exact silence
+        // behind it.
+        parameters = spumeTestParameters(1.0f);
+        parameters.decaySeconds = 0.2f;
+        parameters.sizeScale = 1.0f;
+        parameters.preDelaySeconds = 0.0f;
+        engine.setParameters(parameters);
+        auto lastFrame = -1;
+        const auto tailFrames = static_cast<int>(sampleRate * 36.0);
+        for (auto frame = 0; frame < tailFrames; ++frame)
+        {
+            const auto wet = engine.processSample(0.0f, 0.0f);
+            require(std::isfinite(wet.left) && std::isfinite(wet.right),
+                    label + "kept NaN/Inf after hostile input");
+            if (std::abs(wet.left) > 0.0f || std::abs(wet.right) > 0.0f)
+                lastFrame = frame;
+        }
+        require(lastFrame > static_cast<int>(sampleRate * 3.0) && lastFrame < static_cast<int>(sampleRate * 33.0),
+                label + "did not return to silence behind the diffuser's wash after hostile input: last "
+                        "sound at frame " + std::to_string(lastFrame));
+    }
+}
+
+void testSpumeEngineAllocatesOnlyInPrepare()
+{
+    constexpr std::array<double, 2> sampleRates { 48000.0, 44101.0 };
+    for (const auto sampleRate : sampleRates)
+    {
+        FathomEngine engine;
+        FathomEngine::LevelStage levelStage;
+        auto parameters = spumeTestParameters(1.0f);
+        prepareSpumeEngine(engine, parameters, sampleRate);
+        levelStage.prepare(sampleRate);
+
+        allocationCount.store(0, std::memory_order_relaxed);
+        countAllocations.store(true, std::memory_order_relaxed);
+        for (auto frame = 0; frame < 90000; ++frame)
+        {
+            if (frame % 211 == 0)
+            {
+                parameters.decaySeconds = parameters.decaySeconds > 1.0f ? 0.2f : 30.0f;
+                parameters.macro = static_cast<float>((frame / 211) % 5) / 4.0f;
+                parameters.freeze = frame % 422 == 0;
+                engine.setParameters(parameters);
+            }
+            if (frame % 37000 == 36000)
+                engine.reset();
+            if ((frame / 5000) % 3 == 2)
+            {
+                engine.advanceIdle();
+                continue;
+            }
+            const auto left = 0.5f * fathomNoise(frame, 6);
+            const auto right = 0.5f * fathomNoise(frame, 7);
+            static_cast<void>(levelStage.process(left, right, engine.processSample(left, right)));
+        }
+        countAllocations.store(false, std::memory_order_relaxed);
+
+        require(allocationCount.load(std::memory_order_relaxed) == 0,
+                "Spume engine allocated memory outside prepare()");
+    }
+
+    FDNReverb reverb;
+    auto parameters = fathomNeutralParameters();
+    parameters.mode = ReverbMode::spume;
+    reverb.setParameters(parameters);
+    reverb.prepare(48000.0, 256);
+    std::array<float, 256> left {};
+    std::array<float, 256> right {};
+    constexpr std::array<ReverbMode, 4> visits {
+        ReverbMode::fathom, ReverbMode::spume, ReverbMode::undertow, ReverbMode::spume
+    };
+    allocationCount.store(0, std::memory_order_relaxed);
+    countAllocations.store(true, std::memory_order_relaxed);
+    for (auto block = 0; block < 300; ++block)
+    {
+        for (std::size_t frame = 0; frame < left.size(); ++frame)
+        {
+            left[frame] = 0.3f * fathomNoise(block * 256 + static_cast<int>(frame), 8);
+            right[frame] = 0.3f * fathomNoise(block * 256 + static_cast<int>(frame), 9);
+        }
+        if (block % 40 == 20)
+        {
+            parameters.mode = visits[static_cast<std::size_t>(block / 40) % visits.size()];
+            reverb.setParameters(parameters);
+        }
+        if (block % 7 == 3)
+        {
+            parameters.evolution = static_cast<float>(block % 5) / 4.0f;
+            reverb.setParameters(parameters);
+        }
+        reverb.process(left.data(), right.data(), 256);
+    }
+    countAllocations.store(false, std::memory_order_relaxed);
+    require(allocationCount.load(std::memory_order_relaxed) == 0,
+            "Spume allocated memory in process");
+}
+
+// The chain each of the three Characters that are engines must reduce to
+// while Ocean's own controls are neutral: Fathom's, with the engine under the
+// Character's layer and told of the host's transport, which only Undertow
+// hears.
+struct EngineCharacterChain
+{
+    EngineCharacterChain(ReverbMode mode, const ReverbParameters& parameters, double sampleRate)
+        : mix(parameters.mix), width(parameters.width)
+    {
+        engine.setLayer(mode == ReverbMode::spume ? FathomEngine::Layer::spume
+                      : mode == ReverbMode::undertow ? FathomEngine::Layer::undertow
+                                                     : FathomEngine::Layer::tide);
+        engine.setParameters(fathomEngineParameters(parameters));
+        engine.prepare(sampleRate);
+        levelStage.prepare(sampleRate);
+    }
+
+    void announce(const HostTransport& transport) noexcept
+    {
+        FathomEngine::Transport forwarded;
+        forwarded.quarterNotes = transport.quarterNotes;
+        forwarded.bpm = transport.bpm;
+        forwarded.playing = transport.playing;
+        forwarded.hasTempo = transport.hasTempo;
+        engine.setTransport(forwarded);
+    }
+
+    void idle() noexcept
+    {
+        engine.advanceIdle();
+    }
+
+    [[nodiscard]] FathomEngine::Frame wet(float dryLeft, float dryRight) noexcept
+    {
+        return levelStage.process(dryLeft, dryRight, engine.processSample(dryLeft, dryRight));
+    }
+
+    [[nodiscard]] FathomEngine::Frame process(float dryLeft, float dryRight) noexcept
+    {
+        const auto widened = FathomEngine::applyWidth(wet(dryLeft, dryRight), width);
+        return { FathomReferenceChain::guard(FathomEngine::clip(oceanMix(dryLeft, widened.left, mix))),
+                 FathomReferenceChain::guard(FathomEngine::clip(oceanMix(dryRight, widened.right, mix))) };
+    }
+
+    // A frame of the chain while its amount is above zero, a frame of time otherwise.
+    [[nodiscard]] FathomEngine::Frame frame(bool sounds, const FathomEngine::Frame& input) noexcept
+    {
+        if (sounds)
+            return process(input.left, input.right);
+        idle();
+        return {};
+    }
+
+    FathomEngine engine;
+    FathomEngine::LevelStage levelStage;
+    float mix;
+    float width;
+};
+
+// Two of the three Characters that are engines crossfade directly: the output
+// is the two chains by their amounts and nothing of the FDN shows.
+void requireEngineCharacterCrossfade(ReverbMode from, ReverbMode to, const std::string& label)
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto blockFrames = 64;
+    constexpr auto switchSample = 60000;
+    constexpr auto morphSamples = static_cast<int>(sampleRate * 0.20);
+    constexpr auto endSample = switchSample + morphSamples + 12000;
+
+    auto parameters = fathomNeutralParameters();
+    parameters.decaySeconds = 6.0f;
+    parameters.evolution = 0.8f;
+    auto switched = parameters;
+    switched.mode = from;
+    FDNReverb reverb;
+    reverb.setParameters(switched);
+    reverb.prepare(sampleRate, blockFrames);
+    EngineCharacterChain leaving(from, parameters, sampleRate);
+    EngineCharacterChain entering(to, parameters, sampleRate);
+    FathomMorphRamp enteringAmount(0.0f, 1.0f, morphSamples);
+    FathomMorphRamp leavingAmount(1.0f, 0.0f, morphSamples);
+
+    auto largestDistance = 0.0f;
+    auto peak = 1.0e-3f;
+    double sideDifferenceEnergy = 0.0;
+    double sideEnergy = 0.0;
+    for (auto sample = 0; sample < endSample; ++sample)
+    {
+        if (sample == switchSample)
+        {
+            switched.mode = to;
+            reverb.setParameters(switched);
+        }
+        if (sample % blockFrames == 0)
+        {
+            leaving.announce(undertowPlugInTransport(sample, sampleRate));
+            entering.announce(undertowPlugInTransport(sample, sampleRate));
+        }
+
+        const auto input = fathomBursts(sample, sampleRate, 0.5f);
+        auto left = input.left;
+        auto right = input.right;
+        processUndertowPlugIn(reverb, sample, sampleRate, left, right);
+
+        // Each side sounds while its amount is above zero and keeps time otherwise.
+        const auto old = leaving.frame(sample < switchSample + morphSamples - 1, input);
+        const auto fresh = entering.frame(sample >= switchSample, input);
+        if (sample < switchSample)
+        {
+            require(sameBits(left, old.left) && sameBits(right, old.right),
+                    label + " differs before the switch");
+            continue;
+        }
+        // Each amount moves on its own ramp; the two share the wet by them.
+        const auto rising = enteringAmount.next();
+        const auto falling = leavingAmount.next();
+        const auto amount = rising / (falling + rising);
+        if (sample >= switchSample + morphSamples - 1)
+        {
+            require(sameBits(left, fresh.left) && sameBits(right, fresh.right),
+                    label + " is not the new Character alone after the crossfade, at sample "
+                        + std::to_string(sample));
+            continue;
+        }
+        largestDistance = std::max({
+            largestDistance,
+            std::abs(left - (old.left + amount * (fresh.left - old.left))),
+            std::abs(right - (old.right + amount * (fresh.right - old.right)))
+        });
+        peak = std::max({ peak, std::abs(old.left), std::abs(old.right),
+                          std::abs(fresh.left), std::abs(fresh.right) });
+        sideDifferenceEnergy += static_cast<double>(fresh.left - old.left) * (fresh.left - old.left)
+                              + static_cast<double>(fresh.right - old.right) * (fresh.right - old.right);
+        sideEnergy += 0.5 * (static_cast<double>(old.left) * old.left
+                             + static_cast<double>(old.right) * old.right
+                             + static_cast<double>(fresh.left) * fresh.left
+                             + static_cast<double>(fresh.right) * fresh.right);
+    }
+    std::cout << "[METRIC] " << label << ": largest distance from the crossfade="
+              << largestDistance << ", peak of its two sides=" << peak << '\n';
+    require(largestDistance <= 4.0e-6f * peak,
+            label + " is not a crossfade of the two Characters: distance="
+                + std::to_string(largestDistance / peak) + " of the peak");
+    require(sideEnergy > 1.0e-8 && sideDifferenceEnergy > 0.25 * sideEnergy,
+            label + " crossfades two sides that do not differ");
+}
+
+void testSpumeThroughThePlugIn()
+{
+    constexpr auto blockFrames = 64;
+
+    // Routing at Ocean's neutral controls: the engine's wet through its level
+    // stage, whatever the host says of its transport.
+    for (const auto sampleRate : { 44100.0, 48000.0, 88200.0, 96000.0 })
+    {
+        for (const auto evolution : { 0.0f, 0.45f, 1.0f })
+        {
+            auto parameters = fathomNeutralParameters();
+            parameters.mode = ReverbMode::spume;
+            parameters.evolution = evolution;
+            parameters.preDelayMs = 12.3f;
+            FDNReverb reverb;
+            reverb.setParameters(parameters);
+            reverb.prepare(sampleRate, blockFrames);
+            EngineCharacterChain chain(ReverbMode::spume, parameters, sampleRate);
+
+            auto wetPeak = 0.0f;
+            const auto frameCount = static_cast<int>(sampleRate * 1.75);
+            for (auto frame = 0; frame < frameCount; ++frame)
+            {
+                const auto input = fathomBursts(frame, sampleRate);
+                const auto expected = chain.wet(input.left, input.right);
+                wetPeak = std::max({ wetPeak, std::abs(expected.left), std::abs(expected.right) });
+                auto left = input.left;
+                auto right = input.right;
+                processUndertowPlugIn(reverb, frame, sampleRate, left, right);
+                require(sameBits(left, expected.left) && sameBits(right, expected.right),
+                        "Spume is not the engine's wet through its level stage at "
+                            + std::to_string(static_cast<int>(sampleRate)) + " Hz, Evolution "
+                            + std::to_string(evolution) + ", frame " + std::to_string(frame));
+            }
+            require(wetPeak > 0.01f, "Spume routing programme did not exercise the engine");
+        }
+    }
+
+    // Spume crossfades directly with Fathom and with Undertow.
+    requireEngineCharacterCrossfade(ReverbMode::fathom, ReverbMode::spume, "Fathom to Spume switch");
+    requireEngineCharacterCrossfade(ReverbMode::spume, ReverbMode::fathom, "Spume to Fathom switch");
+    requireEngineCharacterCrossfade(ReverbMode::undertow, ReverbMode::spume, "Undertow to Spume switch");
+    requireEngineCharacterCrossfade(ReverbMode::spume, ReverbMode::undertow, "Spume to Undertow switch");
+
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto switchSample = 60000;
+    constexpr auto morphSamples = static_cast<int>(sampleRate * 0.20);
+    constexpr auto endSample = switchSample + morphSamples + 12000;
+
+    // Fathom to Undertow and, half a fade on, to Spume: the three sound at
+    // once, each by its amount, and still nothing of the FDN shows.
+    {
+        const std::string label = "Fathom to Undertow to Spume switch";
+        constexpr auto secondSwitch = switchSample + morphSamples / 2;
+        constexpr auto lastSample = secondSwitch + morphSamples + 12000;
+        auto parameters = fathomNeutralParameters();
+        parameters.decaySeconds = 6.0f;
+        parameters.evolution = 0.8f;
+        auto switched = parameters;
+        FDNReverb reverb;
+        reverb.setParameters(switched);
+        reverb.prepare(sampleRate, blockFrames);
+        EngineCharacterChain fathomSide(ReverbMode::fathom, parameters, sampleRate);
+        EngineCharacterChain undertowSide(ReverbMode::undertow, parameters, sampleRate);
+        EngineCharacterChain spumeSide(ReverbMode::spume, parameters, sampleRate);
+        FathomMorphRamp fathomRamp(1.0f, 0.0f, morphSamples);
+        FathomMorphRamp undertowRamp(0.0f, 1.0f, morphSamples);
+        FathomMorphRamp spumeRamp(0.0f, 1.0f, morphSamples);
+        auto fathomAmount = 1.0f;
+        auto undertowAmount = 0.0f;
+        auto spumeAmount = 0.0f;
+
+        auto largestDistance = 0.0f;
+        auto peak = 1.0e-3f;
+        auto threeAtOnce = 0;
+        for (auto sample = 0; sample < lastSample; ++sample)
+        {
+            if (sample == switchSample || sample == secondSwitch)
+            {
+                switched.mode = sample == switchSample ? ReverbMode::undertow : ReverbMode::spume;
+                reverb.setParameters(switched);
+            }
+            // Undertow turns round where it stands.
+            if (sample == secondSwitch)
+                undertowRamp = FathomMorphRamp(undertowAmount, 0.0f, morphSamples);
+            if (sample >= switchSample)
+            {
+                fathomAmount = fathomRamp.next();
+                undertowAmount = undertowRamp.next();
+            }
+            if (sample >= secondSwitch)
+                spumeAmount = spumeRamp.next();
+            if (sample % blockFrames == 0)
+                undertowSide.announce(undertowPlugInTransport(sample, sampleRate));
+
+            const auto input = fathomBursts(sample, sampleRate, 0.5f);
+            auto left = input.left;
+            auto right = input.right;
+            processUndertowPlugIn(reverb, sample, sampleRate, left, right);
+            const auto fathom = fathomSide.frame(fathomAmount > 0.0f, input);
+            const auto undertow = undertowSide.frame(undertowAmount > 0.0f, input);
+            const auto spume = spumeSide.frame(spumeAmount > 0.0f, input);
+
+            if (sample < switchSample)
+            {
+                require(sameBits(left, fathom.left) && sameBits(right, fathom.right),
+                        label + " differs before the first switch");
+                continue;
+            }
+            if (!(fathomAmount > 0.0f) && !(undertowAmount > 0.0f))
+            {
+                require(sameBits(left, spume.left) && sameBits(right, spume.right),
+                        label + " is not Spume alone after the crossfades, at sample "
+                            + std::to_string(sample));
+                continue;
+            }
+            // Fathom and Undertow by their amounts, and the two with Spume by theirs.
+            auto expected = fathom;
+            if (undertowAmount > 0.0f)
+            {
+                const auto share = fathomAmount > 0.0f ? undertowAmount / (fathomAmount + undertowAmount) : 1.0f;
+                expected.left += share * (undertow.left - fathom.left);
+                expected.right += share * (undertow.right - fathom.right);
+            }
+            if (spumeAmount > 0.0f)
+            {
+                const auto share = spumeAmount / (fathomAmount + undertowAmount + spumeAmount);
+                expected.left += share * (spume.left - expected.left);
+                expected.right += share * (spume.right - expected.right);
+            }
+            if (fathomAmount > 0.0f && undertowAmount > 0.0f && spumeAmount > 0.0f)
+                ++threeAtOnce;
+            largestDistance = std::max({ largestDistance, std::abs(left - expected.left),
+                                         std::abs(right - expected.right) });
+            peak = std::max({ peak, std::abs(fathom.left), std::abs(fathom.right),
+                              std::abs(undertow.left), std::abs(undertow.right),
+                              std::abs(spume.left), std::abs(spume.right) });
+        }
+        std::cout << "[METRIC] " << label << ": largest distance from the three by their amounts="
+                  << largestDistance << ", peak of its sides=" << peak << ", samples with all three="
+                  << threeAtOnce << '\n';
+        require(threeAtOnce > morphSamples / 4, label + " never had the three Characters at once");
+        require(largestDistance <= 4.0e-6f * peak,
+                label + " is not the three Characters by their amounts: distance="
+                    + std::to_string(largestDistance / peak) + " of the peak");
+    }
+
+    // Default and Spume: a crossfade of the FDN and the engine's chain, which
+    // starts from silence when Spume is entered.
+    for (const auto intoSpume : { true, false })
+    {
+        const auto label = std::string(intoSpume ? "Default to Spume" : "Spume to Default") + " switch";
+        auto parameters = fathomNeutralParameters();
+        parameters.mode = ReverbMode::spume;
+        parameters.decaySeconds = 6.0f;
+        parameters.evolution = 0.8f;
+        auto switched = parameters;
+        switched.mode = intoSpume ? ReverbMode::defaultMode : ReverbMode::spume;
+        auto fdnParameters = parameters;
+        fdnParameters.mode = ReverbMode::defaultMode;
+        FDNReverb reverb;
+        FDNReverb fdnSide;
+        reverb.setParameters(switched);
+        fdnSide.setParameters(fdnParameters);
+        reverb.prepare(sampleRate, blockFrames);
+        fdnSide.prepare(sampleRate, blockFrames);
+        EngineCharacterChain spumeSide(ReverbMode::spume, parameters, sampleRate);
+        FathomMorphRamp spumeAmount(intoSpume ? 0.0f : 1.0f, intoSpume ? 1.0f : 0.0f, morphSamples);
+
+        auto largestDistance = 0.0f;
+        auto peak = 1.0e-3f;
+        for (auto sample = 0; sample < endSample; ++sample)
+        {
+            if (sample == switchSample)
+            {
+                switched.mode = intoSpume ? ReverbMode::spume : ReverbMode::defaultMode;
+                reverb.setParameters(switched);
+            }
+            const auto input = fathomBursts(sample, sampleRate, 0.5f);
+            auto left = input.left;
+            auto right = input.right;
+            processUndertowPlugIn(reverb, sample, sampleRate, left, right);
+            auto fdnLeft = input.left;
+            auto fdnRight = input.right;
+            fdnSide.processSample(fdnLeft, fdnRight);
+            const auto spume = spumeSide.frame(
+                intoSpume ? sample >= switchSample : sample < switchSample + morphSamples - 1, input);
+
+            if (sample < switchSample)
+            {
+                require(intoSpume ? sameBits(left, fdnLeft) && sameBits(right, fdnRight)
+                                  : sameBits(left, spume.left) && sameBits(right, spume.right),
+                        label + " differs before the switch");
+                continue;
+            }
+            const auto amount = spumeAmount.next();
+            if (sample >= switchSample + morphSamples - 1)
+            {
+                require(intoSpume ? sameBits(left, spume.left) && sameBits(right, spume.right)
+                                  : sameBits(left, fdnLeft) && sameBits(right, fdnRight),
+                        label + " is not the new Character alone after the crossfade, at sample "
+                            + std::to_string(sample));
+                continue;
+            }
+            largestDistance = std::max({
+                largestDistance,
+                std::abs(left - (fdnLeft + amount * (spume.left - fdnLeft))),
+                std::abs(right - (fdnRight + amount * (spume.right - fdnRight)))
+            });
+            peak = std::max({ peak, std::abs(fdnLeft), std::abs(fdnRight),
+                              std::abs(spume.left), std::abs(spume.right) });
+        }
+        std::cout << "[METRIC] " << label << ": largest distance from the crossfade="
+                  << largestDistance << ", peak of its two sides=" << peak << '\n';
+        require(largestDistance <= 4.0e-6f * peak,
+                label + " is not a crossfade of the two Characters: distance="
+                    + std::to_string(largestDistance / peak) + " of the peak");
+    }
+
+    // Left for longer than its fade and selected again, Spume returns as an
+    // engine that has only kept time since it was prepared: the diffuser and
+    // the network empty, whatever was played before and while it was away.
+    for (const auto away : { ReverbMode::bloom, ReverbMode::fathom })
+    {
+        constexpr auto leaveSample = 50000;
+        constexpr auto returnSample = leaveSample + 3 * morphSamples;
+        constexpr auto settledSample = returnSample + morphSamples;
+        auto parameters = fathomNeutralParameters();
+        parameters.mode = ReverbMode::spume;
+        parameters.decaySeconds = 30.0f;
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(sampleRate, blockFrames);
+        EngineCharacterChain chain(ReverbMode::spume, parameters, sampleRate);
+        auto peak = 0.0f;
+        for (auto sample = 0; sample < settledSample + 70000; ++sample)
+        {
+            if (sample == leaveSample || sample == returnSample)
+            {
+                parameters.mode = sample == leaveSample ? away : ReverbMode::spume;
+                reverb.setParameters(parameters);
+            }
+            const auto input = fathomBursts(sample, sampleRate, 0.5f);
+            auto left = input.left;
+            auto right = input.right;
+            processUndertowPlugIn(reverb, sample, sampleRate, left, right);
+            const auto expected = chain.frame(sample >= returnSample, input);
+            if (sample < settledSample)
+                continue;
+            require(sameBits(left, expected.left) && sameBits(right, expected.right),
+                    "Spume selected again is not an engine that only kept time, at sample "
+                        + std::to_string(sample));
+            peak = std::max(peak, std::abs(left));
+        }
+        require(peak > 0.01f, "Spume selected again stayed silent");
+    }
+
+    // Every rate, Evolution in motion, Freeze, input that is no signal, and
+    // the mode itself.
+    for (const auto rate : { 44100.0, 48000.0, 88200.0, 96000.0 })
+    {
+        ReverbParameters parameters;
+        parameters.mode = ReverbMode::spume;
+        parameters.mix = 0.6f;
+        parameters.decaySeconds = 30.0f;
+        parameters.size = FDNReverb::maximumSizeScale;
+        parameters.evolution = 1.0f;
+        parameters.width = 2.0f;
+        parameters.harmony = 0.5f;
+        FDNReverb reverb;
+        reverb.setParameters(parameters);
+        reverb.prepare(rate, 128);
+        auto peak = 0.0f;
+        const auto frames = static_cast<int>(rate * 3.0);
+        for (auto frame = 0; frame < frames; ++frame)
+        {
+            if (frame % 128 == 0)
+            {
+                parameters.evolution = 0.5f + 0.5f * fathomNoise(frame / 128, 42);
+                parameters.freeze = frame >= static_cast<int>(rate * 1.5);
+                reverb.setParameters(parameters);
+            }
+            auto left = frame % 4001 == 0 ? std::numeric_limits<float>::quiet_NaN() : 0.9f * fathomNoise(frame, 40);
+            auto right = frame % 5003 == 0 ? std::numeric_limits<float>::infinity() : 0.9f * fathomNoise(frame, 41);
+            reverb.processSample(left, right);
+            require(std::isfinite(left) && std::isfinite(right), "Spume produced NaN/Inf in the plug-in");
+            peak = std::max({ peak, std::abs(left), std::abs(right) });
+        }
+        require(peak > 0.05f && peak < 4.0f,
+                "Spume stress test left the safety range: peak=" + std::to_string(peak));
+    }
+
+    FDNReverb reverb;
+    ReverbParameters lastKnown;
+    lastKnown.mode = ReverbMode::spume;
+    reverb.setParameters(lastKnown);
+    require(reverb.getParameters().mode == ReverbMode::spume, "Spume mode was not accepted");
+}
+
+// ------------------------------------- the outer stages of the engine Characters
+
+// A programme for the level stages and the Sub Anchors of the three Characters
+// that are engines. Bursts of 125 ms with pauses of 125 ms, by turns loud and
+// quiet: a loud one peaks at 0.9, above the knee of the reference's level
+// stage (0.5629), a quiet one at 0.54, under it. Each is a tone of 88 Hz that
+// is not the same on the two sides, with a little noise, so that there is
+// Side under the anchor's 145 Hz.
+[[nodiscard]] FathomEngine::Frame engineStagesProgramme(int frame, double sampleRate) noexcept
+{
+    constexpr auto twoPi = 6.28318530717958647692;
+    const auto burstAndPause = static_cast<int>(sampleRate * 0.25);
+    const auto position = frame % (2 * burstAndPause);
+    if (position % burstAndPause >= burstAndPause / 2)
+        return {};
+
+    const auto level = position < burstAndPause ? 1.0f : 0.6f;
+    const auto phase = twoPi * 88.0 * static_cast<double>(frame) / sampleRate + 1.0;
+    return { level * (0.84f * static_cast<float>(std::sin(phase)) + 0.06f * fathomNoise(frame, 80)),
+             level * (-0.60f * static_cast<float>(std::sin(phase + 1.0)) - 0.05f * fathomNoise(frame, 81)) };
+}
+
+// What the plug-in has behind the engines of its three engine Characters, in
+// the order Fathom, Undertow, Spume: a level stage for each, the reference's
+// Width law on what the three give together, a Sub Anchor for each with Mono
+// Safe all the way in, the reference's clipper and the output guard; Mix at
+// 100 %. A stage that restarts begins from rest whenever its Character is
+// entered again, as the plug-in's must; one that does not carries on from
+// where it stood when its Character was left.
+struct EngineOuterStages
+{
+    static constexpr std::size_t count = 3;
+
+    EngineOuterStages(double sampleRate, float widthScale, bool levelStagesRestart, bool anchorsRestart)
+        : width(widthScale), restartsLevelStages(levelStagesRestart), restartsAnchors(anchorsRestart)
+    {
+        for (auto& stage : levelStages)
+            stage.prepare(sampleRate);
+        for (auto& anchor : subAnchors)
+            anchor.prepare(sampleRate);
+    }
+
+    // Three values by their amounts as the plug-in takes them: Fathom and
+    // Undertow first, then the two with Spume.
+    template <typename Value>
+    [[nodiscard]] static Value together(const std::array<Value, count>& values,
+                                        const std::array<float, count>& amounts) noexcept
+    {
+        const auto two = [](Value first, const Value& second, float firstAmount, float secondAmount)
+        {
+            if (!(secondAmount > 0.0f))
+                return first;
+            if (!(firstAmount > 0.0f))
+                return second;
+            const auto secondShare = secondAmount / (firstAmount + secondAmount);
+            first.left += secondShare * (second.left - first.left);
+            first.right += secondShare * (second.right - first.right);
+            return first;
+        };
+        return two(two(values[0], values[1], amounts[0], amounts[1]), values[2],
+                   amounts[0] + amounts[1], amounts[2]);
+    }
+
+    // One frame: `raw` is the wet of each engine and `amounts` how far each
+    // Character is in. An engine whose Character is out gives nothing.
+    [[nodiscard]] FathomEngine::Frame process(const FathomEngine::Frame& input,
+                                              const std::array<FathomEngine::Frame, count>& raw,
+                                              const std::array<float, count>& amounts) noexcept
+    {
+        std::array<FathomEngine::Frame, count> wet {};
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            const auto isIn = amounts[index] > 0.0f;
+            if (isIn && !in[index])
+            {
+                if (restartsLevelStages)
+                    levelStages[index].reset();
+                if (restartsAnchors)
+                    subAnchors[index].reset();
+            }
+            in[index] = isIn;
+            if (isIn)
+                wet[index] = levelStages[index].process(input.left, input.right, raw[index]);
+        }
+
+        const auto widened = FathomEngine::applyWidth(together(wet, amounts), width);
+        std::array<StereoField::Frame, count> anchored {};
+        for (std::size_t index = 0; index < count; ++index)
+            if (in[index])
+                anchored[index] = subAnchors[index].applyWidth(widened.left, widened.right, 1.0f);
+        const auto anchoredWet = together(anchored, amounts);
+        return { FathomReferenceChain::guard(
+                     FathomEngine::clip(widened.left + (anchoredWet.left - widened.left))),
+                 FathomReferenceChain::guard(
+                     FathomEngine::clip(widened.right + (anchoredWet.right - widened.right))) };
+    }
+
+    std::array<FathomEngine::LevelStage, count> levelStages;
+    std::array<StereoField, count> subAnchors;
+    std::array<bool, count> in {};
+    float width;
+    bool restartsLevelStages;
+    bool restartsAnchors;
+};
+
+// Each of the three Characters that are engines has a level stage and a Sub
+// Anchor of its own, and both start from rest whenever the Character is
+// entered again. A stage that two Characters shared would be stepped twice a
+// frame while they crossfade and then reset under the one that stays; a stage
+// that was not restarted would carry what it held when its Character was left
+// into the next visit.
+//
+// The programme makes each of these show. Mono Safe is on, so the anchors are
+// in the circuit, and Width is away from 100 %. Every switch comes 90 ms into
+// a quiet burst. The Character that is left has gone 200 ms later, 40 ms into
+// a loud burst: its level stage is turned down then, and its anchor holds a
+// low Side. The Character that is entered hears the rest of the quiet burst
+// and a pause first, under which a level stage from rest does nothing and one
+// that kept its reduction still recovers. Every pair of the three crossfades,
+// and each of the three is entered again after a stay away.
+//
+// Two comparisons. The plug-in against the three engines with stages of their
+// own that restart, frame by frame through every crossfade: that is where a
+// shared stage shows, and a level stage that kept its reduction. And every
+// second visit against a plug-in that had never been in that Character, to
+// the bit: what an anchor that kept its low Side adds lasts a few
+// milliseconds at the foot of a fade, where its Character is hardly in yet,
+// and is not much above what the first comparison allows. Beside them the
+// test measures what the programme tells: the same stages without the
+// restart of the level stages, and without that of the anchors, against
+// those with it.
+void testEngineCharactersOwnOuterStages()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto blockFrames = 64;
+    constexpr auto morphSamples = static_cast<int>(sampleRate * 0.20);
+    // A loud burst, a quiet one and their pauses.
+    constexpr auto pairFrames = 24000;
+    constexpr auto firstSwitch = 2 * pairFrames + 16320;
+    constexpr auto stayFrames = 2 * pairFrames;
+    constexpr std::array<ReverbMode, 6> visits {
+        ReverbMode::fathom, ReverbMode::spume, ReverbMode::fathom,
+        ReverbMode::undertow, ReverbMode::spume, ReverbMode::undertow
+    };
+    constexpr auto frameCount = firstSwitch + static_cast<int>(visits.size() - 1) * stayFrames;
+    constexpr std::array<ReverbMode, EngineOuterStages::count> modes {
+        ReverbMode::fathom, ReverbMode::undertow, ReverbMode::spume
+    };
+    const auto indexOf = [](ReverbMode mode) -> std::size_t
+    {
+        return mode == ReverbMode::spume ? 2 : mode == ReverbMode::undertow ? 1 : 0;
+    };
+    // The frame a visit begins at.
+    const auto startOf = [&](int visit)
+    {
+        return visit == 0 ? 0 : firstSwitch + (visit - 1) * stayFrames;
+    };
+
+    auto neutral = fathomNeutralParameters();
+    neutral.evolution = 0.5f;
+    neutral.width = 1.5f;
+    neutral.monoSafeStereo = true;
+    auto parameters = neutral;
+    FDNReverb reverb;
+    reverb.setParameters(parameters);
+    reverb.prepare(sampleRate, blockFrames);
+
+    // The three engines, each under its Character's layer, and how far each
+    // Character is in.
+    EngineCharacterChain fathom(ReverbMode::fathom, neutral, sampleRate);
+    EngineCharacterChain undertow(ReverbMode::undertow, neutral, sampleRate);
+    EngineCharacterChain spume(ReverbMode::spume, neutral, sampleRate);
+    const std::array<EngineCharacterChain*, EngineOuterStages::count> engines { &fathom, &undertow, &spume };
+    std::array<FathomMorphRamp, EngineOuterStages::count> ramps {
+        FathomMorphRamp(1.0f, 1.0f, 1), FathomMorphRamp(0.0f, 0.0f, 1), FathomMorphRamp(0.0f, 0.0f, 1)
+    };
+
+    EngineOuterStages own(sampleRate, neutral.width, true, true);
+    EngineOuterStages keptLevelStages(sampleRate, neutral.width, false, true);
+    EngineOuterStages keptAnchors(sampleRate, neutral.width, true, false);
+
+    std::vector<float> played;
+    played.reserve(2 * static_cast<std::size_t>(frameCount));
+    auto largestDistance = 0.0f;
+    auto peak = 1.0e-3f;
+    // Over the fade of a second visit: how far the stages that were not
+    // restarted stand from those that were. The smallest of the second visits.
+    auto levelStagesTold = std::numeric_limits<float>::max();
+    auto anchorsTold = std::numeric_limits<float>::max();
+    auto levelStagesToldNow = 0.0f;
+    auto anchorsToldNow = 0.0f;
+    std::array<bool, EngineOuterStages::count> seen { true, false, false };
+    std::vector<int> secondVisits;
+    auto secondVisit = false;
+    for (auto frame = 0; frame < frameCount; ++frame)
+    {
+        const auto visit = frame < firstSwitch ? 0 : 1 + (frame - firstSwitch) / stayFrames;
+        const auto sinceSwitch = frame - startOf(visit);
+        if (visit > 0 && sinceSwitch == 0)
+        {
+            const auto entered = indexOf(visits[static_cast<std::size_t>(visit)]);
+            parameters.mode = modes[entered];
+            reverb.setParameters(parameters);
+            ramps[indexOf(visits[static_cast<std::size_t>(visit) - 1])] = FathomMorphRamp(1.0f, 0.0f, morphSamples);
+            ramps[entered] = FathomMorphRamp(0.0f, 1.0f, morphSamples);
+            secondVisit = seen[entered];
+            seen[entered] = true;
+            if (secondVisit)
+                secondVisits.push_back(visit);
+            levelStagesToldNow = 0.0f;
+            anchorsToldNow = 0.0f;
+        }
+        if (frame % blockFrames == 0)
+            undertow.announce(undertowPlugInTransport(frame, sampleRate));
+
+        const auto input = engineStagesProgramme(frame, sampleRate);
+        auto left = input.left;
+        auto right = input.right;
+        processUndertowPlugIn(reverb, frame, sampleRate, left, right);
+        played.push_back(left);
+        played.push_back(right);
+
+        // Each engine sounds while its Character's amount is above zero and
+        // keeps time otherwise.
+        std::array<float, EngineOuterStages::count> amounts {};
+        std::array<FathomEngine::Frame, EngineOuterStages::count> raw {};
+        for (std::size_t index = 0; index < engines.size(); ++index)
+        {
+            amounts[index] = ramps[index].next();
+            if (amounts[index] > 0.0f)
+                raw[index] = engines[index]->engine.processSample(input.left, input.right);
+            else
+                engines[index]->idle();
+        }
+
+        const auto expected = own.process(input, raw, amounts);
+        largestDistance = std::max({ largestDistance, std::abs(left - expected.left),
+                                     std::abs(right - expected.right) });
+        peak = std::max({ peak, std::abs(expected.left), std::abs(expected.right) });
+
+        const auto withKeptLevelStages = keptLevelStages.process(input, raw, amounts);
+        const auto withKeptAnchors = keptAnchors.process(input, raw, amounts);
+        if (!secondVisit || sinceSwitch >= morphSamples)
+            continue;
+        levelStagesToldNow = std::max({ levelStagesToldNow, std::abs(withKeptLevelStages.left - expected.left),
+                                        std::abs(withKeptLevelStages.right - expected.right) });
+        anchorsToldNow = std::max({ anchorsToldNow, std::abs(withKeptAnchors.left - expected.left),
+                                    std::abs(withKeptAnchors.right - expected.right) });
+        if (sinceSwitch == morphSamples - 1)
+        {
+            levelStagesTold = std::min(levelStagesTold, levelStagesToldNow);
+            anchorsTold = std::min(anchorsTold, anchorsToldNow);
+        }
+    }
+
+    // The blends of FDNReverb round in the last place of the larger side.
+    constexpr auto tolerance = 4.0e-6f;
+    // The grain of single precision at the level of the wet.
+    const auto grain = std::numeric_limits<float>::epsilon() * peak;
+    std::cout << "[METRIC] Engine Characters' outer stages through " << visits.size() - 1
+              << " switches: largest distance from stages of their own, from rest at every visit="
+              << largestDistance << ", peak=" << peak << ", allowed=" << tolerance * peak
+              << "; level stages that were not restarted stand " << levelStagesTold
+              << " away at least, anchors that were not " << anchorsTold << " (grain " << grain << ")\n";
+    require(secondVisits.size() == EngineOuterStages::count,
+            "The programme does not enter each of the three engine Characters a second time");
+    require(levelStagesTold >= 20.0f * tolerance * peak,
+            "The programme does not tell a level stage from rest from one that kept its reduction");
+    require(anchorsTold >= 16.0f * grain,
+            "The programme does not tell a Sub Anchor from rest from one that kept its low Side");
+    require(largestDistance <= tolerance * peak,
+            "The engine Characters do not each keep a level stage and a Sub Anchor of their own, from rest "
+            "at every visit: distance=" + std::to_string(largestDistance / peak) + " of the peak");
+
+    // A Character entered again is the Character entered for the first time.
+    // The other plug-in is prepared in the Character of the visit before and
+    // hears nothing until that visit begins; from there it goes the same way.
+    // A quarter of a second in front of the switch the two are one already:
+    // a stay is long enough for what a crossfade left in an anchor to go.
+    constexpr auto settledFrames = static_cast<int>(sampleRate * 0.25);
+    for (const auto visit : secondVisits)
+    {
+        const auto index = static_cast<std::size_t>(visit);
+        const auto label = std::string("The engine Character of visit ") + std::to_string(visit);
+        const auto soundFrom = startOf(visit - 1);
+        const auto switchFrame = startOf(visit);
+        auto otherParameters = neutral;
+        otherParameters.mode = visits[index - 1];
+        FDNReverb other;
+        other.setParameters(otherParameters);
+        other.prepare(sampleRate, blockFrames);
+        for (auto frame = 0; frame < switchFrame + stayFrames; ++frame)
+        {
+            if (frame == switchFrame)
+            {
+                otherParameters.mode = visits[index];
+                other.setParameters(otherParameters);
+            }
+            const auto input = frame >= soundFrom ? engineStagesProgramme(frame, sampleRate)
+                                                  : FathomEngine::Frame {};
+            auto left = input.left;
+            auto right = input.right;
+            processUndertowPlugIn(other, frame, sampleRate, left, right);
+            if (frame < switchFrame - settledFrames)
+                continue;
+            const auto same = sameBits(left, played[2 * static_cast<std::size_t>(frame)])
+                           && sameBits(right, played[2 * static_cast<std::size_t>(frame) + 1]);
+            if (frame < switchFrame)
+                require(same, label + " follows a Character that has not become, a stay after its crossfade, "
+                                      "what it is when it was there from the start: frame "
+                                    + std::to_string(frame));
+            else
+                require(same, label + ", entered again, is not that Character entered for the first time: "
+                                      + std::to_string(frame - switchFrame) + " frames behind the switch");
+        }
+    }
+}
+
+// ---------------------------------------------------- the layers under Freeze
+
+// Noise for the tests of the layers under the engine's hold, while it sounds.
+[[nodiscard]] FathomEngine::Frame freezeNoise(int frame, bool sounds) noexcept
+{
+    return sounds ? FathomEngine::Frame { 0.3f * fathomNoise(frame, 90), 0.3f * fathomNoise(frame, 91) }
+                  : FathomEngine::Frame {};
+}
+
+// The engine's wet under a layer and a host that runs at 120 BPM, with Freeze
+// on from frame `freezeFrom` to frame `freezeTo` (never, if they are
+// negative); left and right interleaved. `programme` gives a frame's input.
+template <typename Programme>
+[[nodiscard]] std::vector<float> renderThroughFreeze(FathomEngine::Layer layer, double sampleRate, float macro,
+                                                     int freezeFrom, int freezeTo, int frameCount,
+                                                     Programme&& programme)
+{
+    FathomEngine::Parameters parameters;
+    parameters.decaySeconds = 2.0f;
+    parameters.macro = macro;
+    FathomEngine engine;
+    engine.setLayer(layer);
+    engine.setParameters(parameters);
+    engine.prepare(sampleRate);
+    UndertowHost host;
+    host.sampleRate = sampleRate;
+
+    std::vector<float> rendered;
+    rendered.reserve(2 * static_cast<std::size_t>(frameCount));
+    for (auto frame = 0; frame < frameCount; ++frame)
+    {
+        host.announce(engine, frame);
+        if (frame == freezeFrom || frame == freezeTo)
+        {
+            parameters.freeze = frame == freezeFrom;
+            engine.setParameters(parameters);
+        }
+        const FathomEngine::Frame input = programme(frame);
+        const auto wet = engine.processSample(input.left, input.right);
+        rendered.push_back(wet.left);
+        rendered.push_back(wet.right);
+    }
+    return rendered;
+}
+
+// Energy of the frames [from, to) of a render, or of what two renders differ by there.
+[[nodiscard]] double freezeEnergy(const std::vector<float>& render, int from, int to,
+                                  const std::vector<float>* other = nullptr)
+{
+    auto energy = 0.0;
+    for (auto index = 2 * static_cast<std::size_t>(from); index < 2 * static_cast<std::size_t>(to); ++index)
+    {
+        const auto value = static_cast<double>(render[index])
+                         - (other != nullptr ? static_cast<double>((*other)[index]) : 0.0);
+        energy += value * value;
+    }
+    return energy;
+}
+
+// A level against a reference in decibels for a metric line; no energy at all is "nothing".
+[[nodiscard]] std::string freezeLevel(double energy, double reference)
+{
+    if (!(energy > 0.0))
+        return "nothing";
+    auto text = std::to_string(10.0 * std::log10(energy / reference));
+    return text.substr(0, text.find('.') + 3) + " dB";
+}
+
+// What the engine's hold means to a layer in front of the network (Ocean's
+// own): held, the network takes no input, and neither does the layer, by the
+// same glide. So what is played under Freeze is nowhere when Freeze ends,
+// while what the layer took before runs out as it would.
+//
+// Freeze lasts five seconds here, under a host at 120 BPM. `name` is the
+// Character of the layer, `mode` its mode in the plug-in.
+void requireLayerTakesNothingUnderFreeze(FathomEngine::Layer layer, ReverbMode mode, const std::string& name)
+{
+    constexpr auto sampleRate = 48000.0;
+    const auto at = [](double seconds) { return static_cast<int>(seconds * sampleRate); };
+    const auto within = [](int frame, int from, int to) { return frame >= from && frame < to; };
+    const auto freezeFrom = at(1.5);
+    const auto freezeTo = at(6.5);
+    const auto frameCount = at(10.5);
+    // Something for Freeze to hold.
+    const auto earlier = [&](int frame) { return within(frame, at(0.2), at(0.45)); };
+
+    // A burst of a quarter second played wholly inside the Freeze, from
+    // `burstFrom` seconds. What it adds to the four seconds behind the
+    // release, and the same burst played with no Freeze at all over the four
+    // seconds from its start: two energies.
+    const auto returned = [&](FathomEngine::Layer ofLayer, double burstFrom, bool mustBeNothing)
+    {
+        const auto from = at(burstFrom);
+        const auto burst = [&](int frame) { return within(frame, from, from + at(0.25)); };
+        const auto with = renderThroughFreeze(ofLayer, sampleRate, 1.0f, freezeFrom, freezeTo, frameCount,
+                                              [&](int frame) { return freezeNoise(frame, earlier(frame) || burst(frame)); });
+        const auto without = renderThroughFreeze(ofLayer, sampleRate, 1.0f, freezeFrom, freezeTo, frameCount,
+                                                 [&](int frame) { return freezeNoise(frame, earlier(frame)); });
+        const auto unfrozen = renderThroughFreeze(ofLayer, sampleRate, 1.0f, -1, -1, frameCount,
+                                                  [&](int frame) { return freezeNoise(frame, burst(frame)); });
+        const auto held = freezeEnergy(without, at(5.0), freezeTo);
+        const auto reference = freezeEnergy(unfrozen, from, from + at(4.0));
+        require(held > 1.0e-6 && reference > 1.0e-6,
+                name + " under Freeze: the programme holds nothing, or its burst does not sound unfrozen");
+        if (mustBeNothing)
+            requireSameFathomRender(with, without,
+                                    name + ": a burst played from " + std::to_string(burstFrom)
+                                        + " s, wholly inside a Freeze, did not leave the output as it is without it");
+        return std::pair { freezeEnergy(with, freezeTo, freezeTo + at(4.0), &without), reference };
+    };
+    // The burst ends 1.05 s in front of the release, and 50 ms in front of it.
+    const auto layered = layer != FathomEngine::Layer::tide;
+    const auto early = returned(layer, 5.2, true);
+    const auto late = returned(layer, 6.2, true);
+    std::cout << "[METRIC] " << name << " under Freeze at Evolution 100 %: of a burst played wholly inside it, "
+              << "behind the release there is " << freezeLevel(early.first, early.second)
+              << " (the burst ended 1.05 s in front of the release) and " << freezeLevel(late.first, late.second)
+              << " (50 ms in front)";
+    if (layered)
+    {
+        const auto fathomEarly = returned(FathomEngine::Layer::tide, 5.2, false);
+        const auto fathomLate = returned(FathomEngine::Layer::tide, 6.2, false);
+        std::cout << "; Fathom at Evolution 100 % by the same measure: "
+                  << freezeLevel(fathomEarly.first, fathomEarly.second) << " and "
+                  << freezeLevel(fathomLate.first, fathomLate.second);
+    }
+    std::cout << '\n';
+
+    // A sound that began before Freeze and goes on two seconds into it is that
+    // sound ended where the hold's glide of 50 ms ends (with room for what
+    // the rate converters reach): what it played under Freeze is nowhere, and
+    // what it played before is held by the network and runs out in the layer.
+    {
+        const auto soundFrom = at(1.0);
+        const auto cutFrame = freezeFrom + at(0.05) + 256;
+        const auto goesOn = renderThroughFreeze(layer, sampleRate, 1.0f, freezeFrom, freezeTo, frameCount,
+                                                [&](int frame) { return freezeNoise(frame, within(frame, soundFrom, at(3.5))); });
+        const auto ends = renderThroughFreeze(layer, sampleRate, 1.0f, freezeFrom, freezeTo, frameCount,
+                                              [&](int frame) { return freezeNoise(frame, within(frame, soundFrom, cutFrame)); });
+        require(freezeEnergy(ends, at(5.0), freezeTo) > 1.0e-6 && freezeEnergy(ends, freezeTo, at(8.0)) > 1.0e-6,
+                name + " under Freeze: the sound that began before it is not held");
+        requireSameFathomRender(goesOn, ends,
+                                name + ": a sound that went on under Freeze is not that sound ended at the Freeze");
+    }
+
+    // At Evolution 0 the engine is Fathom's to the bit through a Freeze and
+    // across both its edges, under a sound that runs through them.
+    for (const auto rate : { 44100.0, 48000.0, 96000.0 })
+    {
+        if (!layered)
+            break;
+        const auto frames = static_cast<int>(rate * 3.5);
+        const auto from = static_cast<int>(rate * 0.8);
+        const auto to = static_cast<int>(rate * 1.8);
+        const auto sound = [&](int frame)
+        {
+            return freezeNoise(frame, within(frame, static_cast<int>(rate * 0.2), static_cast<int>(rate * 2.6)));
+        };
+        requireSameFathomRender(renderThroughFreeze(layer, rate, 0.0f, from, to, frames, sound),
+                                renderThroughFreeze(FathomEngine::Layer::tide, rate, 0.0f, from, to, frames, sound),
+                                name + " at Evolution 0 through a Freeze at "
+                                    + std::to_string(static_cast<int>(rate)) + " Hz");
+    }
+
+    // Through the plug-in at Evolution 100 %: the burst inside the Freeze
+    // leaves the output as it is without it, from the first frame to the last.
+    {
+        const auto play = [&](bool withBurst)
+        {
+            auto parameters = fathomNeutralParameters();
+            parameters.mode = mode;
+            parameters.decaySeconds = 2.0f;
+            FDNReverb reverb;
+            reverb.setParameters(parameters);
+            reverb.prepare(sampleRate, 64);
+            std::vector<float> played;
+            played.reserve(2 * static_cast<std::size_t>(frameCount));
+            for (auto frame = 0; frame < frameCount; ++frame)
+            {
+                if (frame == freezeFrom || frame == freezeTo)
+                {
+                    parameters.freeze = frame == freezeFrom;
+                    reverb.setParameters(parameters);
+                }
+                const auto input = freezeNoise(frame, earlier(frame)
+                                                          || (withBurst && within(frame, at(5.2), at(5.45))));
+                auto left = input.left;
+                auto right = input.right;
+                processUndertowPlugIn(reverb, frame, sampleRate, left, right);
+                played.push_back(left);
+                played.push_back(right);
+            }
+            return played;
+        };
+        const auto without = play(false);
+        require(freezeEnergy(without, at(5.0), freezeTo) > 1.0e-6,
+                name + " under Freeze in the plug-in holds nothing");
+        requireSameFathomRender(play(true), without,
+                                name + " in the plug-in: a burst played wholly inside a Freeze did not leave "
+                                       "the output as it is without it");
+    }
+}
+
+// A hold of four seconds for the tests of the layers on their own, in
+// internal samples: it begins and ends away from the zeros of the two tones
+// the layers are given, and its glide is the network's.
+constexpr long long freezeGlideSamples = 2205;
+constexpr long long freezeHoldFrom = 2 * 44100 + 57;
+constexpr long long freezeHoldTo = 6 * 44100 + 57;
+
+// The share of its input a layer takes at an internal sample of that hold:
+// one, none under the hold, and between the two the straight lines the
+// network's hold moves along; or the same at once.
+[[nodiscard]] double freezeShareAt(long long sample, bool atOnce) noexcept
+{
+    if (sample < freezeHoldFrom || sample >= freezeHoldTo + (atOnce ? 0 : freezeGlideSamples))
+        return 1.0;
+    if (atOnce || (sample >= freezeHoldFrom + freezeGlideSamples && sample < freezeHoldTo))
+        return 0.0;
+    return sample < freezeHoldTo
+        ? 1.0 - static_cast<double>(sample - freezeHoldFrom + 1) / static_cast<double>(freezeGlideSamples)
+        : static_cast<double>(sample - freezeHoldTo + 1) / static_cast<double>(freezeGlideSamples);
+}
+
+void testSpumeUnderFreeze()
+{
+    requireLayerTakesNothingUnderFreeze(FathomEngine::Layer::spume, ReverbMode::spume, "Spume");
+
+    // The layer itself. What it hands the network is the plain input by its
+    // gain, which the hold does not touch here, and by the other gain the
+    // diffuser's answer to the input by its share. The click measure is that
+    // of the Evolution test: the largest second difference of what the layer
+    // hands on for two steady tones.
+    constexpr auto halfPi = 1.57079632679489661923;
+    constexpr long long sampleCount = 10 * 44100;
+    for (const auto macro : { 1.0, 0.62 })
+    {
+        const auto run = [&](bool held, bool atOnce, double& lawDistance)
+        {
+            SpumeLayer layer;
+            layer.prepare();
+            layer.setMacro(macro, true);
+            SpumeDiffuser diffuser;
+            diffuser.prepare();
+            const auto plainGain = std::cos(halfPi * macro);
+            const auto diffusedGain = std::sin(halfPi * macro);
+            std::array<std::array<double, 2>, 2> before {};
+            auto click = 0.0;
+            lawDistance = 0.0;
+            for (long long sample = 0; sample < sampleCount; ++sample)
+            {
+                const auto share = held ? freezeShareAt(sample, atOnce) : 1.0;
+                const auto input = undertowTones(sample);
+                std::array<double, 2> diffused {};
+                diffuser.process(share * input[0], share * input[1], diffused[0], diffused[1]);
+                auto output = input;
+                layer.process(output[0], output[1], share);
+                for (std::size_t channel = 0; channel < 2; ++channel)
+                {
+                    lawDistance = std::max(lawDistance,
+                                           std::abs(output[channel] - (plainGain * input[channel]
+                                                                       + diffusedGain * diffused[channel])));
+                    click = std::max(click, std::abs(output[channel] - 2.0 * before[1][channel]
+                                                     + before[0][channel]));
+                }
+                before[0] = before[1];
+                before[1] = output;
+            }
+            return click;
+        };
+        auto calmDistance = 0.0;
+        auto heldDistance = 0.0;
+        auto cutDistance = 0.0;
+        const auto calmClick = run(false, false, calmDistance);
+        const auto heldClick = run(true, false, heldDistance);
+        const auto cutClick = run(true, true, cutDistance);
+        std::cout << "[METRIC] Spume layer at Macro " << macro << " through a hold of four seconds: click measure="
+                  << heldClick << " (without the hold " << calmClick << ", with the share taken at once "
+                  << cutClick << "), distance from the input by its gain and the diffused input by its share="
+                  << heldDistance << '\n';
+        require(calmDistance <= 1.0e-12 && heldDistance <= 1.0e-12 && cutDistance <= 1.0e-12,
+                "Spume diffuser does not take its input by the share it is given");
+        require(heldClick <= 1.5 * calmClick, "Spume layer clicks where the hold begins or ends");
+        require(cutClick >= 3.0 * heldClick, "Spume click measure does not see a share taken at once");
+    }
+
+    // At Macro 0 the layer is at rest whatever share it is given.
+    {
+        SpumeLayer layer;
+        layer.prepare();
+        layer.setMacro(0.0, true);
+        for (long long sample = 0; sample < sampleCount; sample += 1)
+        {
+            const auto input = undertowTones(sample);
+            auto output = input;
+            layer.process(output[0], output[1], freezeShareAt(sample, false));
+            require(layer.atRest() && sameBits(output[0], input[0]) && sameBits(output[1], input[1]),
+                    "Spume layer at Macro 0 does not hand its input on as it is under a hold");
+        }
+    }
+
+    // The share is the network's own to the sample. At 44.1 kHz a frame is an
+    // internal sample. An impulse j frames behind the release meets a hold
+    // that has j + 1 of its 2205 steps behind it; from j = 2160 on all the
+    // diffuser makes of it reaches the lines when the hold is over, so the
+    // engine must be the engine that never held, given the impulse times
+    // (j + 1) / 2205. The same with the share of the next sample is the
+    // control.
+    constexpr auto glideSamples = static_cast<int>(freezeGlideSamples);
+    constexpr auto freezeFrom = 2000;
+    constexpr auto freezeTo = 60000;
+    constexpr auto frameCount = freezeTo + 3 * 44100;
+    auto worstNullDb = -400.0;
+    auto bestControlDb = 0.0;
+    for (const auto behind : { 2160, 2175, 2190 })
+    {
+        const auto impulse = [&](float amplitude)
+        {
+            return [=](int frame)
+            {
+                return frame == freezeTo + behind ? FathomEngine::Frame { amplitude, -0.8f * amplitude }
+                                                  : FathomEngine::Frame {};
+            };
+        };
+        const auto shareOf = [&](int steps) { return static_cast<float>(steps) / static_cast<float>(glideSamples); };
+        const auto held = renderThroughFreeze(FathomEngine::Layer::spume, 44100.0, 1.0f, freezeFrom, freezeTo,
+                                              frameCount, impulse(0.5f));
+        const auto never = renderThroughFreeze(FathomEngine::Layer::spume, 44100.0, 1.0f, -1, -1, frameCount,
+                                               impulse(0.5f * shareOf(behind + 1)));
+        const auto next = renderThroughFreeze(FathomEngine::Layer::spume, 44100.0, 1.0f, -1, -1, frameCount,
+                                              impulse(0.5f * shareOf(behind + 2)));
+        const auto window = std::span<const float>(held).subspan(2 * static_cast<std::size_t>(freezeTo));
+        worstNullDb = std::max(worstNullDb, fathomNullDb(
+            window, std::span<const float>(never).subspan(2 * static_cast<std::size_t>(freezeTo))));
+        bestControlDb = std::min(bestControlDb, fathomNullDb(
+            window, std::span<const float>(next).subspan(2 * static_cast<std::size_t>(freezeTo))));
+    }
+    std::cout << "[METRIC] Spume engine, an impulse on the last steps of the hold's glide against the engine "
+                 "that never held, given the impulse by the share of its sample: null=" << worstNullDb
+              << " dB at worst (by the share of the next sample " << bestControlDb << " dB at best)\n";
+    require(worstNullDb <= -120.0, "Spume diffuser does not take its input by the network's share of the sample");
+    require(bestControlDb >= -90.0, "The impulses on the hold's glide do not tell a sample from the next");
+}
+
+void testUndertowUnderFreeze()
+{
+    requireLayerTakesNothingUnderFreeze(FathomEngine::Layer::undertow, ReverbMode::undertow, "Undertow");
+
+    // The layer itself at Macro 100 % under a host at 120 BPM. What it is
+    // given to keep is its input by its share, and nothing else of it changes:
+    // it adds what it adds for that input. The click measure is that of the
+    // transport tests: the largest second difference of what the layer adds
+    // to two steady tones.
+    constexpr auto hostRate = 44100;
+    constexpr auto blockFrames = 256;
+    constexpr long long sampleCount = 10 * 44100;
+    struct Run
+    {
+        double click = 0.0;
+        // Peak of what the layer adds over the first second of the hold, and
+        // over its last.
+        double earlyPeak = 0.0;
+        double latePeak = 0.0;
+    };
+    const auto run = [&](bool held, bool atOnce, bool sharesTheInput)
+    {
+        UndertowLayer layer;
+        layer.prepare(FathomRateLattice::at(hostRate), hostRate);
+        layer.setMacro(1.0, true);
+        // The same layer given the input by its share in place of the share.
+        UndertowLayer given;
+        given.prepare(FathomRateLattice::at(hostRate), hostRate);
+        given.setMacro(1.0, true);
+        Run result;
+        std::array<std::array<double, 2>, 2> before {};
+        for (long long sample = 0; sample < sampleCount; ++sample)
+        {
+            if (sample % blockFrames == 0)
+            {
+                const auto transport = undertowTransport(
+                    static_cast<double>(sample) * 120.0 / (60.0 * hostRate), 120.0, true);
+                layer.setTransport(transport);
+                given.setTransport(transport);
+            }
+            const auto share = held ? freezeShareAt(sample, atOnce) : 1.0;
+            const auto input = undertowTones(sample);
+            std::array<double, 2> added {};
+            layer.hostFrame();
+            layer.process(input[0], input[1], share, added[0], added[1]);
+            if (sharesTheInput)
+            {
+                std::array<double, 2> addedToGiven {};
+                given.hostFrame();
+                given.process(share * input[0], share * input[1], addedToGiven[0], addedToGiven[1]);
+                require(sameBits(added[0], addedToGiven[0]) && sameBits(added[1], addedToGiven[1]),
+                        "Undertow layer does not keep its input by the share it is given");
+            }
+            for (std::size_t channel = 0; channel < 2; ++channel)
+            {
+                result.click = std::max(result.click, std::abs(added[channel] - 2.0 * before[1][channel]
+                                                               + before[0][channel]));
+                if (sample >= freezeHoldFrom + freezeGlideSamples
+                    && sample < freezeHoldFrom + freezeGlideSamples + 44100)
+                    result.earlyPeak = std::max(result.earlyPeak, std::abs(added[channel]));
+                if (sample >= freezeHoldTo - 44100 && sample < freezeHoldTo)
+                    result.latePeak = std::max(result.latePeak, std::abs(added[channel]));
+            }
+            before[0] = before[1];
+            before[1] = added;
+        }
+        return result;
+    };
+    const auto calm = run(false, false, false);
+    const auto held = run(true, false, true);
+    const auto cut = run(true, true, false);
+    std::cout << "[METRIC] Undertow layer at Macro 100 % through a hold of four seconds: click measure="
+              << held.click << " (without the hold " << calm.click << ", with the share taken at once "
+              << cut.click << "); what it kept from before the hold: peak " << held.earlyPeak
+              << " over the hold's first second, " << held.latePeak << " over its last (without the hold "
+              << calm.latePeak << ")\n";
+    require(held.click <= 1.5 * calm.click, "Undertow layer clicks where the hold begins or ends");
+    require(cut.click >= 3.0 * held.click, "Undertow click measure does not see a share taken at once");
+    // What the readers held before the hold runs out under it and is not cut.
+    require(held.earlyPeak > 0.1 * calm.latePeak && held.latePeak < 0.1 * held.earlyPeak,
+            "Undertow layer does not let what it kept before the hold run out under it");
+
+    // The share is the network's own to the sample. At 44.1 kHz a frame is an
+    // internal sample. An impulse j frames behind the release meets a hold
+    // that has j + 1 of its 2205 steps behind it, and the layer keeps it by
+    // that share; from j = 2160 on the network takes the impulse whole, and
+    // all the layer makes of it. Layer and network are linear in what they
+    // are given, so the engine must be that share of the engine that never
+    // held and the rest of the same engine at Macro 0, where the layer adds
+    // nothing. The same with the share of the next sample is the control.
+    constexpr auto glideSamples = static_cast<int>(freezeGlideSamples);
+    constexpr auto freezeFrom = 2000;
+    constexpr auto freezeTo = 60000;
+    constexpr auto frameCount = freezeTo + 3 * 44100;
+    auto worstNullDb = -400.0;
+    auto bestControlDb = 0.0;
+    for (const auto behind : { 2160, 2175, 2190 })
+    {
+        const auto impulse = [=](int frame)
+        {
+            return frame == freezeTo + behind ? FathomEngine::Frame { 0.5f, -0.4f } : FathomEngine::Frame {};
+        };
+        const auto heldEngine = renderThroughFreeze(FathomEngine::Layer::undertow, 44100.0, 1.0f, freezeFrom,
+                                                    freezeTo, frameCount, impulse);
+        const auto never = renderThroughFreeze(FathomEngine::Layer::undertow, 44100.0, 1.0f, -1, -1,
+                                               frameCount, impulse);
+        const auto plain = renderThroughFreeze(FathomEngine::Layer::undertow, 44100.0, 0.0f, -1, -1,
+                                               frameCount, impulse);
+        const auto nullDb = [&](int steps)
+        {
+            const auto share = static_cast<double>(steps) / static_cast<double>(glideSamples);
+            auto differenceEnergy = 0.0;
+            auto energy = 0.0;
+            for (auto index = 2 * static_cast<std::size_t>(freezeTo); index < heldEngine.size(); ++index)
+            {
+                const auto expected = share * static_cast<double>(never[index])
+                                    + (1.0 - share) * static_cast<double>(plain[index]);
+                const auto difference = static_cast<double>(heldEngine[index]) - expected;
+                differenceEnergy += difference * difference;
+                energy += static_cast<double>(heldEngine[index]) * heldEngine[index];
+            }
+            return 10.0 * std::log10(std::max(differenceEnergy, 1.0e-300) / std::max(energy, 1.0e-300));
+        };
+        worstNullDb = std::max(worstNullDb, nullDb(behind + 1));
+        bestControlDb = std::min(bestControlDb, nullDb(behind + 2));
+    }
+    std::cout << "[METRIC] Undertow engine, an impulse on the last steps of the hold's glide against the engine "
+                 "that never held, the layer's part by the share of its sample: null=" << worstNullDb
+              << " dB at worst (by the share of the next sample " << bestControlDb << " dB at best)\n";
+    require(worstNullDb <= -120.0, "Undertow layer does not keep its input by the network's share of the sample");
+    require(bestControlDb >= -95.0, "The impulses on the hold's glide do not tell a sample from the next");
+}
+
+// An input that the engine's input equaliser turns into a unit impulse at its
+// first sample and nothing behind it: the impulse through the inverse of each
+// section, whose zeros lie inside the unit circle.
+[[nodiscard]] std::vector<double> inverseEqualisedImpulse(std::size_t length)
+{
+    std::vector<double> signal(length, 0.0);
+    signal[0] = 1.0;
+    for (const auto& section : amanita::dsp::fathom::equaliser)
+    {
+        auto state0 = 0.0;
+        auto state1 = 0.0;
+        for (auto& sample : signal)
+        {
+            const auto input = sample;
+            const auto output = (input + state0) / section.b0;
+            state0 = section.a1 * input - section.b1 * output + state1;
+            state1 = section.a2 * input - section.b2 * output;
+            sample = output;
+        }
+    }
+    return signal;
+}
+
+// Fathom's own layer under the engine's hold (Ocean's own): the comb of the
+// Tide layer takes its input by the share the lines are given, so what is
+// played under Freeze is not in the comb when Freeze ends, at any Evolution.
+void testFathomUnderFreeze()
+{
+    requireLayerTakesNothingUnderFreeze(FathomEngine::Layer::tide, ReverbMode::fathom, "Fathom");
+
+    // At Evolution 0 the three Characters that are engines are one engine
+    // through a Freeze and across both its edges, to the bit.
+    for (const auto rate : { 44100.0, 48000.0, 96000.0 })
+    {
+        const auto frames = static_cast<int>(rate * 3.5);
+        const auto from = static_cast<int>(rate * 0.8);
+        const auto to = static_cast<int>(rate * 1.8);
+        const auto sound = [&](int frame)
+        {
+            return freezeNoise(frame, frame >= static_cast<int>(rate * 0.2) && frame < static_cast<int>(rate * 2.6));
+        };
+        const auto fathom = renderThroughFreeze(FathomEngine::Layer::tide, rate, 0.0f, from, to, frames, sound);
+        const auto label = " at Evolution 0 through a Freeze at " + std::to_string(static_cast<int>(rate)) + " Hz";
+        requireSameFathomRender(renderThroughFreeze(FathomEngine::Layer::undertow, rate, 0.0f, from, to, frames, sound),
+                                fathom, "Undertow against Fathom" + label);
+        requireSameFathomRender(renderThroughFreeze(FathomEngine::Layer::spume, rate, 0.0f, from, to, frames, sound),
+                                fathom, "Spume against Fathom" + label);
+    }
+
+    // The comb takes nothing under Freeze at Evolution 0 either, where it is
+    // out of the circuit and only keeps its history for the time Evolution
+    // rises. A burst ends 50 ms in front of the release and Evolution goes to
+    // 100 % with the release: the output is that without the burst.
+    {
+        constexpr auto sampleRate = 48000.0;
+        const auto at = [](double seconds) { return static_cast<int>(seconds * sampleRate); };
+        const auto play = [&](bool withBurst)
+        {
+            FathomEngine::Parameters parameters;
+            parameters.decaySeconds = 2.0f;
+            FathomEngine engine;
+            engine.setParameters(parameters);
+            engine.prepare(sampleRate);
+            std::vector<float> played;
+            played.reserve(2 * static_cast<std::size_t>(at(10.5)));
+            for (auto frame = 0; frame < at(10.5); ++frame)
+            {
+                if (frame == at(1.5) || frame == at(6.5))
+                {
+                    parameters.freeze = frame == at(1.5);
+                    parameters.macro = frame == at(1.5) ? 0.0f : 1.0f;
+                    engine.setParameters(parameters);
+                }
+                const auto input = freezeNoise(frame, (frame >= at(0.2) && frame < at(0.45))
+                                                          || (withBurst && frame >= at(6.2) && frame < at(6.45)));
+                const auto wet = engine.processSample(input.left, input.right);
+                played.push_back(wet.left);
+                played.push_back(wet.right);
+            }
+            return played;
+        };
+        const auto without = play(false);
+        require(freezeEnergy(without, at(6.5), at(8.0)) > 1.0e-6,
+                "Fathom from Evolution 0 under Freeze to 100 % behind it: nothing sounds behind the release");
+        requireSameFathomRender(play(true), without,
+                                "Fathom: a burst played under Freeze at Evolution 0 is in the comb when "
+                                "Evolution rises behind the release");
+    }
+
+    // The share is the lines' own to the sample. At 44.1 kHz a frame is an
+    // internal sample, and at Macro 100 % the lines take the comb's output
+    // alone. An input the equaliser turns into an impulse j frames behind the
+    // release reaches the comb by a hold that has j + 1 of its 2205 steps
+    // behind it; from j = 1965 on all the comb makes of it reaches the lines
+    // when the hold is over. So the engine must be the engine that never held,
+    // given that input times (j + 1) / 2205. The same with the share of the
+    // next sample is the control.
+    constexpr auto glideSamples = static_cast<int>(freezeGlideSamples);
+    constexpr auto freezeFrom = 2000;
+    constexpr auto freezeTo = 60000;
+    constexpr auto frameCount = freezeTo + 3 * 44100;
+    const auto impulse = inverseEqualisedImpulse(1024);
+    auto worstNullDb = -400.0;
+    auto bestControlDb = 0.0;
+    for (const auto behind : { 2000, 2100, 2190 })
+    {
+        const auto input = [&](double scale)
+        {
+            return [&impulse, behind, scale](int frame)
+            {
+                const auto index = frame - (freezeTo + behind);
+                if (index < 0 || index >= static_cast<int>(impulse.size()))
+                    return FathomEngine::Frame {};
+                const auto value = scale * impulse[static_cast<std::size_t>(index)];
+                return FathomEngine::Frame { static_cast<float>(0.5 * value), static_cast<float>(-0.4 * value) };
+            };
+        };
+        const auto shareOf = [&](int steps) { return static_cast<double>(steps) / static_cast<double>(glideSamples); };
+        const auto held = renderThroughFreeze(FathomEngine::Layer::tide, 44100.0, 1.0f, freezeFrom, freezeTo,
+                                              frameCount, input(1.0));
+        const auto never = renderThroughFreeze(FathomEngine::Layer::tide, 44100.0, 1.0f, -1, -1, frameCount,
+                                               input(shareOf(behind + 1)));
+        const auto next = renderThroughFreeze(FathomEngine::Layer::tide, 44100.0, 1.0f, -1, -1, frameCount,
+                                              input(shareOf(behind + 2)));
+        const auto window = std::span<const float>(held).subspan(2 * static_cast<std::size_t>(freezeTo));
+        require(freezeEnergy(held, freezeTo, frameCount) > 1.0e-6,
+                "Fathom's comb gives nothing for an impulse on the hold's glide");
+        worstNullDb = std::max(worstNullDb, fathomNullDb(
+            window, std::span<const float>(never).subspan(2 * static_cast<std::size_t>(freezeTo))));
+        bestControlDb = std::min(bestControlDb, fathomNullDb(
+            window, std::span<const float>(next).subspan(2 * static_cast<std::size_t>(freezeTo))));
+    }
+    std::cout << "[METRIC] Fathom engine, an impulse at the comb on the hold's glide against the engine that never "
+                 "held, given it by the share of its sample: null=" << worstNullDb
+              << " dB at worst (by the share of the next sample " << bestControlDb << " dB at best)\n";
+    require(worstNullDb <= -120.0, "Fathom's comb does not take its input by the lines' share of the sample");
+    require(bestControlDb >= -90.0, "The impulses on the hold's glide do not tell a sample from the next");
+
+    // The click measure of the layers has no place to be taken here: the comb
+    // lies inside the network. At the engine's output, two steady tones
+    // through a hold of four seconds at Macro 100 %: the largest second
+    // difference of the wet from where the hold begins to a second behind its
+    // end, against the same tones over the same time with no hold.
+    const auto wetClick = [](bool held)
+    {
+        const auto wet = renderThroughFreeze(
+            FathomEngine::Layer::tide, 44100.0, 1.0f, held ? static_cast<int>(freezeHoldFrom) : -1,
+            held ? static_cast<int>(freezeHoldTo) : -1, 8 * 44100, [](int frame)
+            {
+                const auto tones = undertowTones(frame);
+                return FathomEngine::Frame { static_cast<float>(tones[0]), static_cast<float>(tones[1]) };
+            });
+        auto click = 0.0;
+        for (auto index = 2 * static_cast<std::size_t>(freezeHoldFrom);
+             index < 2 * static_cast<std::size_t>(freezeHoldTo + 44100); ++index)
+            click = std::max(click, std::abs(static_cast<double>(wet[index]) - 2.0 * wet[index - 2]
+                                             + wet[index - 4]));
+        return click;
+    };
+    const auto calmClick = wetClick(false);
+    const auto heldClick = wetClick(true);
+    std::cout << "[METRIC] Fathom engine at Macro 100 % through a hold of four seconds: largest second difference "
+                 "of the wet=" << heldClick << " (without the hold " << calmClick << ")\n";
+    require(heldClick <= 1.5 * calmClick, "Fathom clicks where the hold begins or ends");
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -12601,6 +15089,7 @@ int main(int argc, char** argv)
                     testFathomTideHostileInputAndAutomation },
         NamedTest { "Fathom Tide layer smooth parameter motion",
                     testFathomTideSmoothMotion },
+        NamedTest { "Fathom under Freeze takes no new input", testFathomUnderFreeze },
         NamedTest { "Undertow engine golden vectors", testUndertowEngineGoldenVectors },
         NamedTest { "Undertow at Evolution 0", testUndertowIsFathomAtEvolutionZero },
         NamedTest { "Undertow engine determinism, clocks, reset and Freeze",
@@ -12620,6 +15109,24 @@ int main(int argc, char** argv)
                     testUndertowEngineAllocatesOnlyInPrepare },
         NamedTest { "Undertow routing, crossfades and return through the plug-in",
                     testUndertowThroughThePlugIn },
+        NamedTest { "Undertow under Freeze takes no new input", testUndertowUnderFreeze },
+        NamedTest { "Spume diffuser against the model", testSpumeDiffuserAgainstTheModel },
+        NamedTest { "Spume engine golden vectors", testSpumeEngineGoldenVectors },
+        NamedTest { "Spume at Evolution 0", testSpumeIsFathomAtEvolutionZero },
+        NamedTest { "Spume engine determinism, reset, Pre Delay and Freeze",
+                    testSpumeEngineDeterminismAndReset },
+        NamedTest { "Spume independence of the host's block length",
+                    testSpumeHostBlockInvariance },
+        NamedTest { "Spume Evolution steps and ramps", testSpumeEvolutionStepsAndRamps },
+        NamedTest { "Spume silence, denormals and hostile input",
+                    testSpumeSilenceDenormalsAndHostileInput },
+        NamedTest { "Spume engine allocation-free processing",
+                    testSpumeEngineAllocatesOnlyInPrepare },
+        NamedTest { "Spume routing, crossfades and return through the plug-in",
+                    testSpumeThroughThePlugIn },
+        NamedTest { "Spume under Freeze takes no new input", testSpumeUnderFreeze },
+        NamedTest { "Engine Characters' own level stages and Sub Anchors through switches",
+                    testEngineCharactersOwnOuterStages },
         NamedTest { "Drift low/high Evolution kick+bass 190 BPM",
                     testDriftEvolutionKickBass190 },
         NamedTest { "Veil kick+bass 190 BPM", testVeilKickBass190 },
@@ -12678,6 +15185,12 @@ int main(int argc, char** argv)
         && std::strcmp(argv[1], "--test-fathom") == 0;
     const auto wantsUndertowTestsOnly = argc == 2
         && std::strcmp(argv[1], "--test-undertow") == 0;
+    const auto wantsSpumeTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-spume") == 0;
+    const auto wantsEngineStageTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-engine-stages") == 0;
+    const auto wantsFreezeTestsOnly = argc == 2
+        && std::strcmp(argv[1], "--test-freeze") == 0;
     auto failures = 0;
     for (const auto& test : tests)
     {
@@ -12719,6 +15232,18 @@ int main(int argc, char** argv)
             continue;
         if (wantsUndertowTestsOnly
             && std::strstr(test.name, "Undertow") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
+        if (wantsSpumeTestsOnly
+            && std::strstr(test.name, "Spume") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
+        if (wantsEngineStageTestsOnly
+            && std::strstr(test.name, "Engine Characters") == nullptr
+            && std::strcmp(test.name, "no allocations in process") != 0)
+            continue;
+        if (wantsFreezeTestsOnly
+            && std::strstr(test.name, "under Freeze") == nullptr
             && std::strcmp(test.name, "no allocations in process") != 0)
             continue;
         try

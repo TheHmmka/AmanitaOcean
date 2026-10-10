@@ -722,7 +722,7 @@ UndertowLayer::GrainTaps UndertowLayer::grainTaps(float phase, double sweep, dou
     return taps;
 }
 
-void UndertowLayer::process(double left, double right, double& addedLeft,
+void UndertowLayer::process(double left, double right, double inputShare, double& addedLeft,
                             double& addedRight) noexcept
 {
     addedLeft = 0.0;
@@ -745,8 +745,11 @@ void UndertowLayer::process(double left, double right, double& addedLeft,
 
     const auto sample = static_cast<double>(now_);
     const auto slot = static_cast<std::size_t>(now_);
-    history_[0][slot & (historyCapacity - 1)] = static_cast<float>(settled(left));
-    history_[1][slot & (historyCapacity - 1)] = static_cast<float>(settled(right));
+    // Ocean's own: what is played under the engine's hold is not kept, so no
+    // reader plays it back when the hold ends. What the readers, the
+    // recirculation and the grain readers hold from before runs out as it would.
+    history_[0][slot & (historyCapacity - 1)] = static_cast<float>(settled(inputShare * left));
+    history_[1][slot & (historyCapacity - 1)] = static_cast<float>(settled(inputShare * right));
 
     // Each gain follows its ramp through a one-pole and arrives.
     for (std::size_t voice = 0; voice < voiceCount; ++voice)

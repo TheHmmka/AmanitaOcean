@@ -3987,5 +3987,157 @@
    "scorer": "4292 figures of the engine and 628 of the plug-in at Macro 0 as before the rename"
   },
   "workFolder": "Analyzer/Results/RevOceanCharacterization/work/final_wave (INDEX.txt)"
+ },
+ "since0230": {
+  "date": "2026-10-10",
+  "what": "one rule of Ocean's own, decided by the owner on 10 October 2026 for Fathom, Undertow and Spume alike; with Freeze off every sample is that of 0.22.0 and 0.23.0. Nothing of it is installed, published or signed, and the version is unchanged.",
+  "freezeAndTheComb": {
+   "in0220And0230": "the comb of the Tide layer went on taking the equalised input under Freeze; its feedback kept that for a quarter of a second, so the end of a sound played under Freeze came back with the release",
+   "rule": "under Freeze the comb takes no new input. In every internal sample its input is the equalised input times the share the lines are given in that sample, one less the hold (FathomNetwork::process). The hold moves in a straight line over 50 ms (2205 internal samples), the first step in the first internal sample behind the switch, and lands on its end exactly; a silent network takes the switch at once. The comb is under the rule at every Evolution, also at 0, where it only keeps its history. What it took before Freeze runs out as it did.",
+   "aBurstPlayedWhollyInsideAFreezeOfFiveSeconds": {
+    "measure": "energy of what the burst (a quarter second of noise at 0.3) adds to the four seconds behind the release, over the energy of the wet of the same burst played with no Freeze over the four seconds from its start; engine at 48 kHz, Decay 2 s",
+    "atEvolution100": {
+     "burstEnds1p05sInFrontOfTheRelease": {
+      "before": "nothing",
+      "now": "nothing"
+     },
+     "burstEnds250msInFrontOfTheRelease": {
+      "beforeDb": -161.44,
+      "now": "nothing: no bit differs"
+     },
+     "burstEnds100msInFrontOfTheRelease": {
+      "beforeDb": -80.18,
+      "now": "nothing: no bit differs"
+     },
+     "burstEnds50msInFrontOfTheRelease": {
+      "beforeDb": -52.26,
+      "now": "nothing: no bit differs"
+     },
+     "burstEnds10msInFrontOfTheRelease": {
+      "beforeDb": -29.38,
+      "nowDb": -152.88
+     }
+    },
+    "atEvolution50": {
+     "burstEnds250msInFrontOfTheRelease": {
+      "beforeDb": -163.98,
+      "now": "nothing"
+     },
+     "burstEnds100msInFrontOfTheRelease": {
+      "beforeDb": -81.72,
+      "now": "nothing"
+     },
+     "burstEnds50msInFrontOfTheRelease": {
+      "beforeDb": -54.49,
+      "now": "nothing"
+     },
+     "burstEnds10msInFrontOfTheRelease": {
+      "beforeDb": -31.97,
+      "nowDb": -142.82
+     }
+    },
+    "atEvolution0": {
+     "burstEnds10msInFrontOfTheRelease": {
+      "beforeDb": -138.51,
+      "nowDb": -138.51
+     },
+     "earlier": "nothing, before and now"
+    },
+    "whatIsLeft": "the input equaliser in front of comb and lines is not held and rings for some ten milliseconds",
+    "throughFDNReverb": "the output with the burst is the output without it, to the bit (bursts ending 1.05 s and 50 ms in front of the release)",
+    "beforeMeasuredOn": "the engine as it stood before the rule, the same build otherwise"
+   },
+   "aSoundThatBeganBeforeFreeze": "is, to the bit, that sound ended where the hold's glide ends (50 ms behind the switch, with 256 frames of room for what the rate converters reach)",
+   "underFreezeAtEvolution0ThenEvolution100AtTheRelease": "a burst that ends 50 ms in front of the release leaves the output as it is without it, to the bit",
+   "evolution0": "Undertow and Spume are Fathom to the bit through a Freeze and across both its edges, at 44.1, 48 and 96 kHz",
+   "theShareToTheSample": {
+    "what": "engine at 44.1 kHz, Macro 100 %: an input the equaliser turns into an impulse, 2000, 2100 and 2190 samples behind the release, against the engine that never held, given that input by the share of its sample",
+    "nullDb": -142.889,
+    "byTheShareOfTheNextSampleDb": -66.8165
+   },
+   "atTheEnginesOutput": {
+    "what": "largest second difference of the wet of two steady tones at Macro 100 % from where a hold of four seconds begins to a second behind its end",
+    "throughTheHold": 0.00102031,
+    "withoutTheHold": 0.00106698,
+    "note": "the comb lies inside the network; the click measure of the two layers has no place to be taken"
+   },
+   "mutantsBuiltOutOfTheTree": {
+    "killed": [
+     "the comb as in 0.23.0",
+     "its share taken at once where the hold begins to move",
+     "its share taken at once where the hold has arrived",
+     "the share of the sample before",
+     "the share of the sample behind",
+     "the comb muted at its output in place of its input"
+    ],
+    "survived": 0
+   }
+  },
+  "tests": {
+   "dspExecutable": {
+    "binary": "build-spume-dsp/AmanitaOceanDSPTests",
+    "passed": 102,
+    "failed": 0,
+    "exitCode": 0,
+    "seconds": 94.0,
+    "fathomTests": 26,
+    "new": "Fathom under Freeze takes no new input",
+    "threeFreezeTestsAlone": "--test-freeze"
+   },
+   "testsOf0230ThatPutFathomUnderFreeze": [
+    "Fathom engine allocates only in prepare",
+    "Fathom engine determinism, clocks and parameters at rest",
+    "Fathom engine silence, hostile input and sample rates",
+    "Fathom Freeze hold",
+    "Fathom under Focus, Harmony, Mono Safe and Freeze",
+    "Fathom parameter glides",
+    "Fathom sample rates and stability",
+    "Fathom Tide layer under hostile input and Macro automation"
+   ],
+   "theirResult": "all pass unchanged",
+   "metricLinesThatMoved": {
+    "Fathom Tide layer at 48000 Hz wet peak under hostile input and Macro automation": {
+     "in0230": 5.41061,
+     "now": 5.36158,
+     "why": "hostile input with Freeze switched every few milliseconds; the limit is the clipper's range"
+    }
+   },
+   "everyOtherMetricLineOfTheTestsOf0230": "that of 0.23.0, character for character (the 77 of this document and the twelve of Undertow)",
+   "stateExecutable": {
+    "binary": "build-spume-dsp/AmanitaOceanStateTests",
+    "result": "passed",
+    "exitCode": 0
+   },
+   "rendererBitIdentity": "forty-two renders with the Tide (30) and the Undertow layer at 44.1, 48 and 96 kHz, Macro 0 to 100 %, with and without the outer laws, are the same bytes from the renderer of 0.23.0 and from the final one; the renderer has no Freeze",
+   "generators": "emit_engine_header.py and emit_engine_constants.py --check: up to date",
+   "scoresAgainstTheReference": "not run again: score_engine.py reads the reference's files to check its pins, which this work may not; every score goes through the renderer, whose output is the same bytes",
+   "sanitizers": {
+    "folder": "build-spume-sanitize",
+    "configuration": "Debug, arm64, -fsanitize=address,undefined -fno-omit-frame-pointer",
+    "command": "AmanitaOceanDSPTests --test-freeze",
+    "tests": [
+     "Fathom under Freeze takes no new input",
+     "Undertow under Freeze takes no new input",
+     "Spume under Freeze takes no new input",
+     "no allocations in process"
+    ],
+    "failed": 0,
+    "reports": 0,
+    "time": "8:39.58 total",
+    "metricLinesThoseOfTheReleaseBuild": true,
+    "builtBefore": "a comment added to FathomEngine.h afterwards"
+   }
+  },
+  "sourcesSha256": {
+   "Source/dsp/FathomNetwork.h": "36989c8f52d4c418095f4044f3bf6dc47de4deebd0ad1bf1f0cd350e20345054",
+   "Source/dsp/FathomNetwork.cpp": "5cca9e482a130a99ec4a51d9e68f8fb6511e092c0d6c8da3fc9b100ec2c77e23",
+   "Source/dsp/FathomEngine.h": "3e1dd3fea3a4d02e8eb64b1b7a6617e8c548bc346339097cdf428e1711ecc673",
+   "Source/dsp/FathomEngine.cpp": "2d68a65c92bcaf118370f464757165353396ac41faa33f99a8506786da1ca09c",
+   "Tests/DspTests.cpp": "57818b57100c65cd5b85ecb2d161cb12df66015d960c4d6f53de788409cbf2a1"
+  },
+  "notRun": [
+   "The rule in a host; listening.",
+   "score_engine.py."
+  ]
  }
 }

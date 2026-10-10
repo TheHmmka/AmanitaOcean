@@ -30,6 +30,13 @@ would be installed for a first listening: the three bundles with their
 hashes, the sources they were built from, the tests and scores behind them
 and the known limits. It is a description; nothing is installed.
 
+**Since 0.23.0.** Fathom is in 0.22.0 and 0.23.0 as this document describes
+it. One rule of Ocean's own has changed in the working tree since, on the
+owner's decision of 10 October 2026: under Freeze the comb of the Tide layer
+takes no new input (see "Properties and limits", Freeze). With Freeze off
+every sample is that of 0.23.0, to the bit; the rest of this document stands
+as it was written.
+
 ## Scope and identity
 
 | | |
@@ -68,7 +75,7 @@ controls only.
 | Low Cut, High Damping | Ocean's own, inside the loop | exactly out of the circuit at their end stops, 20 Hz and 20 kHz, and fully in it one step away |
 | Focus, Harmony | Ocean's own, on the wet | exactly out of the circuit at 0 % |
 | Mono Safe | Ocean's own | on Fathom only the 145 Hz Sub Anchor, behind the Width law; off by default |
-| Freeze | Ocean's own hold | not the reference's Freeze, which was not measured |
+| Freeze | Ocean's own hold | not the reference's Freeze, which was not measured. Held, the network takes no input, and since 10 October 2026 neither does the comb of the Tide layer, by the same glide of 50 ms; in 0.22.0 and 0.23.0 the comb went on taking it |
 
 Two things of the reference that have no knob in Ocean are part of Fathom:
 
@@ -523,6 +530,9 @@ of "Decisions for the owner" (the working name in four numbers).
 (while the sanitized DSP run used a core). The DSP executable reports 77
 passed, 0 failed. Of these, 25 are about Fathom; those at plug-in level check:
 
+(Since 0.23.0 a twenty-sixth, "Fathom under Freeze takes no new input", holds
+the rule of the comb under Freeze; it is described behind this list.)
+
 - at 44.1, 48, 88.2 and 96 kHz and at Evolution 0 and 100 %, with Ocean's own
   controls neutral, the output equals the engine's wet through the level
   stage bit for bit, also from host values through the processor, from the
@@ -576,6 +586,52 @@ passed, 0 failed. Of these, 25 are about Fathom; those at plug-in level check:
   (a number past it) or as Default (a negative number, text) and renders; the
   tail reported to the host covers Fathom's decay; processing allocates
   nothing.
+
+Since 0.23.0, in `build-spume-dsp` (Release, arm64), where the DSP executable
+reports 102 passed and 0 failed in 94 s: "Fathom under Freeze takes no new
+input" holds the rule of the comb. At Evolution 100 %, 48 kHz and a Freeze of
+five seconds, a burst of a quarter second played wholly inside the Freeze
+leaves the output as it is without the burst, to the bit, from the first
+frame to the last, whether it ends 1.05 s or 50 ms in front of the release,
+in the engine and through `FDNReverb`. A sound that began before Freeze and
+went on two seconds into it is, to the bit, that sound ended where the
+hold's glide ends. A burst played under Freeze at Evolution 0, with Evolution
+raised to 100 % at the release, leaves the output as it is without the burst.
+At Evolution 0 Undertow and Spume are Fathom to the bit through a Freeze and
+across both its edges at 44.1, 48 and 96 kHz. An input that the equaliser
+turns into an impulse, placed on the hold's glide behind the release, gives
+the engine that never held, given that input by the share of its sample, to
+-142.9 dB, and by the share of the next sample -66.8 dB: the comb's share is
+the lines' own to the sample. The comb lies inside the network, so the click
+measure of the two layers has no place to be taken; at the engine's output
+the largest second difference of the wet of two steady tones through a hold
+of four seconds is 0.00102, against 0.00107 for the same tones with no hold.
+Six faults put into a copy of the network one at a time, outside the tree
+(the comb as in 0.23.0, its share taken at once at either end of the glide,
+the share of the sample before and of the sample behind, the comb muted at
+its output in place of its input), each make the test fail. Under the
+address and undefined-behaviour sanitizers (`build-spume-sanitize`, Debug)
+the three Freeze tests of Fathom, Undertow and Spume (`--test-freeze`) pass
+with no report, in 8 min 40 s; Fathom's other tests were not run there again.
+
+Eight of the tests of 0.23.0 put Fathom under Freeze ("Fathom engine
+allocates only in prepare", "Fathom engine determinism, clocks and parameters
+at rest", "Fathom engine silence, hostile input and sample rates", "Fathom
+Freeze hold", "Fathom under Focus, Harmony, Mono Safe and Freeze", "Fathom
+parameter glides", "Fathom sample rates and stability", "Fathom Tide layer
+under hostile input and Macro automation"). All pass unchanged. One of their figures moved: the
+wet peak of the last of them at 48 kHz, under hostile input with Freeze
+switched every few milliseconds, from 5.41061 to 5.36158 (its limit is the
+clipper's range). Every other `[METRIC]` line of the 77 tests of this
+document, and of the twelve that came with Undertow, is that of 0.23.0,
+character for character: the figures of "Fathom Freeze hold", of the Freeze
+glide and of Freeze in the plug-in among them, whose input is silent under
+Freeze. Forty-two renders of the renderer, 30 of them with the Tide layer
+at three rates, Macro 0 to 100 %, with and without the outer laws, the others
+with Undertow's, are the same bytes as from the renderer of 0.23.0; the
+renderer has no Freeze, so every score that goes through it stands. `score_engine.py` itself was not
+run again: it reads the reference's files to check its pins, which this
+work may not.
 
 The state tests of the editor check, besides what "The editor" lists: the
 bounds of drop-down, block and knob at the default size (310, 112, 340 x 40;
@@ -836,6 +892,31 @@ Not measured in the reference, and therefore Fathom's own behaviour:
   lines keep moving (measured on the engine: about 0 dB/s below 1 kHz, -3.6
   dB/s at 4 kHz); at Evolution 100 % the held level follows the voices. Loud
   input still ducks a held tail through the level stage.
+- **Freeze and the comb** (Ocean's own; changed after 0.23.0 on the owner's
+  decision of 10 October 2026, for Fathom, Undertow and Spume alike). Held, a
+  line of the network loses nothing in a pass and takes no input; between the
+  two states the hold moves in a straight line over 50 ms, 2205 internal
+  samples, the first step in the first internal sample behind the switch,
+  and lands on its end exactly. In 0.22.0 and 0.23.0 the comb of the Tide
+  layer went on taking the equalised input under Freeze. Its feedback kept
+  what it took for a quarter of a second, so the end of a sound played under
+  Freeze came back with the release: by the measure of the test, a burst of
+  a quarter second that ended 10 ms in front of the release returned at
+  -29.4 dB of the same burst played with no Freeze at Evolution 100 %
+  (-32.0 dB at 50 %), one that ended 50 ms in front of it at -52.3 dB
+  (-54.5), 100 ms at -80.2 dB, 250 ms at -161.4 dB, a second and more
+  nothing. Now the comb takes its input by the share the lines are given in
+  the same internal sample, one less the hold: it stops listening over the
+  50 ms in which the lines do, takes exactly nothing while Freeze is fully
+  on, and listens again over the 50 ms of the release, at every Evolution,
+  also at 0, where it only keeps its history for the time Evolution rises.
+  Of the same bursts nothing comes back, to the bit, down to 50 ms in front
+  of the release. What the comb took before Freeze runs out as it did, and
+  with Freeze off the share is one and nothing has changed. One thing is
+  left: the input equaliser in front of comb and lines is not held, and it
+  rings for some ten milliseconds, so a burst that ends 10 ms in front of
+  the release leaves -152.9 dB at Evolution 100 % and -138.5 dB at
+  Evolution 0, where it was -138.5 dB before as well.
 - **Non-neutral reference controls.** Brightness, the input filter,
   Transients, Ducking above 0 %, Return, Master, the other Macro modes.
 - **The level stage.** Keeping the reference's reduction at Ducking 0 % is
@@ -1140,6 +1221,10 @@ was changed for the others.
   readings of the decay time stand as it left them. It did not compare
   controls in motion, input that works the level stage, Freeze, or instances
   older than 165 s.
+- The rule of the comb under Freeze (since 0.23.0) was tested in the engine
+  and through `FDNReverb`, not in a host and not by ear. The scores against
+  the reference were not run again for it; the renders they are made from
+  are the same bytes.
 - The cost of denormal arithmetic was never measured on an Intel processor;
   the engine now avoids it, which was checked through the underflow flag on
   arm64.

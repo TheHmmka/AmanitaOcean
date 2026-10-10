@@ -50,6 +50,15 @@ public:
                       int buttonHeight,
                       juce::ComboBox& box) override;
     void positionComboBoxText(juce::ComboBox& box, juce::Label& label) override;
+    // A chevron that stands beside a drop-down and steps through its items:
+    // the drop-down's own chevron turned on its side, drawn in the middle of
+    // an area as high as the field, over a dark line that keeps its outline
+    // on a light ground. It has the tone of the field's chevron at emphasis 0
+    // and the accent at 1.
+    void drawStepChevron(juce::Graphics& graphics,
+                         juce::Rectangle<float> area,
+                         bool pointsRight,
+                         float emphasis) const;
     [[nodiscard]] juce::Font getComboBoxFont(juce::ComboBox& box) override;
     [[nodiscard]] juce::PopupMenu::Options getOptionsForComboBoxPopupMenu(
         juce::ComboBox& box,

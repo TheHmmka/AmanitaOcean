@@ -41,6 +41,15 @@ public:
 
     [[nodiscard]] bool moving() const noexcept { return remaining_ > 0; }
 
+    // The value at `index` behind the next advance(), or where it stands
+    // while nothing moves.
+    [[nodiscard]] double next(std::size_t index) const noexcept
+    {
+        if (remaining_ <= 0)
+            return current_[index];
+        return remaining_ == 1 ? target_[index] : current_[index] + step_[index];
+    }
+
     void advance() noexcept
     {
         if (--remaining_ == 0)
@@ -138,6 +147,12 @@ public:
     void prescribeVoicePhase(const double* left, const double* right, std::size_t blockCount) noexcept;
 
     void process(double left, double right, double& outputLeft, double& outputRight) noexcept;
+    // The share of their input the lines take in the sample process() computes
+    // next: one, none while the loop is held, and between the two the hold's
+    // glide of 50 ms. The comb of the Tide layer takes its input by it, and so
+    // does a layer in front of the network, so that what is played under the
+    // hold is nowhere when the hold ends.
+    [[nodiscard]] double nextInputShare() const noexcept;
     // Clears every signal and takes the settings as they are; the clocks keep
     // their place.
     void silence() noexcept;

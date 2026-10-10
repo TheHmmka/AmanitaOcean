@@ -25,7 +25,8 @@ enum class ReverbMode
     veil,
     current,
     fathom,
-    undertow
+    undertow,
+    spume
 };
 
 // What the host says about its transport at the first frame of a block.
@@ -179,6 +180,11 @@ private:
     FathomEngine undertow_;
     FathomEngine::LevelStage undertowLevelStage_;
     StereoField undertowSubAnchor_;
+    // Spume: a third engine, which carries the Spume layer, with outer stages
+    // of its own.
+    FathomEngine spume_;
+    FathomEngine::LevelStage spumeLevelStage_;
+    StereoField spumeSubAnchor_;
     HarmonicAnalyzer harmonicAnalyzer_;
     HarmonicTail harmonicTail_;
     SpatialDucker spatialDucker_;
@@ -190,7 +196,8 @@ private:
     LinearSmoother driftAmount_;
     LinearSmoother fathomAmount_;
     LinearSmoother undertowAmount_;
-    // How much of the wet Fathom and Undertow hold together.
+    LinearSmoother spumeAmount_;
+    // How much of the wet Fathom, Undertow and Spume hold together.
     LinearSmoother engineAmount_;
     LinearSmoother veilAmount_;
     LinearSmoother mix_;
@@ -207,6 +214,7 @@ private:
     float currentFieldStrength_ = 0.0f;
     bool fathomEngaged_ = false;
     bool undertowEngaged_ = false;
+    bool spumeEngaged_ = false;
     HostTransport hostTransport_;
 };
 } // namespace amanita::dsp

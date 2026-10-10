@@ -41,6 +41,11 @@ constexpr double slowestTailTempo = 20.0;
 constexpr double fastestTailTempo = 999.0;
 constexpr float tailTempoWithoutHost = 120.0f;
 
+// The place of Spume among those choices, and what its diffuser in front of
+// the network still holds after its input has stopped, in seconds.
+constexpr int spumeChoice = 7;
+constexpr double spumeTailSeconds = 4.0;
+
 [[nodiscard]] float sizeScaleFromPercent(float percent) noexcept
 {
     const auto safePercent = std::isfinite(percent)
@@ -234,6 +239,11 @@ void AmanitaOceanAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         return;
     }
 
+    // A block without frames changes nothing. Reading the parameters for it
+    // would restart the Character crossfades with no sample in between.
+    if (buffer.getNumSamples() <= 0)
+        return;
+
     reverb_.setParameters(readDspParameters());
     const auto transport = readHostTransport();
     reverb_.setHostTransport(transport);
@@ -282,14 +292,17 @@ double AmanitaOceanAudioProcessor::getTailLengthSeconds() const
     const auto tail = static_cast<double>(decay) + 0.5;
 
     // Undertow goes on replaying the past after its input has stopped, at the
-    // tempo of the block processed last.
-    const auto isUndertow = characterParameter_ != nullptr
-        && static_cast<int>(std::lround(characterParameter_->load(std::memory_order_relaxed)))
-               == undertowChoice;
-    return isUndertow
-        ? tail + undertowTailQuarterNotes * 60.0
-                     / static_cast<double>(tailTempoBpm_.load(std::memory_order_relaxed))
-        : tail;
+    // tempo of the block processed last; Spume empties its diffuser, whatever
+    // the tempo.
+    const auto character = characterParameter_ != nullptr
+        ? static_cast<int>(std::lround(characterParameter_->load(std::memory_order_relaxed)))
+        : 0;
+    if (character == undertowChoice)
+        return tail + undertowTailQuarterNotes * 60.0
+                          / static_cast<double>(tailTempoBpm_.load(std::memory_order_relaxed));
+    if (character == spumeChoice)
+        return tail + spumeTailSeconds;
+    return tail;
 }
 
 int AmanitaOceanAudioProcessor::getNumPrograms() { return 1; }
@@ -366,7 +379,7 @@ AmanitaOceanAudioProcessor::createParameterLayout()
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID { algorithmId, 1 }, "Character",
         juce::StringArray { "Default", "Bloom", "Drift", "Veil", "Current", "Fathom",
-                            "Undertow" }, 0));
+                            "Undertow", "Spume" }, 0));
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { mixId, 1 }, "Mix",
         juce::NormalisableRange<float> { 0.0f, 100.0f, 0.1f }, 35.0f,
@@ -446,6 +459,9 @@ amanita::dsp::ReverbParameters AmanitaOceanAudioProcessor::readDspParameters() c
             break;
         case undertowChoice:
             parameters.mode = amanita::dsp::ReverbMode::undertow;
+            break;
+        case spumeChoice:
+            parameters.mode = amanita::dsp::ReverbMode::spume;
             break;
         default:
             parameters.mode = amanita::dsp::ReverbMode::defaultMode;

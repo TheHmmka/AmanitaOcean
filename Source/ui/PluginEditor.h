@@ -56,6 +56,12 @@ private:
     std::unique_ptr<amanita::ui::OceanShaderBackground> shaderBackground_;
     amanita::ui::DeepCurrentRenderer deepCurrent_;
     amanita::ui::CharacterSelector characterSelector_;
+    amanita::ui::CharacterStepButton previousCharacter_ {
+        amanita::ui::CharacterStepButton::Direction::previous
+    };
+    amanita::ui::CharacterStepButton nextCharacter_ {
+        amanita::ui::CharacterStepButton::Direction::next
+    };
     amanita::ui::CharacterDescription characterDescription_;
     amanita::ui::ParameterKnob evolutionKnob_;
     amanita::ui::ParameterKnob preDelayKnob_;

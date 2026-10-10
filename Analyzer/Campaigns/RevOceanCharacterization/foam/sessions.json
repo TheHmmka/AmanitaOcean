@@ -1,0 +1,30 @@
+{
+ "schema": "amanita-ocean.foam-sessions/1",
+ "what": "What a render of a job of an attended Foam session needs beside the session's own info.json: the tempo and the position its host reported (which nothing in Foam follows) and where the instance's oscillators stood. The recordings and their info.json are under Analyzer/Results/RevOceanCharacterization/work/foam/session_<label>/ (not in Git).",
+ "sampleRate": 48000,
+ "hostBlockFrames": 512,
+ "oscillatorOrigin": "internal sample (44.1 kHz, counted from the instance's first processed frame, where the lines take their input) at which the switch to Foam restarted the 32 line oscillators and emptied the network and the diffuser. Both are multiples of 44.",
+ "macroInMotion": "a Macro value set with the host call that begins at host frame h is first used by the block of 44 internal samples model/foam_model.py's first_block(h) gives (blocks begin at internal samples 43 mod 44); that rule is the reference's handling of host blocks and stays with the scorer",
+ "sessions": {
+  "A": {
+   "madeBy": "sessions/probe3.py",
+   "info": "info.json",
+   "tempo": 120.0,
+   "playHeadAheadSeconds": 0.0,
+   "transportRuns": true,
+   "oscillatorOrigin": 23964028,
+   "originFrom": "findings/FOAM_STATE.md, section 5",
+   "firstFoamProbe": 18
+  },
+  "T90": {
+   "madeBy": "sessions/probe_foam2.py",
+   "info": "info.json",
+   "tempo": 90.0,
+   "playHeadAheadSeconds": 0.25,
+   "transportRuns": true,
+   "oscillatorOrigin": 9315548,
+   "originFrom": "findings/FOAM_T90.md",
+   "firstFoamProbe": 7
+  }
+ }
+}

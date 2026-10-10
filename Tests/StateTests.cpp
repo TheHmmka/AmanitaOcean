@@ -37,12 +37,13 @@ struct AlgorithmCase
 
 constexpr std::array algorithmCases {
     AlgorithmCase { "Default",  0.0f,        0, amanita::dsp::ReverbMode::defaultMode },
-    AlgorithmCase { "Bloom",    1.0f / 6.0f, 1, amanita::dsp::ReverbMode::bloom },
-    AlgorithmCase { "Drift",    2.0f / 6.0f, 2, amanita::dsp::ReverbMode::drift },
-    AlgorithmCase { "Veil",     3.0f / 6.0f, 3, amanita::dsp::ReverbMode::veil },
-    AlgorithmCase { "Current",  4.0f / 6.0f, 4, amanita::dsp::ReverbMode::current },
-    AlgorithmCase { "Fathom",   5.0f / 6.0f, 5, amanita::dsp::ReverbMode::fathom },
-    AlgorithmCase { "Undertow", 1.0f,        6, amanita::dsp::ReverbMode::undertow }
+    AlgorithmCase { "Bloom",    1.0f / 7.0f, 1, amanita::dsp::ReverbMode::bloom },
+    AlgorithmCase { "Drift",    2.0f / 7.0f, 2, amanita::dsp::ReverbMode::drift },
+    AlgorithmCase { "Veil",     3.0f / 7.0f, 3, amanita::dsp::ReverbMode::veil },
+    AlgorithmCase { "Current",  4.0f / 7.0f, 4, amanita::dsp::ReverbMode::current },
+    AlgorithmCase { "Fathom",   5.0f / 7.0f, 5, amanita::dsp::ReverbMode::fathom },
+    AlgorithmCase { "Undertow", 6.0f / 7.0f, 6, amanita::dsp::ReverbMode::undertow },
+    AlgorithmCase { "Spume",    1.0f,        7, amanita::dsp::ReverbMode::spume }
 };
 
 static_assert(static_cast<std::size_t>(
@@ -54,9 +55,14 @@ static_assert(static_cast<std::size_t>(
 
 constexpr auto lastCharacterIndex = static_cast<int>(algorithmCases.size()) - 1;
 
-// The place of Fathom among the Characters: the sixth, with one after it.
+// The places of Fathom, Undertow and Spume among the Characters: the sixth,
+// the seventh and the eighth.
 constexpr auto fathomIndex = 5;
+constexpr auto undertowIndex = 6;
+constexpr auto spumeIndex = 7;
 static_assert(algorithmCases[fathomIndex].mode == amanita::dsp::ReverbMode::fathom);
+static_assert(algorithmCases[undertowIndex].mode == amanita::dsp::ReverbMode::undertow);
+static_assert(algorithmCases[spumeIndex].mode == amanita::dsp::ReverbMode::spume);
 
 // The texts of the description block as the owner approved them, in the order
 // of the Characters.
@@ -100,7 +106,12 @@ constexpr std::array<ApprovedDescription, algorithmCases.size()> approvedDescrip
       "REVERSED VOICES IN TEMPO",
       "What you just played is pulled back under and returned in reverse: at pitch, an "
       "octave above, an octave below, in step with the tempo of the song. Evolution lets the "
-      "three voices in, one by one." }
+      "three voices in, one by one." },
+    { "SPUME",
+      "28 ALL-PASS INPUT DIFFUSER",
+      "Every sound breaks before it reaches the deep. The strike dissolves into a fine, slow "
+      "spray that hangs for a moment and then sinks into the water below. Evolution turns "
+      "the wave from a clean strike into pure spume." }
 }};
 
 constexpr std::array evolutionAmounts { 0.0f, 0.5f, 1.0f };
@@ -245,7 +256,7 @@ void testUnifiedHostContract()
     auto& algorithm = algorithmParameter(processor);
     require(algorithm.getName(128) == "Character", "Algorithm UI label changed");
     require(algorithm.choices.size() == static_cast<int>(algorithmCases.size()),
-            "Algorithm must contain exactly seven choices");
+            "Algorithm must contain exactly eight choices");
     require(algorithm.getIndex() == 0 && algorithm.getCurrentChoiceName() == "Default",
             "Algorithm does not default to Default");
 
@@ -488,7 +499,7 @@ void testCurrentStateRoundTrip()
     // ValueTree child. They must keep every existing setting and receive the
     // new feature's requested Off default.
     AmanitaOceanAudioProcessor legacySource;
-    algorithmParameter(legacySource).setValueNotifyingHost(0.40f);
+    algorithmParameter(legacySource).setValueNotifyingHost(algorithmCases[2].hostValue);
     parameterById(legacySource, "mix").setValueNotifyingHost(0.812f);
     juce::MemoryBlock currentData;
     legacySource.getStateInformation(currentData);
@@ -530,7 +541,7 @@ juce::Component* findDescendantById(juce::Component& component,
 {
     constexpr std::array<std::uint32_t, algorithmCases.size()> colours {
         0xff81bfc7, 0xffc89c83, 0xff829de0, 0xffb3a6c4, 0xff74c6a8, 0xff2f7fe0,
-        0xff6672f2
+        0xff6672f2, 0xff1f9be0
     };
     return juce::Colour(colours[static_cast<std::size_t>(
         std::clamp(characterIndex, 0, lastCharacterIndex))]);
@@ -700,12 +711,14 @@ void testDeepCurrentBackgroundRenderer()
     constexpr auto current = 4;
     constexpr auto fathom = 5;
     constexpr auto undertow = 6;
+    constexpr auto spume = 7;
     constexpr auto evolution = 0.82f;
     constexpr auto laterTime = 19.0;
     const auto accent = backgroundAccent(drift);
     const auto currentAccent = backgroundAccent(current);
     const auto fathomAccent = backgroundAccent(fathom);
     const auto undertowAccent = backgroundAccent(undertow);
+    const auto spumeAccent = backgroundAccent(spume);
 
     const auto initial = renderBackgroundFrame(width, height, drift, evolution, false,
                                                0.0, accent);
@@ -754,6 +767,14 @@ void testDeepCurrentBackgroundRenderer()
                                                      false, laterTime, undertowAccent);
     const auto undertowAtSameTime = renderBackgroundFrame(width, height, undertow, evolution,
                                                           false, laterTime, accent);
+    const auto spumeInitial = renderBackgroundFrame(width, height, spume, evolution, false,
+                                                    0.0, spumeAccent);
+    const auto spumeRepeated = renderBackgroundFrame(width, height, spume, evolution, false,
+                                                     0.0, spumeAccent);
+    const auto spumeLater = renderBackgroundFrame(width, height, spume, evolution, false,
+                                                  laterTime, spumeAccent);
+    const auto spumeAtSameTime = renderBackgroundFrame(width, height, spume, evolution, false,
+                                                       laterTime, accent);
     const auto base = renderBackgroundBase(width, height);
 
     const auto repeatDifference = measureImageDifference(initial, repeated);
@@ -784,6 +805,16 @@ void testDeepCurrentBackgroundRenderer()
     // What each of the two draws over the base, in the same accent.
     const auto fathomPresence = measureImageDifference(fathomAtSameTime, base);
     const auto undertowPresence = measureImageDifference(undertowAtSameTime, base);
+    const auto spumeRepeatDifference = measureImageDifference(spumeInitial, spumeRepeated);
+    const auto spumeMotionDifference = measureImageDifference(spumeInitial, spumeLater);
+    const auto spumeDriftDifference = measureImageDifference(later, spumeAtSameTime);
+    const auto spumeDefaultDifference = measureImageDifference(defaultAtSameTime,
+                                                               spumeAtSameTime);
+    const auto spumeFathomDifference = measureImageDifference(fathomAtSameTime,
+                                                              spumeAtSameTime);
+    const auto spumeUndertowDifference = measureImageDifference(undertowAtSameTime,
+                                                                spumeAtSameTime);
+    const auto spumePresence = measureImageDifference(spumeAtSameTime, base);
     const auto overlayDifference = measureImageDifference(initial, base);
     const auto topRegion = juce::Rectangle<int>(0, 0, width, height / 4);
     const auto bottomRegion = juce::Rectangle<int>(0, height * 3 / 4,
@@ -857,6 +888,21 @@ void testDeepCurrentBackgroundRenderer()
     require(undertowPresence.normalisedMean > 0.0010
                 && undertowPresence.normalisedMean < fathomPresence.normalisedMean,
             "Deep Current Undertow does not lie darker than Fathom over the base gradient");
+    require(spumeRepeatDifference.changedPixels == 0,
+            "Deep Current Spume is not pixel-deterministic for identical inputs");
+    require(spumeMotionDifference.normalisedMean > 1.0e-6
+                && spumeMotionDifference.changedPixels > 1000,
+            "Deep Current Spume does not visibly evolve between fixed render times");
+    require(spumeMotionDifference.normalisedMean < 0.02
+                && spumeMotionDifference.normalisedMaximum < 0.20,
+            "Deep Current Spume fixed-time motion is too visually aggressive");
+    for (const auto& difference : { spumeDriftDifference, spumeDefaultDifference,
+                                    spumeFathomDifference, spumeUndertowDifference })
+        require(difference.normalisedMean > 1.0e-6 && difference.changedPixels > 1000,
+                "Deep Current Spume frames are indistinguishable from those of Drift, Default, "
+                "Fathom or Undertow");
+    require(spumePresence.normalisedMean > fathomPresence.normalisedMean,
+            "Deep Current Spume does not lie lighter than Fathom over the base gradient");
     require(overlayDifference.normalisedMean > 1.0e-6
                 && overlayDifference.changedPixels > 1000,
             "Deep Current rendered no content over the base gradient");
@@ -1105,6 +1151,12 @@ void testDeepCurrentBackgroundRenderer()
               << ", Fathom/Undertow=" << undertowFathomDifference.normalisedMean
               << ", Fathom/Undertow presence=" << fathomPresence.normalisedMean << '/'
               << undertowPresence.normalisedMean
+              << ", Spume motion=" << spumeMotionDifference.normalisedMean
+              << ", Drift/Spume=" << spumeDriftDifference.normalisedMean
+              << ", Default/Spume=" << spumeDefaultDifference.normalisedMean
+              << ", Fathom/Spume=" << spumeFathomDifference.normalisedMean
+              << ", Undertow/Spume=" << spumeUndertowDifference.normalisedMean
+              << ", Spume presence=" << spumePresence.normalisedMean
               << ", overlay=" << overlayDifference.normalisedMean
               << ", motion changed pixels=" << motionDifference.changedPixels
               << ", top/bottom motion=" << topMotion.normalisedMean
@@ -1426,7 +1478,7 @@ void testCustomEditorLayoutAndAttachments()
     require(characterDescription != nullptr, "Character description block was not found");
     require(evolutionSlider != nullptr, "Evolution slider was not found");
     require(characterSelector->getNumItems() == static_cast<int>(algorithmCases.size()),
-            "Character drop-down does not list exactly seven Characters");
+            "Character drop-down does not list exactly eight Characters");
     for (const auto& algorithmCase : algorithmCases)
         require(characterSelector->getItemText(algorithmCase.rawIndex) == algorithmCase.name
                     && characterSelector->getItemId(algorithmCase.rawIndex)
@@ -1659,7 +1711,7 @@ void testCustomEditorLayoutAndAttachments()
                         + algorithmCase.name + " at " + sizeName);
         }
 
-        // All seven texts lie inside the block unshortened.
+        // All eight texts lie inside the block unshortened.
         for (const auto& algorithmCase : algorithmCases)
         {
             algorithmParameter(processor).setValueNotifyingHost(algorithmCase.hostValue);
@@ -2279,7 +2331,7 @@ void testEditorBackgroundGathersRoundTheEvolutionDial()
 // The editor in a window of its own, which assistive technology and the
 // keyboard need. Assistive technology is told what the Character drop-down
 // is, which Character it shows, what the description block says and what the
-// seven items of the open list are called. Tab walks from the drop-down through
+// eight items of the open list are called. Tab walks from the drop-down through
 // the Evolution dial and its value and the nine dials of the lower row, each
 // with its value, to Mono Safe and Freeze and back to the drop-down;
 // Shift+Tab walks the same way back. A value opens for typing when it is
@@ -2336,7 +2388,7 @@ void testKeyboardAndAccessibilityInTheEditorWindow()
     auto* list = juce::Component::getCurrentlyModalComponent();
     require(list != nullptr
                 && list->getNumChildComponents() == static_cast<int>(algorithmCases.size()),
-            "The Character list did not open with its seven items");
+            "The Character list did not open with its eight items");
     for (const auto& algorithmCase : algorithmCases)
     {
         auto* itemHandler = list->getChildComponent(algorithmCase.rawIndex)
@@ -2477,6 +2529,30 @@ void writePng(const juce::Image& image, const juce::String& path)
     stream.flush();
 }
 
+// A pointer event as JUCE hands it to a component: at a place in the
+// component's own coordinates, with the mouse buttons that are held.
+[[nodiscard]] juce::MouseEvent pointerEvent(juce::Component& component,
+                                            juce::Point<float> position,
+                                            juce::ModifierKeys buttons = {})
+{
+    const auto now = juce::Time::getCurrentTime();
+    return { juce::Desktop::getInstance().getMainMouseSource(),
+             position,
+             buttons,
+             juce::MouseInputSource::defaultPressure,
+             juce::MouseInputSource::defaultOrientation,
+             juce::MouseInputSource::defaultRotation,
+             juce::MouseInputSource::defaultTiltX,
+             juce::MouseInputSource::defaultTiltY,
+             &component,
+             &component,
+             now,
+             position,
+             now,
+             1,
+             false };
+}
+
 // What a snapshot of the editor shows: the Character, the editor's width, the
 // host values of Freeze, Evolution and Focus, and the item of the Character
 // list that is highlighted when the list is open (negative: the list closed).
@@ -2488,6 +2564,9 @@ struct SnapshotSettings
     int highlightedListItem = -1;
     float evolution = 0.68f;
     float focus = 1.0f;
+    // The step chevron the pointer rests on: negative the one that steps back,
+    // positive the one that steps on, zero neither.
+    int stepUnderPointer = 0;
 };
 
 // A processor with the settings of a snapshot and its editor at the snapshot's
@@ -2513,12 +2592,33 @@ struct SnapshotEditor
         selector = dynamic_cast<juce::ComboBox*>(
             findDescendantById(*editor, "character-selector"));
         require(selector != nullptr, "Character drop-down was not found for PNG render");
+        if (settings.stepUnderPointer != 0)
+        {
+            stepUnderPointer = dynamic_cast<amanita::ui::CharacterStepButton*>(
+                findDescendantById(*editor, settings.stepUnderPointer < 0 ? "character-previous"
+                                                                          : "character-next"));
+            require(stepUnderPointer != nullptr, "Step chevron was not found for PNG render");
+            bringPointerToStep();
+        }
+    }
+
+    // The pointer comes to the chevron it is to rest on. On no screen the
+    // chevron takes the accent at once; in a window it eases to it.
+    void bringPointerToStep()
+    {
+        if (stepUnderPointer == nullptr)
+            return;
+
+        stepUnderPointer->mouseExit(pointerEvent(*stepUnderPointer, { -4.0f, -4.0f }));
+        stepUnderPointer->mouseEnter(pointerEvent(
+            *stepUnderPointer, stepUnderPointer->getLocalBounds().toFloat().getCentre()));
     }
 
     AmanitaOceanAudioProcessor processor;
     int character;
     std::unique_ptr<juce::AudioProcessorEditor> editor;
     juce::ComboBox* selector = nullptr;
+    amanita::ui::CharacterStepButton* stepUnderPointer = nullptr;
 };
 
 // The picture of the open Character list and where it opened in the editor.
@@ -2556,6 +2656,11 @@ struct OpenList
                 && bounds.getY() > field.getBottom()
                 && bounds.getY() - field.getBottom() <= 8,
             "The Character list did not open under its field at the field's width");
+    require(editor.getLocalBounds().contains(bounds),
+            "The Character list is cut off by the editor's window");
+    for (auto* item : list->getChildren())
+        require(list->getLocalBounds().contains(item->getBounds()),
+                "An item of the Character list lies outside the list");
 
     OpenList result { list->createComponentSnapshot(list->getLocalBounds(), false,
                                                     pixelsPerPoint,
@@ -2620,6 +2725,7 @@ void renderLiveEditorPng(const juce::String& path,
     require(editor.getPeer() != nullptr, "The editor got no window for its live picture");
     editor.getPeer()->setAlpha(0.0f);
     editor.setVisible(true);
+    snapshot.bringPointerToStep();
 
     struct Capture final : juce::Timer
     {
@@ -2736,7 +2842,11 @@ void renderLiveEditorPng(const juce::String& path,
               << (juce::Time::getMillisecondCounterHiRes() - shaderSeenAt) * 0.001
               << " s after the shader's first frame; the Character drop-down "
               << (snapshot.selector->hasKeyboardFocus(true) ? "has" : "does not have")
-              << " the keyboard focus\n";
+              << " the keyboard focus";
+    if (snapshot.stepUnderPointer != nullptr)
+        std::cout << "; the step chevron under the pointer has eased to "
+                  << snapshot.stepUnderPointer->getEmphasis() << " of the accent";
+    std::cout << '\n';
     if (openList.image.isValid())
         layOver(image, openList, pixelsPerPoint);
     writePng(image, path);
@@ -3687,12 +3797,13 @@ void testFathomTailLengthCoversItsDecay()
     }
 }
 
-// The state as the build with six choices wrote it (0.22.0, 560 bytes): the
-// thirteen parameters by their IDs, the Character as the index of its choice.
-// It was saved at Evolution 62.5 % and Mix 73.1 % with the rest at its
-// defaults. That build's states of its six Characters differ in the index
+// The state as the builds with six and with seven choices wrote it (0.22.0 and
+// 0.23.0, 560 bytes): the thirteen parameters by their IDs, the Character as
+// the index of its choice. It was saved at Evolution 62.5 % and Mix 73.1 %
+// with the rest at its defaults. The states of those builds differ, from
+// Character to Character and from one build to the other, in that index
 // alone, which stands here as CHARACTER.
-constexpr auto stateOfTheSixChoiceBuild =
+constexpr auto stateOfAnEarlierBuild =
     R"(<AmanitaOceanState><PARAM id="algorithm" value="CHARACTER"/>)"
     R"(<PARAM id="decay" value="5.000000476837158"/><PARAM id="evolution" value="62.5"/>)"
     R"(<PARAM id="focus" value="100.0"/><PARAM id="freeze" value="0.0"/>)"
@@ -3702,83 +3813,91 @@ constexpr auto stateOfTheSixChoiceBuild =
     R"(<PARAM id="size" value="100.0"/><PARAM id="width" value="100.0"/></AmanitaOceanState>)";
 
 // That state with a given index as its Character, as a host hands it over.
-[[nodiscard]] juce::MemoryBlock stateOfTheSixChoiceBuildWith(int characterIndex)
+[[nodiscard]] juce::MemoryBlock stateOfAnEarlierBuildWith(int characterIndex)
 {
-    const auto xml = juce::parseXML(juce::String(stateOfTheSixChoiceBuild)
+    const auto xml = juce::parseXML(juce::String(stateOfAnEarlierBuild)
                                         .replace("CHARACTER",
                                                  juce::String(characterIndex) + ".0"));
-    require(xml != nullptr, "The state of the six-choice build is no XML");
+    require(xml != nullptr, "The state of an earlier build is no XML");
     juce::MemoryBlock data;
     juce::AudioProcessor::copyXmlToBinary(*xml, data);
     require(data.getSize() == 560,
-            "The state of the six-choice build is not the 560 bytes that build wrote");
+            "The state of an earlier build is not the 560 bytes those builds wrote");
     return data;
 }
 
-// A project saved by the build with six choices opens with the Character and
-// the settings it was saved with, and this build saves it again byte for byte:
-// a seventh choice changes nothing of what a state holds. The seventh
-// Character is saved the same way, as the index after Fathom's, and opens
-// again as itself.
-void testStatesOfTheSixChoiceBuildAndTheSeventhChoice()
+// A project saved by the build with six choices or by the one with seven
+// opens with the Character and the settings it was saved with, and this build
+// saves it again byte for byte: a further choice changes nothing of what a
+// state holds. The eighth Character is saved the same way, as the index after
+// Undertow's, and opens again as itself.
+void testStatesOfEarlierBuildsAndTheEighthChoice()
 {
-    for (auto index = 0; index <= fathomIndex; ++index)
+    struct EarlierBuild
     {
-        const auto& algorithmCase = algorithmCases[static_cast<std::size_t>(index)];
-        const auto saved = stateOfTheSixChoiceBuildWith(index);
+        const char* name;
+        int lastIndex;
+    };
+    for (const auto& build : { EarlierBuild { "six-choice", fathomIndex },
+                               EarlierBuild { "seven-choice", undertowIndex } })
+    {
+        for (auto index = 0; index <= build.lastIndex; ++index)
+        {
+            const auto& algorithmCase = algorithmCases[static_cast<std::size_t>(index)];
+            const auto saved = stateOfAnEarlierBuildWith(index);
 
-        AmanitaOceanAudioProcessor restored;
-        restored.setStateInformation(saved.getData(), static_cast<int>(saved.getSize()));
-        const auto& restoredAlgorithm = algorithmParameter(restored);
-        require(restoredAlgorithm.getIndex() == algorithmCase.rawIndex
-                    && restoredAlgorithm.getCurrentChoiceName() == algorithmCase.name,
-                std::string("A state of the six-choice build does not open with its "
-                            "Character ")
-                    + algorithmCase.name + ": it opens as "
-                    + restoredAlgorithm.getCurrentChoiceName().toStdString());
-        require(std::abs(parameterById(restored, "evolution").getValue() - 0.625f) < 0.001f
-                    && std::abs(parameterById(restored, "mix").getValue() - 0.731f) < 0.001f,
-                std::string("A state of the six-choice build does not open with its "
-                            "settings for ")
-                    + algorithmCase.name);
+            AmanitaOceanAudioProcessor restored;
+            restored.setStateInformation(saved.getData(), static_cast<int>(saved.getSize()));
+            const auto& restoredAlgorithm = algorithmParameter(restored);
+            require(restoredAlgorithm.getIndex() == algorithmCase.rawIndex
+                        && restoredAlgorithm.getCurrentChoiceName() == algorithmCase.name,
+                    std::string("A state of the ") + build.name
+                        + " build does not open with its Character " + algorithmCase.name
+                        + ": it opens as "
+                        + restoredAlgorithm.getCurrentChoiceName().toStdString());
+            require(std::abs(parameterById(restored, "evolution").getValue() - 0.625f) < 0.001f
+                        && std::abs(parameterById(restored, "mix").getValue() - 0.731f)
+                               < 0.001f,
+                    std::string("A state of the ") + build.name
+                        + " build does not open with its settings for " + algorithmCase.name);
 
-        juce::MemoryBlock savedAgain;
-        restored.getStateInformation(savedAgain);
-        require(savedAgain == saved,
-                std::string("This build does not save a state of the six-choice build "
-                            "again as it was for ")
-                    + algorithmCase.name);
+            juce::MemoryBlock savedAgain;
+            restored.getStateInformation(savedAgain);
+            require(savedAgain == saved,
+                    std::string("This build does not save a state of the ") + build.name
+                        + " build again as it was for " + algorithmCase.name);
+        }
     }
 
-    const auto& undertow = algorithmCases.back();
+    const auto& spume = algorithmCases[spumeIndex];
     AmanitaOceanAudioProcessor source;
-    algorithmParameter(source).setValueNotifyingHost(undertow.hostValue);
+    algorithmParameter(source).setValueNotifyingHost(spume.hostValue);
     parameterById(source, "evolution").setValueNotifyingHost(0.625f);
     parameterById(source, "mix").setValueNotifyingHost(0.731f);
     juce::MemoryBlock data;
     source.getStateInformation(data);
-    require(undertow.rawIndex == fathomIndex + 1
-                && data == stateOfTheSixChoiceBuildWith(undertow.rawIndex),
-            "The seventh Character is not saved as the index after Fathom's in the state "
-            "the six-choice build wrote");
+    require(spume.rawIndex == undertowIndex + 1
+                && data == stateOfAnEarlierBuildWith(spume.rawIndex),
+            "The eighth Character is not saved as the index after Undertow's in the state "
+            "the earlier builds wrote");
 
     AmanitaOceanAudioProcessor restored;
     restored.setStateInformation(data.getData(), static_cast<int>(data.getSize()));
-    require(algorithmParameter(restored).getIndex() == undertow.rawIndex
-                && algorithmParameter(restored).getCurrentChoiceName() == undertow.name
+    require(algorithmParameter(restored).getIndex() == spume.rawIndex
+                && algorithmParameter(restored).getCurrentChoiceName() == spume.name
                 && std::abs(parameterById(restored, "evolution").getValue() - 0.625f) < 0.001f
                 && std::abs(parameterById(restored, "mix").getValue() - 0.731f) < 0.001f,
-            "The seventh Character did not survive save/load");
+            "The eighth Character did not survive save/load");
 
     // A host that automates the Character of a VST3 stores the normalised
-    // value. Where the positions of the six-choice build and of the build
-    // before it land among seven choices is said here and pinned nowhere.
-    std::cout << "[METRIC] Normalised Character values of seven choices:";
+    // value. Where the positions of the builds with seven, six and five
+    // choices land among eight is said here and pinned nowhere.
+    std::cout << "[METRIC] Normalised Character values of eight choices:";
     for (const auto& algorithmCase : algorithmCases)
         std::cout << ' ' << algorithmCase.name << ' '
                   << algorithmParameter(source).convertTo0to1(
                          static_cast<float>(algorithmCase.rawIndex));
-    for (const auto steps : { 5, 4 })
+    for (const auto steps : { 6, 5, 4 })
     {
         std::cout << "; a lane of " << steps + 1 << " choices plays";
         for (auto step = 0; step <= steps; ++step)
@@ -3861,7 +3980,8 @@ void testHostTransportReachesDsp()
     for (const auto& transportCase : transportCases)
     {
         AmanitaOceanAudioProcessor processor;
-        algorithmParameter(processor).setValueNotifyingHost(algorithmCases.back().hostValue);
+        algorithmParameter(processor).setValueNotifyingHost(
+            algorithmCases[undertowIndex].hostValue);
         parameterById(processor, "mix").setValueNotifyingHost(1.0f);
         parameterById(processor, "evolution").setValueNotifyingHost(1.0f);
         parameterById(processor, "focus").setValueNotifyingHost(0.0f);
@@ -3952,21 +4072,24 @@ void testHostTransportReachesDsp()
 }
 
 // The tail the host is told about. For six Characters it is Decay plus half a
-// second whatever the host's tempo. The seventh goes on replaying the past
-// after its input has stopped: its tail is longer by two of its longest chunks
-// and four passes of the recirculation an octave up, 13.33 quarter notes at
-// the tempo of the block processed last. That tempo is the host's, held
-// between 20 and 999 BPM, and 120 BPM before the first block and where the
-// host gives no tempo or none that is a positive number. Where the margin of
-// the reverb itself is smallest, the seventh Character has fallen 60 dB
-// within that tail, under a running transport and without a play head.
+// second whatever the host's tempo, and for the eighth four seconds more, at
+// every tempo as well. The seventh goes on replaying the past after its input
+// has stopped: its tail is longer by two of its longest chunks and four passes
+// of the recirculation an octave up, 13.33 quarter notes at the tempo of the
+// block processed last. That tempo is the host's, held between 20 and 999
+// BPM, and 120 BPM before the first block and where the host gives no tempo
+// or none that is a positive number. Where the margin of the reverb itself is
+// smallest, the seventh Character has fallen 60 dB within that tail, under a
+// running transport and without a play head.
 void testUndertowTailLengthFollowsTheTempo()
 {
     constexpr auto sampleRate = 48000.0;
     constexpr auto blockSize = 256;
     constexpr auto replayedQuarterNotes = 2.0 * 8.0 / 3.0 + 4.0 * 2.0;
     constexpr auto tempoWithoutHost = 120.0;
-    constexpr auto undertow = lastCharacterIndex;
+    constexpr auto undertow = undertowIndex;
+    constexpr auto spume = spumeIndex;
+    constexpr auto heldByTheDiffuserSeconds = 4.0;
     const auto notANumber = std::numeric_limits<double>::quiet_NaN();
 
     // The tail of every Character at the tempo the processor is to hold.
@@ -3981,7 +4104,8 @@ void testUndertowTailLengthFollowsTheTempo()
             algorithmParameter(processor).setValueNotifyingHost(algorithmCase.hostValue);
             const auto expected = algorithmCase.rawIndex == undertow
                 ? plainTail + replayedQuarterNotes * 60.0 / tailTempo
-                : plainTail;
+                : algorithmCase.rawIndex == spume ? plainTail + heldByTheDiffuserSeconds
+                                                  : plainTail;
             require(std::abs(processor.getTailLengthSeconds() - expected) < 1.0e-6,
                     std::string("Reported tail of ") + algorithmCase.name + " is "
                         + std::to_string(processor.getTailLengthSeconds()) + " s and not "
@@ -4062,7 +4186,8 @@ void testUndertowTailLengthFollowsTheTempo()
     for (const auto& soundCase : soundCases)
     {
         AmanitaOceanAudioProcessor processor;
-        algorithmParameter(processor).setValueNotifyingHost(algorithmCases.back().hostValue);
+        algorithmParameter(processor).setValueNotifyingHost(
+            algorithmCases[undertowIndex].hostValue);
         auto& decay = parameterById(processor, "decay");
         decay.setValueNotifyingHost(decay.getValueForText(juce::String(soundCase.decaySeconds)));
         parameterById(processor, "mix").setValueNotifyingHost(1.0f);
@@ -4141,6 +4266,409 @@ void testUndertowTailLengthFollowsTheTempo()
                     + soundCase.name);
     }
 }
+
+// The tail the host is told about covers the eighth Character where the margin
+// of the reverb itself is smallest: short Decay with the longest Pre-delay and
+// the largest Size, the diffuser all in. It is Decay plus half a second plus
+// the four seconds the diffuser in front of the network holds.
+void testSpumeTailLengthCoversItsDiffuser()
+{
+    constexpr auto sampleRate = 48000.0;
+    constexpr auto blockFrames = 960;
+
+    for (const auto decaySeconds : { 0.2f, 0.5f })
+    {
+        AmanitaOceanAudioProcessor processor;
+        algorithmParameter(processor).setValueNotifyingHost(algorithmCases[spumeIndex].hostValue);
+        auto& decay = parameterById(processor, "decay");
+        decay.setValueNotifyingHost(decay.getValueForText(juce::String(decaySeconds)));
+        parameterById(processor, "mix").setValueNotifyingHost(1.0f);
+        parameterById(processor, "size").setValueNotifyingHost(1.0f);
+        parameterById(processor, "preDelay").setValueNotifyingHost(1.0f);
+        parameterById(processor, "evolution").setValueNotifyingHost(1.0f);
+        parameterById(processor, "focus").setValueNotifyingHost(0.0f);
+        const auto tailSeconds = processor.getTailLengthSeconds();
+        require(std::abs(tailSeconds - (static_cast<double>(decaySeconds) + 4.5)) < 1.0e-3,
+                "Reported tail of the eighth Character is not Decay plus four and a half "
+                "seconds");
+
+        // The input ends after one burst of 125 ms.
+        const auto inputFrames = static_cast<int>(sampleRate * 0.125);
+        const auto frameCount = inputFrames
+                              + static_cast<int>(sampleRate * (tailSeconds + 0.5));
+        const auto render = renderFathomProcessor(processor, sampleRate, frameCount, inputFrames);
+        std::vector<double> blockEnergy;
+        for (auto start = inputFrames; start + blockFrames <= frameCount; start += blockFrames)
+        {
+            auto energy = 0.0;
+            for (auto frame = start; frame < start + blockFrames; ++frame)
+            {
+                const auto index = static_cast<std::size_t>(frame * 2);
+                require(std::isfinite(render[index]) && std::isfinite(render[index + 1]),
+                        "The eighth Character renders NaN/Inf in its tail");
+                energy += static_cast<double>(render[index]) * render[index]
+                        + static_cast<double>(render[index + 1]) * render[index + 1];
+            }
+            blockEnergy.push_back(energy);
+        }
+
+        const auto loudest = *std::max_element(blockEnergy.begin(), blockEnergy.end());
+        require(loudest > 1.0e-8, "Tail length test of the eighth Character rendered silence");
+        auto lastAudibleBlock = 0;
+        for (auto block = 0; block < static_cast<int>(blockEnergy.size()); ++block)
+            if (blockEnergy[static_cast<std::size_t>(block)] > loudest * 1.0e-6)
+                lastAudibleBlock = block;
+        const auto sixtyDecibelSeconds = static_cast<double>((lastAudibleBlock + 1) * blockFrames)
+                                       / sampleRate;
+        std::cout << "[METRIC] Eighth Character at Decay " << decaySeconds
+                  << " s: 60 dB down " << sixtyDecibelSeconds
+                  << " s after the input, reported tail " << tailSeconds << " s\n";
+        require(sixtyDecibelSeconds <= tailSeconds,
+                "The eighth Character sounds longer than the tail the host is told about");
+    }
+}
+
+// The open list of the drop-down holds every Character and lies inside the
+// editor's window at its smallest size, at its default size and at its
+// largest: it begins a gap under its field and its last item ends above the
+// window's lower edge, so that no item has to be scrolled to.
+void testCharacterListLiesInsideTheEditor()
+{
+    AmanitaOceanAudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    require(editor != nullptr, "Processor did not create an editor");
+    auto* selector = dynamic_cast<juce::ComboBox*>(
+        findDescendantById(*editor, "character-selector"));
+    require(selector != nullptr, "Character drop-down was not found");
+    auto* fieldLabel = dynamic_cast<juce::Label*>(selector->getChildComponent(0));
+    require(fieldLabel != nullptr, "Character drop-down has no text label");
+    require(selector->getNumItems() == static_cast<int>(algorithmCases.size()),
+            "Character drop-down does not list every Character");
+
+    for (const auto width : { AmanitaOceanAudioProcessorEditor::minimumWidth,
+                              AmanitaOceanAudioProcessorEditor::defaultWidth,
+                              AmanitaOceanAudioProcessorEditor::maximumWidth })
+    {
+        editor->setSize(width, width * AmanitaOceanAudioProcessorEditor::defaultHeight
+                                   / AmanitaOceanAudioProcessorEditor::defaultWidth);
+        auto& lookAndFeel = selector->getLookAndFeel();
+        const auto options = lookAndFeel.getOptionsForComboBoxPopupMenu(*selector, *fieldLabel);
+        const auto field = boundsInEditor(*editor, "character-selector");
+        const auto listTop = field.getBottom() + options.getTargetScreenArea().getBottom()
+                           - selector->getScreenBounds().getBottom();
+        const auto listHeight = selector->getNumItems() * options.getStandardItemHeight()
+                              + 2 * lookAndFeel.getPopupMenuBorderSizeWithOptions(options);
+        std::cout << "[METRIC] Character list at editor width " << width << ": "
+                  << selector->getNumItems() << " items of " << options.getStandardItemHeight()
+                  << " px from " << listTop << " to " << listTop + listHeight << " px of "
+                  << editor->getHeight() << '\n';
+        require(listTop > field.getBottom() && listTop + listHeight <= editor->getHeight(),
+                "The open Character list does not lie inside the editor's window at width "
+                    + std::to_string(width));
+    }
+}
+
+// The painted part of a picture: the box round every pixel covered by a share
+// of 255 or more, in picture pixels, and the most covered pixel as it is
+// painted.
+struct PaintedPart
+{
+    juce::Rectangle<int> box;
+    juce::Colour densest;
+};
+
+[[nodiscard]] PaintedPart paintedPart(const juce::Image& image, int leastCover = 128)
+{
+    const juce::Image::BitmapData pixels(image, juce::Image::BitmapData::readOnly);
+    PaintedPart part;
+    for (auto y = 0; y < image.getHeight(); ++y)
+        for (auto x = 0; x < image.getWidth(); ++x)
+        {
+            const auto pixel = pixels.getPixelColour(x, y);
+            if (pixel.getAlpha() > part.densest.getAlpha())
+                part.densest = pixel;
+            if (pixel.getAlpha() >= leastCover)
+                part.box = part.box.isEmpty() ? juce::Rectangle<int>(x, y, 1, 1)
+                                              : part.box.getUnion({ x, y, 1, 1 });
+        }
+    return part;
+}
+
+// The two chevrons beside the drop-down. They stand on either side of it,
+// mirrored about the window's axis and as high as it, a clear gap from its
+// border, and take the pointer in an area of at least 28 x 28 points at every
+// size, which no other control shares. Each is the drop-down's own chevron on
+// its side: 4.5 design pixels deep and 9 high in a stroke of 1.35, in the tone
+// of that chevron at rest, over a dark line 2 design pixels wider that keeps
+// its outline where the field behind it runs light. Under the pointer it takes
+// the accent of the Character, and the pointer alone changes nothing. A press released on the
+// right one steps to the next Character and one on the left one to the one
+// before, round either end, each one complete host gesture; a press that is
+// dragged off, and one of another button, is given up. They take no keyboard
+// focus, and assistive technology finds two buttons whose titles say which
+// way they step and name no Character.
+void testStepChevronsBesideTheDropDown()
+{
+    using Step = amanita::ui::CharacterStepButton;
+    using LookAndFeel = amanita::ui::OceanLookAndFeel;
+    constexpr auto finePixelsPerPoint = 8.0f;
+    constexpr auto depth = 4.5;
+    constexpr auto halfHeight = 4.5;
+    constexpr auto stroke = 1.35;
+    constexpr auto keyline = 2.0;
+    constexpr auto gapToTheDropDown = 4.0;
+    // The line under a chevron is Ocean's darkest tone at 70 %, the chevron at
+    // rest the secondary text tone at 88 % over it. Half way from the cover of
+    // the one to that of the two lies the edge of the stroke, half way to no
+    // cover the edge of the line.
+    const auto keylineTone = LookAndFeel::backgroundBottom().withAlpha(0.70f);
+    const auto restTone = keylineTone.overlaidWith(LookAndFeel::secondaryText().withAlpha(0.88f));
+    const auto strokeCover = (keylineTone.getAlpha() + restTone.getAlpha()) / 2;
+    const auto keylineCover = keylineTone.getAlpha() / 2;
+
+    AmanitaOceanAudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    require(editor != nullptr, "Processor did not create an editor");
+    auto* selector = dynamic_cast<juce::ComboBox*>(
+        findDescendantById(*editor, "character-selector"));
+    auto* previous = dynamic_cast<Step*>(findDescendantById(*editor, "character-previous"));
+    auto* next = dynamic_cast<Step*>(findDescendantById(*editor, "character-next"));
+    require(selector != nullptr && previous != nullptr && next != nullptr,
+            "Character drop-down or one of its step chevrons was not found");
+    for (auto* step : { previous, next })
+        require(step->isVisible() && step->isAccessible()
+                    && ! step->getWantsKeyboardFocus()
+                    && ! step->getMouseClickGrabsKeyboardFocus()
+                    && step->getExplicitFocusOrder() == 0,
+                "A step chevron is hidden, not accessible or takes the keyboard focus");
+
+    constexpr std::array<const char*, 14> otherPlacedIds {
+        "character-selector", "character-description", "knob-evolution",
+        "knob-preDelay", "knob-size", "knob-decay", "knob-lowCut", "knob-highDamping",
+        "knob-harmony", "knob-width", "knob-focus", "knob-mix", "mono-safe", "freeze"
+    };
+    for (const auto width : { AmanitaOceanAudioProcessorEditor::minimumWidth,
+                              AmanitaOceanAudioProcessorEditor::defaultWidth,
+                              AmanitaOceanAudioProcessorEditor::maximumWidth })
+    {
+        editor->setSize(width, width * AmanitaOceanAudioProcessorEditor::defaultHeight
+                                   / AmanitaOceanAudioProcessorEditor::defaultWidth);
+        const auto sizeName = std::to_string(width) + " wide";
+        const auto canvasScale = static_cast<double>(width)
+                               / AmanitaOceanAudioProcessorEditor::defaultWidth;
+        const auto axis = 0.5 * width;
+        const auto field = boundsInEditor(*editor, "character-selector");
+        const auto left = boundsInEditor(*editor, "character-previous");
+        const auto right = boundsInEditor(*editor, "character-next");
+        std::cout << "[METRIC] Step chevrons at editor " << sizeName << ": areas "
+                  << left.toString() << " and " << right.toString() << " beside the drop-down "
+                  << field.toString() << '\n';
+        require(left.getY() == field.getY() && left.getHeight() == field.getHeight()
+                    && right.getY() == field.getY() && right.getHeight() == field.getHeight(),
+                "Step chevrons are not as high as the drop-down and level with it at "
+                    + sizeName);
+        require(std::abs(left.getWidth() - Step::designWidth * canvasScale) <= 0.5
+                    && right.getWidth() == left.getWidth()
+                    && std::min(left.getWidth(), left.getHeight()) >= 28,
+                "Step chevrons do not take the pointer in 36 x 40 design pixels, 28 x 28 "
+                "points or more, at " + sizeName);
+        require(std::abs((field.getX() - left.getRight()) - gapToTheDropDown * canvasScale) <= 1.0
+                    && std::abs((right.getX() - field.getRight()) - gapToTheDropDown * canvasScale)
+                           <= 1.0
+                    && left.getRight() < field.getX() && right.getX() > field.getRight()
+                    && std::abs((axis - left.getCentreX()) - (right.getCentreX() - axis)) <= 1.0,
+                "Step chevrons are not mirrored about the axis, a gap from the drop-down, at "
+                    + sizeName);
+        for (const auto* id : otherPlacedIds)
+            require(! left.intersects(boundsInEditor(*editor, id))
+                        && ! right.intersects(boundsInEditor(*editor, id)),
+                    std::string("A step chevron shares its area with ") + id + " at " + sizeName);
+
+        // The chevrons as painted: one the mirror image of the other, in the
+        // middle of their areas.
+        const auto glyphScale = static_cast<double>(left.getHeight()) / Step::designHeight;
+        const auto leftPicture = paintAlone(*previous, finePixelsPerPoint);
+        const auto rightPicture = paintAlone(*next, finePixelsPerPoint);
+        const auto leftPart = paintedPart(leftPicture, strokeCover);
+        const auto rightPart = paintedPart(rightPicture, strokeCover);
+        const auto leftLine = paintedPart(leftPicture, keylineCover);
+        const auto inkWidth = leftPart.box.getWidth() / static_cast<double>(finePixelsPerPoint);
+        const auto inkHeight = leftPart.box.getHeight() / static_cast<double>(finePixelsPerPoint);
+        std::cout << "[METRIC] Step chevron at editor " << sizeName << ": ink " << inkWidth
+                  << " x " << inkHeight << " px ("
+                  << inkWidth / glyphScale << " x " << inkHeight / glyphScale
+                  << " design px) in an area of " << left.getWidth() << " x "
+                  << left.getHeight() << " px, " << field.getX() - left.getRight()
+                  << " px from the drop-down; from its ink to the drop-down's border "
+                  << field.getX() - left.getX()
+                         - leftPart.box.getRight() / static_cast<double>(finePixelsPerPoint)
+                  << " px\n";
+        require(std::abs(inkWidth - (depth + stroke) * glyphScale) <= 0.3
+                    && std::abs(inkHeight - (2.0 * halfHeight + stroke) * glyphScale) <= 0.3,
+                "A step chevron is not 4.5 x 9 design pixels in a stroke of 1.35 at "
+                    + sizeName);
+        require(std::abs(leftLine.box.getWidth() / static_cast<double>(finePixelsPerPoint)
+                         - (depth + stroke + keyline) * glyphScale) <= 0.3
+                    && std::abs(leftLine.box.getHeight() / static_cast<double>(finePixelsPerPoint)
+                                - (2.0 * halfHeight + stroke + keyline) * glyphScale) <= 0.3
+                    && leftLine.box.contains(leftPart.box),
+                "A step chevron does not lie over a dark line 2 design pixels wider at "
+                    + sizeName);
+        require(std::abs(leftPart.box.toFloat().getCentreX() / finePixelsPerPoint
+                         - 0.5f * static_cast<float>(left.getWidth())) <= 0.25f
+                    && std::abs(leftPart.box.toFloat().getCentreY() / finePixelsPerPoint
+                                - 0.5f * static_cast<float>(left.getHeight())) <= 0.25f,
+                "A step chevron does not stand in the middle of its area at " + sizeName);
+        require(rightPart.box.getWidth() == leftPart.box.getWidth()
+                    && rightPart.box.getHeight() == leftPart.box.getHeight()
+                    && rightPart.box.getY() == leftPart.box.getY()
+                    && std::abs(rightPart.box.getX()
+                                - (rightPicture.getWidth() - leftPart.box.getRight())) <= 1,
+                "The two step chevrons are not mirror images of each other at " + sizeName);
+        // The left one points left: a column near the left end of its ink
+        // crosses its tip once, one near the right end its two arms.
+        const juce::Image::BitmapData leftPixels(leftPicture, juce::Image::BitmapData::readOnly);
+        const auto strokesInColumn = [&](int x)
+        {
+            auto strokes = 0;
+            auto inInk = false;
+            for (auto y = leftPart.box.getY(); y < leftPart.box.getBottom(); ++y)
+            {
+                const auto covered = leftPixels.getPixelColour(x, y).getAlpha() >= strokeCover;
+                strokes += covered && ! inInk ? 1 : 0;
+                inInk = covered;
+            }
+            return strokes;
+        };
+        require(strokesInColumn(leftPart.box.getX() + 2) == 1
+                    && strokesInColumn(leftPart.box.getRight() - leftPart.box.getWidth() / 4)
+                           == 2,
+                "The chevron that steps back does not point left at " + sizeName);
+    }
+
+    // At rest, under the pointer and after it has left.
+    editor->setSize(AmanitaOceanAudioProcessorEditor::defaultWidth,
+                    AmanitaOceanAudioProcessorEditor::defaultHeight);
+    // A picture holds a tone that is not opaque multiplied by its cover, in
+    // steps of 255: read back it is within three steps of what was painted.
+    const auto wearsTone = [&](Step& step, juce::Colour tone)
+    {
+        const auto densest = paintedPart(paintAlone(step, finePixelsPerPoint)).densest;
+        return std::abs(densest.getRed() - tone.getRed()) <= 3
+            && std::abs(densest.getGreen() - tone.getGreen()) <= 3
+            && std::abs(densest.getBlue() - tone.getBlue()) <= 3
+            && std::abs(densest.getAlpha() - tone.getAlpha()) <= 3;
+    };
+    const auto middle = [](Step& step) { return step.getLocalBounds().toFloat().getCentre(); };
+    GestureProbe gestures;
+    processor.addListener(&gestures);
+    for (auto* step : { previous, next })
+    {
+        require(juce::approximatelyEqual(step->getEmphasis(), 0.0f) && wearsTone(*step, restTone),
+                "A step chevron at rest is not in the tone of the drop-down's chevron over "
+                "its dark line");
+        step->mouseEnter(pointerEvent(*step, middle(*step)));
+        require(juce::approximatelyEqual(step->getEmphasis(), 1.0f)
+                    && wearsTone(*step, amanita::ui::characterAccent(0)),
+                "A step chevron under the pointer is not in the accent of the Character");
+        require(algorithmParameter(processor).getIndex() == 0 && gestures.beginCount == 0,
+                "The pointer over a step chevron changed the Character");
+        step->mouseExit(pointerEvent(*step, { -4.0f, -4.0f }));
+        require(juce::approximatelyEqual(step->getEmphasis(), 0.0f) && wearsTone(*step, restTone),
+                "A step chevron the pointer has left keeps the accent");
+    }
+
+    // Presses: forwards round the end, backwards round the start, and the
+    // presses that are given up.
+    const juce::ModifierKeys leftButton(juce::ModifierKeys::leftButtonModifier);
+    const juce::ModifierKeys rightButton(juce::ModifierKeys::rightButtonModifier);
+    const auto click = [&](Step& step)
+    {
+        step.mouseDown(pointerEvent(step, middle(step), leftButton));
+        step.mouseUp(pointerEvent(step, middle(step), leftButton));
+    };
+    for (auto index = 1; index <= lastCharacterIndex; ++index)
+    {
+        click(*next);
+        require(algorithmParameter(processor).getIndex() == index
+                    && selector->getSelectedItemIndex() == index
+                    && gestures.beginCount == index && gestures.endCount == index,
+                "A press on the right chevron does not step to the next Character in one "
+                "host gesture");
+    }
+    click(*next);
+    require(algorithmParameter(processor).getIndex() == 0,
+            "The right chevron does not step from the last Character round to the first");
+    click(*previous);
+    require(algorithmParameter(processor).getIndex() == lastCharacterIndex,
+            "The left chevron does not step from the first Character round to the last");
+    for (auto index = lastCharacterIndex - 1; index >= 0; --index)
+    {
+        click(*previous);
+        require(algorithmParameter(processor).getIndex() == index
+                    && selector->getSelectedItemIndex() == index,
+                "A press on the left chevron does not step to the Character before");
+    }
+    const auto clicks = 2 * lastCharacterIndex + 2;
+    require(gestures.beginCount == clicks && gestures.endCount == clicks,
+            "A press on a step chevron did not produce one complete host gesture");
+
+    next->mouseDown(pointerEvent(*next, middle(*next), leftButton));
+    require(juce::approximatelyEqual(next->getEmphasis(), 1.0f),
+            "A step chevron that is held down is not in the accent");
+    next->mouseUp(pointerEvent(*next, { -6.0f, static_cast<float>(next->getHeight()) + 6.0f },
+                               leftButton));
+    next->mouseDown(pointerEvent(*next, middle(*next), rightButton));
+    next->mouseUp(pointerEvent(*next, middle(*next), rightButton));
+    processor.removeListener(&gestures);
+    require(algorithmParameter(processor).getIndex() == 0 && gestures.beginCount == clicks
+                && juce::approximatelyEqual(next->getEmphasis(), 0.0f),
+            "A press that was dragged off a step chevron, or one without the left button, "
+            "changed the Character");
+    require(! selector->isPopupActive(), "A step chevron opened the Character list");
+
+    // An editor opened on another Character shows that Character's accent
+    // under the pointer.
+    {
+        AmanitaOceanAudioProcessor spumeProcessor;
+        algorithmParameter(spumeProcessor).setValueNotifyingHost(
+            algorithmCases[spumeIndex].hostValue);
+        std::unique_ptr<juce::AudioProcessorEditor> spumeEditor(spumeProcessor.createEditor());
+        auto* step = dynamic_cast<Step*>(findDescendantById(*spumeEditor, "character-next"));
+        require(step != nullptr, "Step chevron was not found");
+        step->mouseEnter(pointerEvent(*step, middle(*step)));
+        require(wearsTone(*step, amanita::ui::characterAccent(spumeIndex)),
+                "A step chevron under the pointer is not in the accent of the eighth Character");
+    }
+
+    // In a window of its own, for assistive technology: two buttons that step
+    // when they are pressed.
+    editor->addToDesktop(juce::ComponentPeer::windowIsTemporary);
+    require(editor->getPeer() != nullptr, "The editor got no window for its step chevrons");
+    editor->getPeer()->setAlpha(0.0f);
+    editor->setVisible(true);
+    struct Expected
+    {
+        Step* step;
+        const char* title;
+        int index;
+    };
+    for (const auto& expected : { Expected { next, "Next", 1 },
+                                  Expected { previous, "Previous", 0 } })
+    {
+        auto* handler = expected.step->getAccessibilityHandler();
+        require(handler != nullptr && handler->getRole() == juce::AccessibilityRole::button
+                    && handler->getTitle() == expected.title
+                    && ! handler->getTitle().containsIgnoreCase("character")
+                    && handler->getDescription().isNotEmpty(),
+                std::string("Assistive technology is not told of the step chevron ")
+                    + expected.title);
+        require(handler->getActions().invoke(juce::AccessibilityActionType::press)
+                    && algorithmParameter(processor).getIndex() == expected.index,
+                std::string("Assistive technology cannot press the step chevron ")
+                    + expected.title);
+    }
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -4167,12 +4695,15 @@ int main(int argc, char** argv)
         testFathomVoiceSeedsOfManyInstances();
         testCharacterOutsideItsChoices();
         testFathomTailLengthCoversItsDecay();
-        testStatesOfTheSixChoiceBuildAndTheSeventhChoice();
+        testStatesOfEarlierBuildsAndTheEighthChoice();
         testHostTransportReachesDsp();
         testUndertowTailLengthFollowsTheTempo();
-        // --render-ui <png> [character] [width] [frozen] [list item]
+        testSpumeTailLengthCoversItsDiffuser();
+        testCharacterListLiesInsideTheEditor();
+        testStepChevronsBesideTheDropDown();
+        // --render-ui <png> [character] [width] [frozen] [list item] [step under pointer]
         // --render-ui-live <png> [character] [width] [frozen] [list item] [seconds]
-        //                  [shader frame] [evolution] [focus]
+        //                  [shader frame] [evolution] [focus] [step under pointer]
         const auto wantsSnapshot = argc >= 3 && std::strcmp(argv[1], "--render-ui") == 0;
         const auto wantsLiveSnapshot = argc >= 3
                                     && std::strcmp(argv[1], "--render-ui-live") == 0;
@@ -4190,6 +4721,8 @@ int main(int argc, char** argv)
                                                      : settings.highlightedListItem;
             if (wantsSnapshot)
             {
+                settings.stepUnderPointer = argc >= 8 ? std::atoi(argv[7])
+                                                      : settings.stepUnderPointer;
                 renderEditorPng(argv[2], settings);
                 std::cout << "[PASS] wrote custom editor PNG to " << argv[2] << '\n';
             }
@@ -4201,6 +4734,8 @@ int main(int argc, char** argv)
                                                 : settings.evolution;
                 settings.focus = argc >= 11 ? static_cast<float>(std::atof(argv[10]))
                                             : settings.focus;
+                settings.stepUnderPointer = argc >= 12 ? std::atoi(argv[11])
+                                                       : settings.stepUnderPointer;
                 renderLiveEditorPng(argv[2], settings, secondsOfAnimation, shaderFramePath);
                 std::cout << "[PASS] wrote live editor PNG to " << argv[2] << '\n';
             }

@@ -33,6 +33,12 @@
 // a recorded session of the reference is reproduced by the same block layout,
 // tempo and reported position, the reference's arithmetic and the origins of
 // the instance's clocks.
+//
+// With --layer spume the engine carries the Spume layer, which hears nothing of
+// the host. A job of a recorded session needs the origin of the oscillators
+// and, where Macro moves, the block of 44 internal samples that used each new
+// value first (--macro-at-blocks): which block that was is the reference's
+// handling of host blocks, and the scoring script works it out.
 
 namespace
 {
@@ -50,6 +56,9 @@ constexpr char usage[] =
     "  --macro <0..1>         Macro (default 0)\n"
     "  --macro-steps <list>   Macro set anew in front of frames of the input, warm-up included:\n"
     "                         frame:value pairs separated by commas\n"
+    "  --macro-at-blocks <list>  Macro set anew so that the block of 44 internal samples which\n"
+    "                         begins at a given internal sample (counted from the first frame the\n"
+    "                         instance processed) is the first to use it: sample:value pairs\n"
     "  --low-cut <Hz>         Ocean's Low Cut; 20 takes it out of the circuit (default 20)\n"
     "  --high-damping <Hz>    Ocean's High Damping; 20000 takes it out of the circuit (default 20000)\n"
     "  --voice-seed <n>       seed of the voice phase\n"
@@ -58,7 +67,7 @@ constexpr char usage[] =
     "                         warm-up frame: pairs of 64-bit floats in cycles, little-endian, in\n"
     "                         place of the engine's own phase\n"
     "\n"
-    "  --layer <name>         what Macro drives: tide (default) or undertow\n"
+    "  --layer <name>         what Macro drives: tide (default), undertow or spume\n"
     "\n"
     "  the host of the Undertow layer; frames count from the first one the instance processed:\n"
     "  --tempo <bpm>          tempo the host reports (default: none)\n"
@@ -91,6 +100,7 @@ struct Options
     bool idleWarmup = false;
     FathomEngine::Parameters parameters;
     std::vector<std::pair<long long, float>> macroSteps;
+    std::vector<std::pair<long long, float>> macroAtBlocks;
     std::uint64_t voiceSeed = FathomEngine::defaultVoiceSeed;
     std::string voicePhase;
     FathomEngine::Layer layer = FathomEngine::Layer::tide;
@@ -211,6 +221,8 @@ struct Audio
             options.parameters.macro = parseFloat(name, value());
         else if (name == "--macro-steps")
             options.macroSteps = parseMacroSteps(name, value());
+        else if (name == "--macro-at-blocks")
+            options.macroAtBlocks = parseMacroSteps(name, value());
         else if (name == "--low-cut")
             options.parameters.lowCutHz = parseFloat(name, value());
         else if (name == "--high-damping")
@@ -222,10 +234,11 @@ struct Audio
         else if (name == "--layer")
         {
             const std::string layer = value();
-            if (layer != "tide" && layer != "undertow")
-                throw std::runtime_error("--layer is tide or undertow, got '" + layer + "'");
+            if (layer != "tide" && layer != "undertow" && layer != "spume")
+                throw std::runtime_error("--layer is tide, undertow or spume, got '" + layer + "'");
             options.layer = layer == "undertow" ? FathomEngine::Layer::undertow
-                                                : FathomEngine::Layer::tide;
+                          : layer == "spume" ? FathomEngine::Layer::spume
+                                             : FathomEngine::Layer::tide;
         }
         else if (name == "--tempo")
         {
@@ -490,13 +503,26 @@ void render(const Options& options)
     auto hostFrame = options.origins.firstFrame;
     auto parameters = options.parameters;
     std::size_t macroStep = 0;
+    std::size_t macroBlock = 0;
     long long rendered = 0;
+    constexpr long long gainBlockSamples = 44;
     const auto moveMacro = [&]
     {
         for (; macroStep < options.macroSteps.size() && options.macroSteps[macroStep].first <= rendered;
              ++macroStep)
         {
             parameters.macro = options.macroSteps[macroStep].second;
+            engine.setParameters(parameters);
+        }
+        // The layer takes a new Macro at the block that begins next. A value
+        // meant for the block at a given sample is therefore handed over once
+        // the block in front of it has begun.
+        for (; macroBlock < options.macroAtBlocks.size()
+               && engine.nextCoreSampleForTesting()
+                      > options.macroAtBlocks[macroBlock].first - gainBlockSamples;
+             ++macroBlock)
+        {
+            parameters.macro = options.macroAtBlocks[macroBlock].second;
             engine.setParameters(parameters);
         }
         ++rendered;

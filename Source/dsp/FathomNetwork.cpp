@@ -645,11 +645,18 @@ void FathomNetwork::process(double left, double right, double& outputLeft, doubl
     // Each equalised input passes its comb at every Macro, so that the comb
     // has its history when Macro rises. The lines take the equalised input,
     // or its mix with the combed one, a fixed number of samples later.
+    //
+    // Ocean's own: held, the lines take no input, and the comb takes none
+    // either, by the share the lines are given in this very sample. What is
+    // played under the hold is then in neither when the hold ends; what the
+    // comb took before runs out as it would.
+    const auto heldShare = shaping_.values()[hold];
+    const auto inputShare = 1.0 - heldShare;
     std::array<double, groupCount> lineInput {};
     const std::array<double, groupCount> equalised { equalise(0, left), equalise(1, right) };
     for (std::size_t channel = 0; channel < groupCount; ++channel)
     {
-        const auto combed = combs_[channel].process(equalised[channel],
+        const auto combed = combs_[channel].process(inputShare * equalised[channel],
                                                     combDelay(sampleCount_, channel),
                                                     static_cast<std::size_t>(sampleCount_));
         lineInput[channel] = lineInput_[channel][lineInputIndex_];
@@ -661,8 +668,6 @@ void FathomNetwork::process(double left, double right, double& outputLeft, doubl
         lineInputIndex_ = 0;
 
     const auto& tapWeight = tapWeight_.values();
-    const auto heldShare = shaping_.values()[hold];
-    const auto inputShare = 1.0 - heldShare;
     const auto slot = static_cast<std::size_t>(sampleCount_) & (lineCapacity - 1);
     std::array<double, groupCount> output {};
 
@@ -733,6 +738,11 @@ void FathomNetwork::process(double left, double right, double& outputLeft, doubl
         ++written_;
     outputLeft = output[0];
     outputRight = output[1];
+}
+
+double FathomNetwork::nextInputShare() const noexcept
+{
+    return 1.0 - shaping_.next(hold);
 }
 
 void FathomNetwork::idle() noexcept

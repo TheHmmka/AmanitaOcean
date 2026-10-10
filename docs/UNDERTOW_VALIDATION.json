@@ -1,7 +1,7 @@
 {
  "schema": "amanita-ocean.undertow-validation/1",
  "date": "2026-10-09",
- "status": "Local development model in the working tree. Not a release: version unchanged, nothing installed, published or signed, nothing listened to. DSP only: the layer, the engine that carries it, the plug-in's routing, the tests, the offline renderer and the scores. Editor, processor and state are a colleague's work.",
+ "status": "Released in 0.23.0 as recorded here. The working tree has one rule of Ocean's own more: under Freeze the layer keeps no new input (see since0230). Nothing of that is installed, published or signed, the version is unchanged, and nothing was listened to. DSP only; editor, processor and state are a colleague's work.",
  "document": "docs/UNDERTOW.md",
  "character": {
   "name": "Undertow",
@@ -10,7 +10,8 @@
   "engineInterface": "Source/dsp/FathomEngine.h: Layer::undertow, setTransport, setReferenceArithmetic, setClockOriginsForTesting",
   "layer": "Source/dsp/UndertowLayer.h",
   "evolution": "the knob itself drives the three voice gains; at 0 the Character is Fathom at Evolution 0 to the bit",
-  "mix": "Ocean's own linear Mix, as for Fathom; the reference's Mix law is in the offline renderer and the tests only"
+  "mix": "Ocean's own linear Mix, as for Fathom; the reference's Mix law is in the offline renderer and the tests only",
+  "freeze": "Fathom's hold of the network; since 0.23.0 the layer keeps no new input while it is held, by the network's own glide of 50 ms"
  },
  "reference": {
   "name": "Rev OCEAN",
@@ -3062,7 +3063,8 @@
    "a position that tells nothing: after three jumps in a row (each less than 0.25 s behind the one before, or at the next host block) the layer keeps time itself as under a stopped transport; it follows the host again once the position has run for 1 s without a jump",
    "no tempo is 120 BPM; tempi outside 20 to 999 BPM are the nearer end",
    "the position in double precision on the input's own time",
-   "Low Cut, High Damping, Freeze, Focus, Harmony, Mono Safe, Ocean's Mix, as in Fathom"
+   "Low Cut, High Damping, Freeze, Focus, Harmony, Mono Safe, Ocean's Mix, as in Fathom",
+   "since 0.23.0: under Freeze the layer keeps no new input, by the share the network gives its own in the same sample"
   ]
  },
  "deviationsFromTheSpecification": [
@@ -3084,7 +3086,8 @@
   "A tempo step begins the readers anew 0.25 s and up to two host blocks behind the host's word of it; stairs of a tempo curve more than 0.25 s apart and larger than 1 % are steps.",
   "The numbers of Ocean's transport rules are choices held by tests on synthetic transports; no host was tried.",
   "The layer adds level: +1.4 dB at 30 %, +2 dB at 60 %, +3.2 to +3.4 dB at 100 % in the reference; Undertow has no trim for it.",
-  "The reference's Brightness, Transients and Ducking above 0 % have no counterpart, as in Fathom."
+  "The reference's Brightness, Transients and Ducking above 0 % have no counterpart, as in Fathom.",
+  "Freeze is Ocean's own and was not moved in Abyss. What the layer held before Freeze still comes out of it when Freeze ends, as far as it has not run out; nothing played under Freeze is in it. Not listened to."
  ],
  "reviewFollowUp": {
   "date": "2026-10-09",
@@ -3136,5 +3139,203 @@
   "The long run is an hour of the layer keeping time and fourteen hours of position, not hours of sound.",
   "Macro in motion was scored on one recording.",
   "The level of Undertow against the other Characters was not measured on this build."
- ]
+ ],
+ "since0230": {
+  "date": "2026-10-10",
+  "what": "one rule of Ocean's own, decided by the owner on 10 October 2026 for Undertow and Spume alike; with Freeze off every sample is that of 0.23.0",
+  "freeze": {
+   "in0230": "the layer kept its input under Freeze; the held network did not take what the layer added, but the readers played what they had kept when Freeze ended",
+   "rule": "under Freeze the layer keeps no new input. In every internal sample the layer is given the share the network applies in that sample to what it writes into its lines, one less the hold (FathomNetwork::nextInputShare); what the layer keeps for its readers is its input times that share (UndertowLayer::process). The hold moves in a straight line over 50 ms (2205 internal samples), the first step in the first internal sample behind the switch, and lands on its end exactly; a silent network takes the switch at once. Chunks, readers, recirculation, grain readers and gains are untouched; the plain input is the network's to take or leave, as before.",
+   "whatTheLayerHeldBefore": "runs out as it would: the readers play the chunks they have, the recirculation falls by 14 dB a second at 120 BPM; the held network does not take it, and what is left at the release goes into the network again",
+   "againstTheInputsOwnTime": "the network scales what left its input pipeline of 44 samples in that sample, so its share runs a millisecond ahead of the layer's, under a glide of fifty",
+   "aBurstPlayedWhollyInsideAFreezeOfFiveSeconds": {
+    "measure": "energy of what the burst (a quarter second of noise at 0.3) adds to the four seconds behind the release, over the energy of the wet of the same burst played with no Freeze over the four seconds from its start; engine at 48 kHz, 120 BPM, Decay 2 s, Evolution 100 %",
+    "burstEnds1p05sInFrontOfTheRelease": {
+     "now": "nothing: no bit differs",
+     "in0230Db": -7.19,
+     "fathomNow": "nothing",
+     "fathomIn0230Db": "nothing"
+    },
+    "burstEnds0p25sInFrontOfTheRelease": {
+     "now": "nothing: no bit differs",
+     "in0230Db": -3.59,
+     "fathomNow": "nothing",
+     "fathomIn0230Db": -161.44
+    },
+    "burstEnds50msInFrontOfTheRelease": {
+     "now": "nothing: no bit differs",
+     "in0230Db": -3.97,
+     "fathomNow": "nothing",
+     "fathomIn0230Db": -52.26
+    },
+    "burstEnds3p25sInFrontOfTheRelease": {
+     "now": "nothing: no bit differs",
+     "in0230Db": -42.01,
+     "fathomNow": "nothing",
+     "fathomIn0230Db": "nothing"
+    },
+    "burstEnds10msInFrontOfTheRelease": {
+     "nowDb": -140.65,
+     "atEvolution0NowDb": -138.51,
+     "what": "the network's input equaliser is not held and rings for some ten milliseconds; that is the plain input's path, at every Character"
+    },
+    "throughThePlugIn": "the output with the burst is the output without it, to the bit",
+    "in0230MeasuredOn": "the engine as committed, and again on the final engine with the share held at one (a scratch build; not in the tree)"
+   },
+   "aSoundThatBeganBeforeFreeze": "is, to the bit, that sound ended where the hold's glide ends (50 ms behind the switch, with 256 frames of room for what the rate converters reach): what it played under Freeze is nowhere; what it played before is held by the network and runs out in the layer",
+   "whatTheLayerStillAddsUnderAHold": {
+    "peakOverTheFirstSecond": 1.19235,
+    "peakOverTheFourthSecond": 0.00779048,
+    "peakWithoutAHold": 1.15478,
+    "on": "two steady tones of 0.5 at Macro 100 %, 120 BPM"
+   },
+   "evolution0": "the engine is Fathom's to the bit through a Freeze and across both its edges, at 44.1, 48 and 96 kHz",
+   "theShareToTheSample": {
+    "what": "Undertow engine at 44.1 kHz, an impulse 2160, 2175 and 2190 samples behind the release, against the engine that never held with the layer's part by the share of its sample and the rest from the same engine at Macro 0",
+    "nullDb": -146.618,
+    "byTheShareOfTheNextSampleDb": -70.8503
+   },
+   "clickMeasure": {
+    "definition": "largest second difference of what the layer adds to two steady tones at Macro 100 %, through a hold of four seconds with the share on the glide of 2205 samples at either end",
+    "throughTheHold": 0.00480569,
+    "withoutTheHold": 0.00495554,
+    "shareTakenAtOnce": 0.0718021,
+    "limit": "1.5 times the measure without the hold"
+   },
+   "mutantsBuiltOutOfTheTree": {
+    "killedByTheUndertowTest": [
+     "Undertow given the share one (the behaviour of 0.23.0)",
+     "the share of the sample before",
+     "the share taken at once where the hold begins to move",
+     "the share taken at once where the hold has arrived",
+     "Undertow alone given the share at once",
+     "the layer ignores the share"
+    ],
+    "survived": 0
+   }
+  },
+  "tests": {
+   "dspExecutable": {
+    "binary": "build-spume-dsp/AmanitaOceanDSPTests",
+    "passed": 102,
+    "failed": 0,
+    "exitCode": 0,
+    "seconds": 94.0,
+    "undertowTests": 13,
+    "undertowTestsAlone": "--test-undertow",
+    "new": [
+     "Undertow under Freeze takes no new input",
+     "Engine Characters' own level stages and Sub Anchors through switches (--test-engine-stages; see docs/SPUME_VALIDATION.json)"
+    ],
+    "metricLinesOfTheTwelveTestsOf0230": "every one equals that of 0.23.0",
+    "existingTestsChangedForTheFreezeRule": "none: the Freeze check in 'Undertow engine determinism, clocks, reset and Freeze' holds that input does not reach a held network through the layer, before and after"
+   },
+   "stateExecutable": {
+    "binary": "build-spume-dsp/AmanitaOceanStateTests",
+    "result": "passed",
+    "exitCode": 0,
+    "seconds": 8.3
+   },
+   "rendererBitIdentity": "twenty-four renders with the Tide and the Undertow layer (44.1, 48, 96 kHz) are the same bytes from the renderer of 0.23.0 and from the final one",
+   "scoredAgain": {
+    "command": "score_undertow_engine.py --tool build-spume-dsp/AmanitaOceanFathomRender E T90 S90 FS4",
+    "recordings": 52,
+    "scoresChanged": 0
+   },
+   "generators": "emit_undertow_header.py --check: both headers up to date; --engine: every null against the model as in 0.23.0 (worst -145.03 dB)",
+   "sanitizers": {
+    "folder": "build-spume-sanitize",
+    "configuration": "Debug, arm64, -fsanitize=address,undefined -fno-omit-frame-pointer",
+    "runs": {
+     "--test-spume": {
+      "passed": 11,
+      "failed": 0,
+      "reports": 0,
+      "time": "10:51.13 total",
+      "metricLinesThoseOfTheReleaseBuild": true,
+      "tests": [
+       "Spume diffuser against the model",
+       "Spume engine golden vectors",
+       "Spume at Evolution 0",
+       "Spume engine determinism, reset, Pre Delay and Freeze",
+       "Spume independence of the host's block length",
+       "Spume Evolution steps and ramps",
+       "Spume silence, denormals and hostile input",
+       "Spume engine allocation-free processing",
+       "Spume routing, crossfades and return through the plug-in",
+       "Spume under Freeze takes no new input",
+       "no allocations in process"
+      ]
+     },
+     "--test-undertow": {
+      "passed": 14,
+      "failed": 0,
+      "reports": 0,
+      "time": "11:05.88 total",
+      "metricLinesThoseOfTheReleaseBuild": true,
+      "tests": [
+       "Undertow engine golden vectors",
+       "Undertow at Evolution 0",
+       "Undertow engine determinism, clocks, reset and Freeze",
+       "Undertow independence of the host's block length",
+       "Undertow transport start, stop, jump, loop and tempo",
+       "Undertow tempo ramps and steps in host blocks of any length",
+       "Undertow position that tells nothing",
+       "Undertow Macro steps",
+       "Undertow long run stays on the grid",
+       "Undertow silence, denormals and hostile input",
+       "Undertow engine allocation-free processing",
+       "Undertow routing, crossfades and return through the plug-in",
+       "Undertow under Freeze takes no new input",
+       "no allocations in process"
+      ]
+     },
+     "--test-engine-stages": {
+      "passed": 2,
+      "failed": 0,
+      "reports": 0,
+      "time": "49.835 total",
+      "metricLinesThoseOfTheReleaseBuild": true,
+      "tests": [
+       "Engine Characters' own level stages and Sub Anchors through switches",
+       "no allocations in process"
+      ]
+     }
+    },
+    "withFathomsRuleInAsWell": {
+     "folder": "build-spume-sanitize",
+     "configuration": "Debug, arm64, -fsanitize=address,undefined -fno-omit-frame-pointer",
+     "command": "AmanitaOceanDSPTests --test-freeze",
+     "tests": [
+      "Fathom under Freeze takes no new input",
+      "Undertow under Freeze takes no new input",
+      "Spume under Freeze takes no new input",
+      "no allocations in process"
+     ],
+     "failed": 0,
+     "reports": 0,
+     "time": "8:39.58 total",
+     "metricLinesThoseOfTheReleaseBuild": true,
+     "builtBefore": "a comment added to FathomEngine.h afterwards"
+    }
+   }
+  },
+  "sourcesSha256": {
+   "Source/dsp/UndertowLayer.h": "a848038d94a36801ab43a1dccc701981852abf2377993b4bfd12e99e65ef497e",
+   "Source/dsp/UndertowLayer.cpp": "2137941873c26d3cb469819b245acdb5e84953b7b8d2b86af98199ba150d8a1d",
+   "Source/dsp/FathomEngine.h": "3e1dd3fea3a4d02e8eb64b1b7a6617e8c548bc346339097cdf428e1711ecc673",
+   "Source/dsp/FathomEngine.cpp": "2d68a65c92bcaf118370f464757165353396ac41faa33f99a8506786da1ca09c",
+   "Source/dsp/FathomNetwork.h": "36989c8f52d4c418095f4044f3bf6dc47de4deebd0ad1bf1f0cd350e20345054",
+   "Source/dsp/FathomNetwork.cpp": "5cca9e482a130a99ec4a51d9e68f8fb6511e092c0d6c8da3fc9b100ec2c77e23",
+   "Source/dsp/FDNReverb.h": "3f72ad968973863ca710a77b5fdf7bfd2092b5d7a873d2534c7519e7ad003fd7",
+   "Source/dsp/FDNReverb.cpp": "53efaa4c456e46d86ac7e3bfe7f7fcb8ac1a541a4e1f61839f19bfe8bebbf3f8",
+   "Tools/FathomRender.cpp": "a5094d61bf6fadc411452915cf5a08338a19e0b1b448463cfc6f1f6296c1e198",
+   "Tests/DspTests.cpp": "57818b57100c65cd5b85ecb2d161cb12df66015d960c4d6f53de788409cbf2a1",
+   "CMakeLists.txt": "b0f2bf8ca8722690d3f2503edd5be4217b8cc912400b81979b992900f605ee0f"
+  },
+  "notRun": [
+   "The Freeze rule in a host, or at a tempo other than 120 BPM.",
+   "No listening."
+  ]
+ }
 }

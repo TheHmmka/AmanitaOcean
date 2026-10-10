@@ -61,6 +61,11 @@ add_library(AmanitaOceanDSP STATIC
     Source/dsp/LateralDecay.h
     Source/dsp/SpatialDucker.cpp
     Source/dsp/SpatialDucker.h
+    Source/dsp/SpumeConstants.h
+    Source/dsp/SpumeDiffuser.cpp
+    Source/dsp/SpumeDiffuser.h
+    Source/dsp/SpumeLayer.cpp
+    Source/dsp/SpumeLayer.h
     Source/dsp/StereoField.cpp
     Source/dsp/StereoField.h
     Source/dsp/UndertowConstants.h
@@ -81,12 +86,15 @@ set_target_properties(AmanitaOceanDSP PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # (Source/dsp/FathomExactArithmetic.h). Flags that turn contraction on for
 # every file override the pragma of that header, so its sources say it once
 # more behind them on the command line. The Undertow layer is part of that
-# engine: its clock decides on the rounding of single products.
+# engine: its clock decides on the rounding of single products. The Spume
+# layer is part of it too.
 if(NOT MSVC)
     set_source_files_properties(
         Source/dsp/FathomConverter.cpp
         Source/dsp/FathomEngine.cpp
         Source/dsp/FathomNetwork.cpp
+        Source/dsp/SpumeDiffuser.cpp
+        Source/dsp/SpumeLayer.cpp
         Source/dsp/UndertowLayer.cpp
         PROPERTIES COMPILE_OPTIONS -ffp-contract=off
     )

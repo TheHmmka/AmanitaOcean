@@ -186,15 +186,18 @@ void DeepCurrentRenderer::render(juce::Colour accent)
     const auto unit = juce::jmin(width / 480.0f, height / 300.0f);
     const auto evolutionDepth = 0.12f + 0.88f * evolution_;
     const auto veilBlend = characterBlend_[3];
-    // Undertow lies a shade darker than the others in all it draws.
+    // Undertow lies a shade darker than the others in all it draws, Spume a
+    // shade lighter.
     const auto undertowBlend = characterBlend_[6];
+    const auto spumeBlend = characterBlend_[7];
 
     const auto period43 = phaseForPeriod(timeSeconds_, 43.0);
     const auto period67 = phaseForPeriod(timeSeconds_, 67.0);
     const auto period89 = phaseForPeriod(timeSeconds_, 89.0);
     const auto glowColour = juce::Colour::fromRGB(42, 99, 104)
                                 .interpolatedWith(accent.darker(0.36f), 0.55f);
-    const auto glowAlpha = 0.038f * (1.0f - 0.12f * veilBlend - 0.16f * undertowBlend);
+    const auto glowAlpha = 0.038f * (1.0f - 0.12f * veilBlend - 0.16f * undertowBlend
+                                     + 0.14f * spumeBlend);
     const auto glowScale = 0.96f + 0.08f * evolution_;
 
     drawRadialGlow(graphics,
@@ -298,20 +301,32 @@ void DeepCurrentRenderer::render(juce::Colour accent)
             const auto undertowY = baseY
                 + undertowAmount * (0.82f * undertowSwell + 0.18f * primary);
 
+            // Spume: no swell; the lanes lie nearly level and carry a fine,
+            // short ripple that runs along them, each lane out of step with
+            // the next.
+            const auto spumeRipple = std::sin(normalisedX * 26.0f + seed * 3.1f
+                                            - static_cast<float>(timeSeconds_ * 0.19));
+            const auto spumeAmount = unit * (1.4f + 3.2f * evolutionDepth);
+            const auto spumeX = baseX + unit * 1.2f * secondary;
+            const auto spumeY = baseY
+                + spumeAmount * (0.64f * spumeRipple + 0.36f * secondary);
+
             const auto x = characterBlend_[0] * defaultX
                          + characterBlend_[1] * bloomX
                          + characterBlend_[2] * driftX
                          + characterBlend_[3] * veilX
                          + characterBlend_[4] * currentX
                          + characterBlend_[5] * fathomX
-                         + characterBlend_[6] * undertowX;
+                         + characterBlend_[6] * undertowX
+                         + characterBlend_[7] * spumeX;
             const auto y = characterBlend_[0] * defaultY
                          + characterBlend_[1] * bloomY
                          + characterBlend_[2] * driftY
                          + characterBlend_[3] * veilY
                          + characterBlend_[4] * currentY
                          + characterBlend_[5] * fathomY
-                         + characterBlend_[6] * undertowY;
+                         + characterBlend_[6] * undertowY
+                         + characterBlend_[7] * spumeY;
             if (point == 0)
                 path.startNewSubPath(x, y);
             else
@@ -321,7 +336,8 @@ void DeepCurrentRenderer::render(juce::Colour accent)
         const auto edgeDistance = std::abs(lane - 0.5f) * 2.0f;
         const auto alpha = 0.054f
                          * (1.0f - 0.12f * edgeDistance)
-                         * (1.0f - 0.10f * veilBlend - 0.16f * undertowBlend);
+                         * (1.0f - 0.10f * veilBlend - 0.16f * undertowBlend
+                            + 0.14f * spumeBlend);
         graphics.setColour(flowColour.withAlpha(alpha * 0.18f));
         graphics.strokePath(path,
                             juce::PathStrokeType(5.4f * unit,
@@ -419,20 +435,30 @@ void DeepCurrentRenderer::render(juce::Colour accent)
             const auto undertowY = baseY - sine * undertowAmount * 0.62f * undertowSwell
                                  + undertowAmount * 0.16f * fine;
 
+            // Spume: the rings keep their shape and a fine ripple runs round
+            // them, each ring out of step with the next.
+            const auto spumeRipple = std::sin(angle * 7.0f + spread * 9.0f
+                                            - static_cast<float>(timeSeconds_ * 0.19));
+            const auto spumeAmount = unit * (0.9f + 2.8f * spread) * evolutionDepth;
+            const auto spumeX = baseX + cosine * spumeAmount * spumeRipple;
+            const auto spumeY = baseY + sine * spumeAmount * spumeRipple;
+
             const auto x = characterBlend_[0] * defaultX
                          + characterBlend_[1] * bloomX
                          + characterBlend_[2] * driftX
                          + characterBlend_[3] * veilX
                          + characterBlend_[4] * currentX
                          + characterBlend_[5] * fathomX
-                         + characterBlend_[6] * undertowX;
+                         + characterBlend_[6] * undertowX
+                         + characterBlend_[7] * spumeX;
             const auto y = characterBlend_[0] * defaultY
                          + characterBlend_[1] * bloomY
                          + characterBlend_[2] * driftY
                          + characterBlend_[3] * veilY
                          + characterBlend_[4] * currentY
                          + characterBlend_[5] * fathomY
-                         + characterBlend_[6] * undertowY;
+                         + characterBlend_[6] * undertowY
+                         + characterBlend_[7] * spumeY;
             if (point == 0)
                 path.startNewSubPath(x, y);
             else
@@ -442,7 +468,8 @@ void DeepCurrentRenderer::render(juce::Colour accent)
 
         const auto alpha = 0.056f
                          * (1.0f - 0.28f * spread)
-                         * (1.0f - 0.12f * veilBlend - 0.16f * undertowBlend);
+                         * (1.0f - 0.12f * veilBlend - 0.16f * undertowBlend
+                            + 0.14f * spumeBlend);
         graphics.setColour(lineColour.withAlpha(alpha * 0.24f));
         graphics.strokePath(path,
                             juce::PathStrokeType(2.5f * unit,

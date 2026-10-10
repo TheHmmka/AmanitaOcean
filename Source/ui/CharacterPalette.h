@@ -9,9 +9,9 @@ namespace amanita::ui
 {
 [[nodiscard]] inline juce::Colour characterAccent(int characterIndex) noexcept
 {
-    constexpr std::array<std::uint32_t, 7> colours {
+    constexpr std::array<std::uint32_t, 8> colours {
         0xff81bfc7, 0xffc89c83, 0xff829de0, 0xffb3a6c4, 0xff74c6a8, 0xff2f7fe0,
-        0xff6672f2
+        0xff6672f2, 0xff1f9be0
     };
     const auto safeIndex = static_cast<std::size_t>(
         juce::jlimit(0, static_cast<int>(colours.size()) - 1, characterIndex));

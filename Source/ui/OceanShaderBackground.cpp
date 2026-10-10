@@ -279,6 +279,7 @@ void OceanShaderBackground::renderOpenGL()
     sceneProgram_->setUniform("uCurrentBlend", characterBlend_[4]);
     sceneProgram_->setUniform("uFathomBlend", characterBlend_[5]);
     sceneProgram_->setUniform("uUndertowBlend", characterBlend_[6]);
+    sceneProgram_->setUniform("uSpumeBlend", characterBlend_[7]);
     sceneProgram_->setUniform("uCurrentFlow",
                               renderedCurrentFlowX_,
                               renderedCurrentFlowY_);
@@ -316,7 +317,8 @@ void OceanShaderBackground::renderOpenGL()
           + characterBlend_[3] * 1.35f
           + characterBlend_[4] * 1.18f
           + characterBlend_[5] * 1.22f
-          + characterBlend_[6] * 1.26f;
+          + characterBlend_[6] * 1.26f
+          + characterBlend_[7] * 0.94f;
         const auto blurRadius =
             2.65f * characterRadius
           * juce::jmap(renderedEvolution_, 0.88f, 1.22f)
@@ -376,6 +378,7 @@ void OceanShaderBackground::renderOpenGL()
     compositeProgram_->setUniform("uCurrentBlend", characterBlend_[4]);
     compositeProgram_->setUniform("uFathomBlend", characterBlend_[5]);
     compositeProgram_->setUniform("uUndertowBlend", characterBlend_[6]);
+    compositeProgram_->setUniform("uSpumeBlend", characterBlend_[7]);
     glDrawArrays(GL_TRIANGLES, 0, 3);
 
     glActiveTexture(GL_TEXTURE1);
