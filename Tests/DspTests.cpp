@@ -6159,12 +6159,12 @@ void testFathomVoicePhaseGenerator()
     };
     constexpr std::array seedFamilies {
         SeedFamily { "seeds close together",
-                     [](std::uint64_t index) { return index * 0x9e3779b9ULL + 17; } },
+                     [](std::uint64_t index) -> std::uint64_t { return index * 0x9e3779b9ULL + 17; } },
         SeedFamily { "seeds over all 64 bits",
-                     [](std::uint64_t index)
+                     [](std::uint64_t index) -> std::uint64_t
                      { return (index + 1) * 6364136223846793005ULL + 1442695040888963407ULL; } },
         SeedFamily { "seeds that differ in their upper half",
-                     [](std::uint64_t index) { return (index << 32) | 0x45626245ULL; } }
+                     [](std::uint64_t index) -> std::uint64_t { return (index << 32) | 0x45626245ULL; } }
     };
     for (const auto& family : seedFamilies)
     {
