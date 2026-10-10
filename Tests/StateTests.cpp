@@ -4739,10 +4739,24 @@ void testStepChevronsBesideTheDropDown()
                     + expected.title);
     }
 }
+
+// On X11 the host of a plug-in makes Xlib safe for threads before anything
+// else calls it: the OpenGL background draws from a thread of its own. JUCE
+// does that for an application only, and Xlib before 1.8 not at all without
+// being asked, so this test, the host here, asks. JUCE opens the same library.
+void makeXlibSafeForThreads()
+{
+   #if JUCE_LINUX || JUCE_BSD
+    static juce::DynamicLibrary xlib { "libX11.so.6" };
+    if (auto* initThreads = reinterpret_cast<int (*)()>(xlib.getFunction("XInitThreads")))
+        initThreads();
+   #endif
+}
 } // namespace
 
 int main(int argc, char** argv)
 {
+    makeXlibSafeForThreads();
     juce::ScopedJuceInitialiser_GUI initialiseJuce;
 
     try

@@ -158,6 +158,19 @@ bool OceanShaderBackground::hasFailed() const noexcept
 
 void OceanShaderBackground::newOpenGLContextCreated()
 {
+   #if JUCE_LINUX || JUCE_BSD
+    // JUCE's X11 context makes itself current on the render thread as it is
+    // created, past the guard that would release it at the end of the frame.
+    // A first frame given up before it paints (the editor closed as it opens)
+    // then leaves the context with this thread, and Mesa 23 refuses it to the
+    // message thread that closes it: an X protocol error, which ends a host
+    // that has no handler of its own. Released here, as the last thing JUCE
+    // does with a new context, it is taken up again by the frame's own guard.
+    const juce::ScopeGuard releaseContext {
+        [] { juce::OpenGLContext::deactivateCurrentContext(); }
+    };
+   #endif
+
     releaseOpenGLResources();
     failed_.store(false, std::memory_order_release);
 
