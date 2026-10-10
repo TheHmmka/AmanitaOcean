@@ -26,7 +26,8 @@ self-hosted Umami instance at `https://stats.amanita.music/`. The site uses the
 Ocean-specific website ID `257cbc84-9b4b-4b59-862d-b915599c4b4f`.
 
 Tracked events cover the main hero actions, character selection, the Freeze
-demonstration, each platform download, and the SHA-256 manifest. Do not reuse
+demonstration, each platform download, selecting the macOS Terminal install
+command, and the SHA-256 manifest. Do not reuse
 this website ID for another Amanita product.
 
 ## Upload
@@ -41,12 +42,38 @@ styles.css
 robots.txt
 assets/
 downloads/
+install-macos.sh
 js/
 ```
 
-Release archives live under a versioned path such as `downloads/0.21.0/`.
+Release archives live under a versioned path such as `downloads/0.24.0/`.
 Keep `SHA256SUMS.txt` beside the archives and never replace an already-published
 version in place; publish a new versioned directory instead.
+
+## macOS Terminal install
+
+The download panel shows a one-line install for macOS:
+
+```sh
+curl -fsSL https://ocean.amanita.music/install-macos.sh | bash
+```
+
+`install-macos.sh` downloads the macOS archive of the current release over
+HTTPS only, checks it against a pinned SHA-256, unpacks it with `ditto` and
+runs `Install Amanita Ocean.command` from it: current user only, no `sudo`.
+For every release update the three pinned values in the script (archive name,
+SHA-256 from `SHA256SUMS.txt`, URL) together with the download link.
+
+`AMANITA_OCEAN_PACKAGE_URL` points the script at another source for validation
+only; the bytes must still match the pinned hash. Together with the installer's
+`AMANITA_OCEAN_INSTALL_ROOT` this checks the whole path against a local preview
+without touching the real plug-in folders:
+
+```sh
+curl -fsSL http://127.0.0.1:4173/install-macos.sh |
+  AMANITA_OCEAN_PACKAGE_URL=http://127.0.0.1:4173/downloads/0.24.0/Amanita-Ocean-0.24.0-macOS-arm64.zip \
+  AMANITA_OCEAN_INSTALL_ROOT=/private/tmp/amanita-ocean-plug-ins bash
+```
 
 ## Caddy
 
@@ -63,10 +90,10 @@ utility, so it always reflects the current editor:
 
 ```sh
 ./build-release/AmanitaOceanStateTests \
-  --render-ui site/assets/amanita-ocean-plugin.png 4 1440 0
+  --render-ui site/assets/amanita-ocean-plugin.png 6 1440 0
 ```
 
-The final arguments select Current, request a 1440-point editor width, and leave
+The final arguments select Undertow (Character index 6 of 0–7), request a 1440-point editor width, and leave
 Freeze disabled. Mono Safe remains at its default Off state. The renderer writes
 a `2880 × 1920` Retina-resolution PNG; keep the matching intrinsic dimensions
 and a versioned cache-buster in `index.html`.

@@ -8,6 +8,25 @@
         [0x82 / 255, 0x9d / 255, 0xe0 / 255],
         [0xb3 / 255, 0xa6 / 255, 0xc4 / 255],
         [0x74 / 255, 0xc6 / 255, 0xa8 / 255],
+        [0x2f / 255, 0x7f / 255, 0xe0 / 255],
+        [0x66 / 255, 0x72 / 255, 0xf2 / 255],
+        [0x1f / 255, 0x9b / 255, 0xe0 / 255],
+    ];
+
+    // The field has five shapes of its own: Default, Bloom, Drift, Veil and
+    // Current. Fathom, Undertow and Spume have no shader mode; each is drawn
+    // as a fixed blend of those shapes in its own accent: Fathom a slow,
+    // soft depth, Undertow its slower and softer relative, Spume a finer and
+    // livelier surface.
+    const characterShapes = [
+        [1, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 1],
+        [0.5, 0, 0, 0.5, 0],
+        [0.25, 0, 0, 0.75, 0],
+        [0.45, 0, 0.55, 0, 0],
     ];
 
     const vertexShaderSource = `#version 300 es
@@ -447,7 +466,10 @@ void main()
         setCharacter(index) {
             const numericIndex = Number(index);
             this.targetCharacter = Number.isFinite(numericIndex)
-                ? Math.min(4, Math.max(0, Math.round(numericIndex)))
+                ? Math.min(
+                    characterShapes.length - 1,
+                    Math.max(0, Math.round(numericIndex))
+                )
                 : 0;
             this.requestFrame();
             return this;
@@ -808,8 +830,7 @@ void main()
         }
 
         snapToTargets() {
-            this.characterBlend.fill(0);
-            this.characterBlend[this.targetCharacter] = 1;
+            this.characterBlend.set(characterShapes[this.targetCharacter]);
             this.renderedEvolution = this.targetEvolution;
             this.renderedFocus = this.targetFocus;
             this.renderedCurrentFlow.set(this.targetCurrentFlow);
@@ -824,8 +845,9 @@ void main()
         advanceState(elapsedSeconds) {
             const characterAmount = smoothingAmount(elapsedSeconds, 0.55);
             let blendSum = 0;
+            const shape = characterShapes[this.targetCharacter];
             for (let index = 0; index < this.characterBlend.length; ++index) {
-                const destination = index === this.targetCharacter ? 1 : 0;
+                const destination = shape[index];
                 this.characterBlend[index] += (
                     destination - this.characterBlend[index]
                 ) * characterAmount;
@@ -912,7 +934,7 @@ void main()
                 index < this.characterBlend.length;
                 ++index
             ) {
-                const target = index === this.targetCharacter ? 1 : 0;
+                const target = characterShapes[this.targetCharacter][index];
                 if (Math.abs(this.characterBlend[index] - target) > 0.001) {
                     return true;
                 }

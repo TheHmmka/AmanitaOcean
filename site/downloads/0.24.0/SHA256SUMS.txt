@@ -1,0 +1,3 @@
+d3a787a2f5e6afd3900f0c5bc68fba91c5f13d3e1d4e95fd54fbb29dbeed14bd  Amanita-Ocean-0.24.0-macOS-arm64.zip
+55e866ad38034ee0ff3118b1647ce91d689f486669a2de7a8d9a763e3289389d  Amanita-Ocean-0.24.0-Windows-x64.zip
+ec4011bdf5533fd02a1eeb1d213ac66cdee97eafa192f62dafa34643235b474f  Amanita-Ocean-0.24.0-Linux-x64.tar.gz

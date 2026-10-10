@@ -7,13 +7,13 @@
   <meta name="color-scheme" content="dark">
 
   <title>Amanita Ocean — Evolving Space Reverb</title>
-  <meta name="description" content="Amanita Ocean is an algorithmic reverb with five living characters, coherent Current Field motion, harmonic gravity, stereo-aware focus and natural long decays.">
+  <meta name="description" content="Amanita Ocean is an algorithmic reverb with eight living characters, from open water to a deep family of slow tides, tempo-locked reversed voices and dissolving spray, with harmonic gravity, stereo-aware focus and natural long decays.">
   <meta name="keywords" content="algorithmic reverb, VST3 reverb, AU reverb, CLAP plugin, ambient reverb, psytrance reverb, music production">
   <link rel="canonical" href="https://ocean.amanita.music/">
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="Amanita Ocean — Evolving Space Reverb">
-  <meta property="og:description" content="A reverb whose tail keeps becoming. Five living characters, coherent Current Field motion, Harmonic Gravity and stereo-aware Focus.">
+  <meta property="og:description" content="A reverb whose tail keeps becoming. Eight living characters, a deep family of tide, reversed voices and spray, Harmonic Gravity and stereo-aware Focus.">
   <meta property="og:url" content="https://ocean.amanita.music/">
   <meta property="og:image" content="https://ocean.amanita.music/assets/amanita-ocean-social.png">
   <meta property="og:image:width" content="1729">
@@ -26,7 +26,7 @@
   <meta name="twitter:image" content="https://ocean.amanita.music/assets/amanita-ocean-social.png">
 
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=0210-layout-2">
+  <link rel="stylesheet" href="styles.css?v=0240">
   <script
     defer
     src="https://stats.amanita.music/script.js"
@@ -42,11 +42,14 @@
     "image": "https://ocean.amanita.music/assets/amanita-ocean-social.png",
     "applicationCategory": "MultimediaApplication",
     "applicationSubCategory": "Audio effect plug-in",
-    "softwareVersion": "0.21.0",
+    "softwareVersion": "0.24.0",
     "operatingSystem": "macOS, Windows, Linux",
-    "description": "An algorithmic reverb with five evolving characters, coherent Current Field motion, harmonic gravity and stereo-aware masking relief.",
+    "description": "An algorithmic reverb with eight evolving characters, including a deep family of slow tides, tempo-locked reversed voices and dissolving spray, with coherent Current Field motion, harmonic gravity and stereo-aware masking relief.",
     "featureList": [
-      "Default, Bloom, Drift, Veil and Current reverb characters",
+      "Eight reverb characters: Default, Bloom, Drift, Veil, Current, Fathom, Undertow and Spume",
+      "Fathom: a slow tide that opens and closes over about 18 seconds",
+      "Undertow: three reversed voices at pitch, an octave up and an octave down, locked to the host tempo",
+      "Spume: a 28-stage all-pass diffuser that dissolves every attack into a fine spray",
       "Coherent Current Field delay, damping and stereo motion",
       "Evolution character macro",
       "Harmonic Gravity",
@@ -55,7 +58,8 @@
       "Evolution-linked Lateral Decay",
       "Mono Safe stereo field with a 145 Hz Sub Anchor",
       "Independent 3 Hz DC Guard during Freeze",
-      "Freeze",
+      "Freeze that keeps new sound out in every character",
+      "Character selector with previous and next step arrows",
       "VST3, Audio Unit and CLAP formats"
     ]
   }
@@ -76,7 +80,7 @@
       </a>
 
       <nav class="site-nav" aria-label="Primary navigation">
-        <a href="#new-in-021">New in 0.21</a>
+        <a href="#new-in-024">New in 0.24</a>
         <a href="#characters">Characters</a>
         <a href="#macros">Motion</a>
         <a href="#controls">Controls</a>
@@ -87,11 +91,11 @@
       <a
         class="header-version"
         href="#downloads"
-        aria-label="Download Amanita Ocean 0.21.0"
+        aria-label="Download Amanita Ocean 0.24.0"
         data-umami-event="open-downloads-header"
       >
         <span class="status-dot" aria-hidden="true"></span>
-        v0.21.0
+        v0.24.0
       </a>
     </div>
   </header>
@@ -122,7 +126,7 @@
               class="button button--quiet"
               href="#downloads"
               data-umami-event="open-downloads-hero"
-            >Download v0.21.0</a>
+            >Download v0.24.0</a>
           </div>
 
           <p class="format-line">
@@ -136,8 +140,8 @@
           <div class="product-halo" aria-hidden="true"></div>
           <figure class="plugin-frame">
             <img
-              src="assets/amanita-ocean-plugin.png?v=current-0210"
-              alt="Amanita Ocean plug-in interface showing the Current character"
+              src="assets/amanita-ocean-plugin.png?v=undertow-0240"
+              alt="Amanita Ocean 0.24.0 plug-in interface showing the Undertow character: a centred character selector with step arrows, a description beside the large Evolution knob and nine controls below"
               width="2880"
               height="1920"
               fetchpriority="high"
@@ -153,24 +157,74 @@
       </div>
     </section>
 
-    <section class="section release-highlights" id="new-in-021">
+    <section class="section release-highlights" id="new-in-024">
       <div class="page-width">
         <div class="section-heading release-highlights__heading" data-reveal>
-          <p class="eyebrow">New in 0.21</p>
-          <h2>One field.<br><em>Every line in motion.</em></h2>
+          <p class="eyebrow">New in 0.24</p>
+          <h2>Below the surface.<br><em>Three deep characters.</em></h2>
           <p>
-            Ocean 0.21 introduces Current: eight FDN lines moving as parts of
-            one coherent liquid volume. Decay now grows without pulling back
-            the first reflection, while Lateral Decay lets the space open
-            around a stable mono core.
+            Ocean 0.24 goes deeper. Fathom, Undertow and Spume are a family of
+            three characters built on one dense 16-line network, and they
+            bring the count to eight: a slow tide, three reversed voices
+            locked to the host tempo, and an attack dissolved into spray.
+            Current, the coherent flow field, still carries the surface. In
+            the editor the character now sits in a centred list with step
+            arrows on either side and its description beside the Evolution
+            knob, and Freeze keeps new sound out in every character.
           </p>
         </div>
+
+        <div class="deep-grid">
+          <article class="deep-card deep-card--fathom surface" data-reveal>
+            <div class="release-card__meta">
+              <span>01</span>
+              <b>Fathom</b>
+            </div>
+            <h3>A tide that opens<br>and closes.</h3>
+            <p>
+              Deep water with a tide of its own. The space breathes open and
+              shut over about 18 seconds, dense and smooth. Evolution brings
+              the tide in; at zero the depth stands still.
+            </p>
+            <small>Slow tide · about 18&nbsp;s</small>
+          </article>
+
+          <article class="deep-card deep-card--undertow surface" data-reveal>
+            <div class="release-card__meta">
+              <span>02</span>
+              <b>Undertow</b>
+            </div>
+            <h3>The last beats,<br>returned in reverse.</h3>
+            <p>
+              Three voices replay what you just played backwards: at pitch,
+              an octave up and an octave down, locked to the host tempo.
+              Evolution lets them in, one by one.
+            </p>
+            <small>Three reversed voices · host tempo</small>
+          </article>
+
+          <article class="deep-card deep-card--spume surface" data-reveal>
+            <div class="release-card__meta">
+              <span>03</span>
+              <b>Spume</b>
+            </div>
+            <h3>Every attack<br>breaks into spray.</h3>
+            <p>
+              A 28-stage all-pass diffuser dissolves each strike into a fine,
+              slow spray before it reaches the reverb. Evolution turns a
+              clean strike into pure spume.
+            </p>
+            <small>28 all-pass stages · about 1&nbsp;s of spray</small>
+          </article>
+        </div>
+
+        <p class="eyebrow release-highlights__sub" data-reveal>Still carrying the surface</p>
 
         <div class="release-grid">
           <article class="release-card release-card--stereo surface" data-reveal>
             <div class="release-card__copy">
               <div class="release-card__meta">
-                <span>01</span>
+                <span>04</span>
                 <b>Current Field</b>
               </div>
               <h3>One current.<br>Eight moving lines.</h3>
@@ -207,7 +261,7 @@
 
           <article class="release-card release-card--decay surface" data-reveal>
             <div class="release-card__meta">
-              <span>02</span>
+              <span>05</span>
               <b>Natural Decay</b>
             </div>
             <h3>Time grows.<br>The source stays present.</h3>
@@ -226,7 +280,7 @@
 
           <article class="release-card release-card--guard surface" data-reveal>
             <div class="release-card__meta">
-              <span>03</span>
+              <span>06</span>
               <b>Lateral Decay</b>
             </div>
             <h3>The centre holds.<br>The sides breathe longer.</h3>
@@ -247,11 +301,12 @@
     <section class="section characters" id="characters">
       <div class="page-width">
         <div class="section-heading" data-reveal>
-          <p class="eyebrow">Five currents, one ocean</p>
+          <p class="eyebrow">Eight waters, one ocean</p>
           <h2>Choose how the space <em>moves.</em></h2>
           <p>
-            Every character reshapes the same stable reverb core. Switching
-            characters morphs over 200&nbsp;ms, so the existing tail is never reset.
+            Five characters reshape the same stable reverb core; three more
+            go down into a denser, deeper network. Every change of character
+            takes 200&nbsp;ms, without a click or a hard cut.
           </p>
         </div>
 
@@ -331,6 +386,51 @@
               <span class="mode-tab__name">Current</span>
               <span class="mode-tab__descriptor">Coherent / Flow</span>
             </button>
+            <button
+              class="mode-tab"
+              type="button"
+              role="tab"
+              id="mode-tab-fathom"
+              aria-selected="false"
+              aria-controls="mode-panel-fathom"
+              tabindex="-1"
+              data-character="5"
+              data-umami-event="select-character-fathom"
+            >
+              <span class="mode-tab__number">06</span>
+              <span class="mode-tab__name">Fathom</span>
+              <span class="mode-tab__descriptor">Deep / Tide</span>
+            </button>
+            <button
+              class="mode-tab"
+              type="button"
+              role="tab"
+              id="mode-tab-undertow"
+              aria-selected="false"
+              aria-controls="mode-panel-undertow"
+              tabindex="-1"
+              data-character="6"
+              data-umami-event="select-character-undertow"
+            >
+              <span class="mode-tab__number">07</span>
+              <span class="mode-tab__name">Undertow</span>
+              <span class="mode-tab__descriptor">Reversed / Tempo</span>
+            </button>
+            <button
+              class="mode-tab"
+              type="button"
+              role="tab"
+              id="mode-tab-spume"
+              aria-selected="false"
+              aria-controls="mode-panel-spume"
+              tabindex="-1"
+              data-character="7"
+              data-umami-event="select-character-spume"
+            >
+              <span class="mode-tab__number">08</span>
+              <span class="mode-tab__name">Spume</span>
+              <span class="mode-tab__descriptor">Dissolved / Spray</span>
+            </button>
           </div>
 
           <div class="mode-panels">
@@ -342,7 +442,7 @@
               data-character-panel="0"
             >
               <div class="mode-panel__statement">
-                <p class="mode-kicker">The reference space</p>
+                <p class="mode-kicker">Open water</p>
                 <h3>Clear in front.<br>Alive behind.</h3>
                 <p>
                   Default preserves the attack, then opens into a balanced,
@@ -502,6 +602,111 @@
                 </div>
               </dl>
             </article>
+
+            <article
+              class="mode-panel"
+              id="mode-panel-fathom"
+              role="tabpanel"
+              aria-labelledby="mode-tab-fathom"
+              data-character-panel="5"
+              hidden
+            >
+              <div class="mode-panel__statement">
+                <p class="mode-kicker">Deep water, slow tide</p>
+                <h3>A depth that<br>breathes on its own.</h3>
+                <p>
+                  Fathom is the first of the deep family: a dense, smooth
+                  space with a tide of its own. Slow filtered voices open and
+                  close the room over about 18 seconds, like the dark below
+                  the light. Evolution brings the tide in; at zero the depth
+                  stands perfectly still.
+                </p>
+              </div>
+              <dl class="mode-panel__facts">
+                <div>
+                  <dt>Core</dt>
+                  <dd>Dense 16-line network</dd>
+                </div>
+                <div>
+                  <dt>Tide</dt>
+                  <dd>About 18 seconds</dd>
+                </div>
+                <div>
+                  <dt>Evolution</dt>
+                  <dd>Still depth to full tide</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article
+              class="mode-panel"
+              id="mode-panel-undertow"
+              role="tabpanel"
+              aria-labelledby="mode-tab-undertow"
+              data-character-panel="6"
+              hidden
+            >
+              <div class="mode-panel__statement">
+                <p class="mode-kicker">Pulled back under</p>
+                <h3>What you played<br>returns in reverse.</h3>
+                <p>
+                  Undertow takes the last beats under and sends them back
+                  reversed, through three voices: at pitch, an octave up and
+                  an octave down. Their phrases are cut to the bar and follow
+                  the tempo and position of the host, so the pull always lands
+                  in time. Evolution lets the voices in, one by one.
+                </p>
+              </div>
+              <dl class="mode-panel__facts">
+                <div>
+                  <dt>Voices</dt>
+                  <dd>At pitch · octave up · octave down</dd>
+                </div>
+                <div>
+                  <dt>Phrases</dt>
+                  <dd>1/3, 1/2 and 2/3 of a bar</dd>
+                </div>
+                <div>
+                  <dt>Sync</dt>
+                  <dd>Host tempo and position</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article
+              class="mode-panel"
+              id="mode-panel-spume"
+              role="tabpanel"
+              aria-labelledby="mode-tab-spume"
+              data-character-panel="7"
+              hidden
+            >
+              <div class="mode-panel__statement">
+                <p class="mode-kicker">The wave breaks first</p>
+                <h3>Every strike<br>becomes spray.</h3>
+                <p>
+                  Spume breaks every sound before it reaches the deep. A
+                  28-stage all-pass diffuser spreads each attack into a fine,
+                  slow spray that hangs for about a second and then sinks into
+                  the reverb below. Evolution moves from a clean strike to
+                  pure spume.
+                </p>
+              </div>
+              <dl class="mode-panel__facts">
+                <div>
+                  <dt>Diffuser</dt>
+                  <dd>28 all-pass stages</dd>
+                </div>
+                <div>
+                  <dt>Spray</dt>
+                  <dd>About one second</dd>
+                </div>
+                <div>
+                  <dt>Evolution</dt>
+                  <dd>Clean strike to pure spume</dd>
+                </div>
+              </dl>
+            </article>
           </div>
         </div>
       </div>
@@ -512,7 +717,7 @@
         <div class="macro-feature macro-feature--evolution surface" data-reveal>
           <div class="macro-feature__copy">
             <p class="eyebrow">Evolution</p>
-            <h2>One gesture.<br><em>Five forms of motion.</em></h2>
+            <h2>One gesture.<br><em>Eight forms of motion.</em></h2>
             <p>
               Evolution is not a generic modulation amount. It knows the
               selected character and moves the parameters that define its
@@ -526,6 +731,9 @@
               <li><b>Drift</b><span>Spectral span and kernel balance</span></li>
               <li><b>Veil</b><span>Cloud density and AP6 amount</span></li>
               <li><b>Current</b><span>Coherent delay, damping and stereo flow</span></li>
+              <li><b>Fathom</b><span>Depth of the slow tide</span></li>
+              <li><b>Undertow</b><span>Three reversed voices, one by one</span></li>
+              <li><b>Spume</b><span>Clean strike to full spray</span></li>
             </ul>
           </div>
 
@@ -700,7 +908,7 @@
           <article class="control-card control-card--freeze" data-reveal>
             <span class="control-card__index">08</span>
             <h3>Freeze</h3>
-            <p>Fades the input away, preserves fractional-delay motion and keeps the held loop protected by an independent 3 Hz DC Guard.</p>
+            <p>Fades the input away and keeps new sound out in every character, preserves fractional-delay motion and protects the held loop with an independent 3 Hz DC Guard.</p>
             <button
               class="freeze-demo"
               type="button"
@@ -725,7 +933,9 @@
             Ocean begins with an eight-line Feedback Delay Network. Prime-scaled,
             decorrelated lengths feed an orthonormal matrix, so density can grow
             without the loop inventing energy. Character processing changes how
-            the space develops—not whether it remains stable.
+            the space develops—not whether it remains stable. Fathom, Undertow
+            and Spume run beside it on a denser 16-line network of their own
+            and trade places with the core in a 200&nbsp;ms crossfade.
           </p>
         </div>
 
@@ -739,13 +949,13 @@
           <div class="signal-node signal-node--core">
             <span>02</span>
             <b>FDN Core</b>
-            <small>8 lines · orthonormal feedback</small>
+            <small>8 lines · orthonormal feedback · 16-line deep network</small>
           </div>
           <i aria-hidden="true"></i>
           <div class="signal-node">
             <span>03</span>
             <b>Character</b>
-            <small>Bloom · Drift · Veil · Current</small>
+            <small>Bloom · Drift · Veil · Current · Fathom · Undertow · Spume</small>
           </div>
           <i aria-hidden="true"></i>
           <div class="signal-node">
@@ -801,7 +1011,7 @@
                 <span class="status-dot" aria-hidden="true"></span>
                 <strong>Preview release</strong>
               </div>
-              <span>v0.21.0</span>
+              <span>v0.24.0</span>
             </div>
 
             <div class="platform-list">
@@ -811,9 +1021,9 @@
                 <p>VST3 · Audio Unit · CLAP</p>
                 <a
                   class="download-button"
-                  href="downloads/0.21.0/Amanita-Ocean-0.21.0-macOS-arm64.zip"
+                  href="downloads/0.24.0/Amanita-Ocean-0.24.0-macOS-arm64.zip"
                   download
-                  aria-label="Download Amanita Ocean 0.21.0 for macOS Apple Silicon"
+                  aria-label="Download Amanita Ocean 0.24.0 for macOS Apple Silicon"
                   data-umami-event="download-macos-arm64"
                 >
                   <span>Download</span>
@@ -826,9 +1036,9 @@
                 <p>VST3 · CLAP</p>
                 <a
                   class="download-button"
-                  href="downloads/0.21.0/Amanita-Ocean-0.21.0-Windows-x64.zip"
+                  href="downloads/0.24.0/Amanita-Ocean-0.24.0-Windows-x64.zip"
                   download
-                  aria-label="Download Amanita Ocean 0.21.0 for Windows x64"
+                  aria-label="Download Amanita Ocean 0.24.0 for Windows x64"
                   data-umami-event="download-windows-x64"
                 >
                   <span>Download</span>
@@ -841,9 +1051,9 @@
                 <p>VST3 · CLAP</p>
                 <a
                   class="download-button"
-                  href="downloads/0.21.0/Amanita-Ocean-0.21.0-Linux-x64.tar.gz"
+                  href="downloads/0.24.0/Amanita-Ocean-0.24.0-Linux-x64.tar.gz"
                   download
-                  aria-label="Download Amanita Ocean 0.21.0 for Linux x64"
+                  aria-label="Download Amanita Ocean 0.24.0 for Linux x64"
                   data-umami-event="download-linux-x64"
                 >
                   <span>Download</span>
@@ -852,10 +1062,18 @@
               </article>
             </div>
 
+            <div class="terminal-install">
+              <p>macOS without security prompts: quit your DAW, paste this line into Terminal and press Return.</p>
+              <code
+                class="install-command"
+                data-umami-event="select-macos-terminal-install"
+              >curl -fsSL https://ocean.amanita.music/install-macos.sh | bash</code>
+            </div>
+
             <div class="release-foot">
               <p>Preview binaries · macOS ad-hoc signed · Windows unsigned</p>
               <a
-                href="downloads/0.21.0/SHA256SUMS.txt"
+                href="downloads/0.24.0/SHA256SUMS.txt"
                 data-umami-event="download-sha256-manifest"
               >SHA-256 checksums</a>
             </div>
