@@ -211,8 +211,13 @@ void OceanShaderBackground::renderOpenGL()
                                                   : 1)
                             * scale));
 
-    glBindFramebuffer(GL_FRAMEBUFFER,
-                      juce::OpenGLFrameBuffer::getCurrentFrameBufferTarget());
+    // A context without framebuffer objects, which newOpenGLContextCreated()
+    // has refused, has its window alone to draw into and no function to bind
+    // anything else: Windows' own OpenGL 1.1 over a remote desktop or without
+    // a display driver is one.
+    if (glBindFramebuffer != nullptr)
+        glBindFramebuffer(GL_FRAMEBUFFER,
+                          juce::OpenGLFrameBuffer::getCurrentFrameBufferTarget());
     glViewport(0, 0, width, height);
 
     if (! ready_.load(std::memory_order_acquire)
