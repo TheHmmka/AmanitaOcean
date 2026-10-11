@@ -2021,13 +2021,13 @@ main,
   outline-offset: 3px;
 }
 
+/* The Terminal route belongs to the macOS row: a second line across it. */
 .terminal-install {
   display: grid;
+  grid-column: 1 / -1;
   gap: 10px;
-  padding: 16px 18px 18px 24px;
-  border: 1px solid var(--line);
-  border-top: 0;
-  background: rgba(4, 17, 21, 0.91);
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
 }
 
 .terminal-install p {
@@ -2455,7 +2455,8 @@ main,
   }
 
   .terminal-install {
-    padding: 18px 22px 22px;
+    margin-top: 18px;
+    padding-top: 16px;
   }
 
   .release-foot {

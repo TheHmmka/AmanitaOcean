@@ -1,0 +1,39 @@
+Amanita Ocean macOS preview installer
+
+This preview package supports Apple Silicon (arm64). It contains VST3, AU, and
+CLAP versions of Amanita Ocean.
+
+1. Unzip the archive completely. Keep the installer beside the three plugin
+   bundles: Amanita Ocean.vst3, Amanita Ocean.component, and Amanita Ocean.clap.
+2. Quit your DAW.
+3. Double-click Install Amanita Ocean.command and follow its messages. It installs
+   the plugins for your user account and does not need administrator access.
+4. When it finishes, reopen your DAW and rescan plugins.
+
+If macOS blocks the installer, open System Settings > Privacy & Security and use
+Open Anyway if macOS offers that option. Another way to run the downloaded
+installer is to open Terminal, type `/bin/bash ` (including the trailing space),
+drag the exact Install Amanita Ocean.command file from Finder into the Terminal
+window, then press Return. Only run an installer from a package you trust.
+
+The installer removes only the com.apple.quarantine attribute from these Amanita
+Ocean plugin bundles. It does not change global macOS security settings. If a
+plugin with the same name is already installed, the installer saves it as a
+backup and prints the backup location. If installation reports an error, follow
+the message shown by the installer before rescanning your DAW.
+
+To restore a backup, first quit your DAW and move the currently installed Amanita
+Ocean bundle at that exact destination elsewhere. Then move the backup into its
+place and restore its original name. Do not merge the old and new bundle folders.
+
+If an installation was interrupted by a shutdown or force quit, a retry may
+report unfinished recovery files and stop. Keep those files. A previous plugin
+may be in the reported previous/ folder as VST3.backup, Components.backup, or
+CLAP.backup. Following the backup procedure above, restore the needed folder
+to its normal plugin location and name
+(Amanita Ocean.vst3, Amanita Ocean.component, or Amanita Ocean.clap) before
+removing the pending file in each reported recovery folder and the empty lock
+folder reported in the error. Do not remove these while an installer is running.
+
+This preview is ad-hoc signed and is not notarized. macOS may show a warning or
+require you to allow the installer to run.

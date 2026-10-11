@@ -52,7 +52,8 @@ version in place; publish a new versioned directory instead.
 
 ## macOS Terminal install
 
-The download panel shows a one-line install for macOS:
+The macOS row of the download panel shows a one-line install under its
+download button:
 
 ```sh
 curl -fsSL https://ocean.amanita.music/install-macos.sh | bash

@@ -26,7 +26,7 @@
   <meta name="twitter:image" content="https://ocean.amanita.music/assets/amanita-ocean-social.png">
 
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="styles.css?v=0240">
+  <link rel="stylesheet" href="styles.css?v=0240b">
   <script
     defer
     src="https://stats.amanita.music/script.js"
@@ -1029,6 +1029,13 @@
                   <span>Download</span>
                   <small>ZIP</small>
                 </a>
+                <div class="terminal-install">
+                  <p>Or install from Terminal, without security prompts: quit your DAW, paste this line and press Return.</p>
+                  <code
+                    class="install-command"
+                    data-umami-event="select-macos-terminal-install"
+                  >curl -fsSL https://ocean.amanita.music/install-macos.sh | bash</code>
+                </div>
               </article>
               <article>
                 <span>Windows</span>
@@ -1060,14 +1067,6 @@
                   <small>TAR.GZ</small>
                 </a>
               </article>
-            </div>
-
-            <div class="terminal-install">
-              <p>macOS without security prompts: quit your DAW, paste this line into Terminal and press Return.</p>
-              <code
-                class="install-command"
-                data-umami-event="select-macos-terminal-install"
-              >curl -fsSL https://ocean.amanita.music/install-macos.sh | bash</code>
             </div>
 
             <div class="release-foot">

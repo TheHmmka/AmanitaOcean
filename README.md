@@ -858,14 +858,14 @@ Preview рассчитан на Apple Silicon (arm64). Установщик не
 опубликованному на сайте.
 
 ```sh
-./scripts/package-macos.sh build/AmanitaOcean_artefacts/Release dist/Amanita-Ocean-0.21.0-macOS-arm64-installer-preview.zip
+./scripts/package-macos.sh build/AmanitaOcean_artefacts/Release dist/Amanita-Ocean-0.24.0-macOS-arm64.zip
 ```
 
 Скрипт печатает SHA-256 созданного архива. Для проверки установщика на macOS с
 реальными bundle используйте архив релиза:
 
 ```sh
-python3 Tests/test_macos_installer.py site/downloads/0.21.0/Amanita-Ocean-0.21.0-macOS-arm64.zip
+python3 Tests/test_macos_installer.py site/downloads/0.24.0/Amanita-Ocean-0.24.0-macOS-arm64.zip
 ```
 
 Тест распаковывает архив в `/private/tmp` и задаёт временную папку установки
