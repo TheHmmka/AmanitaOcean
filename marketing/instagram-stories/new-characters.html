@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=1080, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Amanita Ocean — New Reverb Characters</title>
+    <link rel="stylesheet" href="new-characters.css">
+  </head>
+  <body>
+    <main class="story" aria-labelledby="story-title">
+      <div class="ocean" aria-hidden="true"></div>
+      <div class="wash" aria-hidden="true"></div>
+      <div class="grain" aria-hidden="true"></div>
+
+      <header class="masthead">
+        <div class="brand" aria-label="Amanita Ocean">
+          <p class="brand__name">AMANITA <span>OCEAN</span></p>
+          <p class="brand__descriptor">EVOLVING SPACE REVERB</p>
+        </div>
+        <span class="edition">FIRST LOOK</span>
+      </header>
+
+      <section class="intro">
+        <p class="eyebrow"><span></span>NEW REVERB</p>
+        <h1 id="story-title">CHARACTERS</h1>
+        <p class="intro__line">Three new depths of sound.</p>
+      </section>
+
+      <section class="characters" aria-label="Three new reverb characters">
+        <article class="character character--fathom" aria-labelledby="fathom-title">
+          <div class="character__art" aria-hidden="true"></div>
+          <p class="character__label"><span>01</span>DEPTH / EVOLUTION</p>
+          <h2 id="fathom-title">FATHOM</h2>
+          <p class="character__description">Deep, slowly evolving space.</p>
+        </article>
+
+        <article class="character character--undertow" aria-labelledby="undertow-title">
+          <div class="character__art" aria-hidden="true"></div>
+          <p class="character__label"><span>02</span>REVERSE / RHYTHM</p>
+          <h2 id="undertow-title">UNDERTOW</h2>
+          <p class="character__description">Tempo-synced reverse voices.</p>
+        </article>
+
+        <article class="character character--spume" aria-labelledby="spume-title">
+          <div class="character__art" aria-hidden="true"></div>
+          <p class="character__label"><span>03</span>DIFFUSION / CLOUD</p>
+          <h2 id="spume-title">SPUME</h2>
+          <p class="character__description">Transients dissolve into a soft cloud.</p>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <p class="site">ocean.amanita.music</p>
+      </footer>
+
+      <div class="safe-area" aria-hidden="true"></div>
+    </main>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      document.querySelector(".story").dataset.guides = params.get("guides") === "1";
+      const artwork = ["01-default.png", "03-drift.png", "04-veil.png"];
+      const loadedArtwork = artwork.map((filename) => {
+        const image = new Image();
+        image.src = `backgrounds/${filename}`;
+        return image.decode();
+      });
+      Promise.all([document.fonts.ready, ...loadedArtwork]).then(() => {
+        document.body.dataset.ready = "true";
+      }).catch(() => {
+        document.body.dataset.ready = "error";
+      });
+    </script>
+  </body>
+</html>

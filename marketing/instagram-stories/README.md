@@ -43,3 +43,23 @@ only that isolated process before moving to the next Character.
 | Drift | `#829de0` | `03-amanita-ocean-drift-story.png` |
 | Veil | `#b3a6c4` | `04-amanita-ocean-veil-story.png` |
 | Current | `#74c6a8` | `05-amanita-ocean-current-story.png` |
+
+## New Characters Story
+
+Preview the approved single-slide Story at:
+
+```text
+new-characters.html
+```
+
+Render it with:
+
+```bash
+./marketing/instagram-stories/render-new-characters.sh
+```
+
+The renderer writes `final/06-amanita-ocean-new-characters-story.png` and
+fails unless the PNG is exactly `1080 × 1920`. The Story introduces `Fathom`,
+`Undertow`, and `Spume`. The composition reuses the local
+`01-default.png`, `03-drift.png`, and `04-veil.png` artworks as abstract
+supporting textures with deterministic CSS; no new AI generation is needed.
