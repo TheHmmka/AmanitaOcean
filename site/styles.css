@@ -11,6 +11,7 @@
   --deep-2: #071a1f;
   --surface: rgba(6, 22, 26, 0.68);
   --surface-strong: rgba(5, 18, 22, 0.88);
+  --font-display: Georgia, "Times New Roman", serif;
   --page-width: 1240px;
   --header-height: 74px;
   --radius-sm: 14px;
@@ -68,7 +69,7 @@ html {
 }
 
 body {
-  min-width: 320px;
+  min-width: min(320px, 100%);
   margin: 0;
   overflow-x: hidden;
   color: var(--ink);
@@ -127,10 +128,19 @@ h3 {
   text-wrap: balance;
 }
 
+h1,
+h2,
+.deep-card h3,
+.release-card h3,
+.mode-panel h3,
+.macro-card h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+
 h1 em,
 h2 em {
   color: var(--accent);
-  font-family: Iowan Old Style, Baskerville, "Times New Roman", serif;
   font-weight: 400;
   transition: color 0.65s var(--ease-out);
 }
@@ -376,16 +386,15 @@ main,
 .hero h1 {
   max-width: 720px;
   font-size: clamp(38px, 4.3vw, 64px);
-  font-weight: 480;
-  letter-spacing: -0.055em;
-  line-height: 0.98;
+  letter-spacing: -0.025em;
+  line-height: 1.04;
 }
 
 .hero h1 em {
   display: inline-block;
   margin-top: 0.1em;
   font-size: 1em;
-  letter-spacing: -0.045em;
+  letter-spacing: inherit;
 }
 
 .hero__lead {
@@ -575,9 +584,8 @@ main,
 .macro-feature h2,
 .formats h2 {
   font-size: clamp(32px, 3.6vw, 50px);
-  font-weight: 420;
-  letter-spacing: -0.052em;
-  line-height: 1.05;
+  letter-spacing: -0.025em;
+  line-height: 1.04;
 }
 
 .section-heading > p:last-child,
@@ -654,8 +662,7 @@ main,
 .deep-card h3 {
   margin-top: 28px;
   font-size: clamp(25px, 2.3vw, 33px);
-  font-weight: 420;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.025em;
   line-height: 1.1;
 }
 
@@ -752,9 +759,8 @@ main,
 .release-card h3 {
   margin-top: 30px;
   font-size: clamp(34px, 4vw, 56px);
-  font-weight: 420;
-  letter-spacing: -0.048em;
-  line-height: 1.05;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
 }
 
 .release-card > p,
@@ -1184,9 +1190,8 @@ main,
 .mode-panel h3 {
   max-width: 680px;
   font-size: clamp(34px, 4vw, 54px);
-  font-weight: 420;
-  letter-spacing: -0.045em;
-  line-height: 1.05;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
 }
 
 .mode-panel__statement > p:last-child {
@@ -1493,8 +1498,7 @@ main,
 
 .macro-card h3 {
   font-size: clamp(32px, 3.3vw, 46px);
-  font-weight: 430;
-  letter-spacing: -0.043em;
+  letter-spacing: -0.025em;
   line-height: 1.08;
 }
 
